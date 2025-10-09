@@ -1,0 +1,22 @@
+{
+  "name": "hbakery",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Ally Shaban",
+  "license": "ISC",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "express": "^5.1.0",
+    "formidable": "^3.5.4",
+    "jsonwebtoken": "^9.0.2",
+    "moment": "^2.30.1",
+    "nconf": "^0.13.0",
+    "pg": "^8.16.3",
+    "winston": "^3.18.3",
+    "winston-daily-rotate-file": "^5.0.0"
+  }
+}

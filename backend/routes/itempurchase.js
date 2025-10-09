@@ -1,0 +1,154 @@
+const formidable = require('formidable');
+const express = require('express');
+const router = express.Router();
+const pool = require('../db');
+
+// Create Purchase
+router.post('/', async (req, res) => {
+  console.log('request received')
+  const form = new formidable.IncomingForm();
+  form.parse(req, async (err, fields, files) => {
+    try {
+      const result = await pool.query(
+        'INSERT INTO itempurchase (item_id, quantity, price, date) VALUES ($1, $2, $3, $4) RETURNING *',
+        [fields.item_id?.[0], fields.quantity?.[0], fields.price?.[0], fields.date?.[0]]
+      );
+      res.json(result.rows[0]);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  })
+});
+
+// Get all Purchases with Item info
+router.get('/', async (req, res) => {
+  try {
+    // Pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    // Filters
+    const { item_id, date, date_from, date_to, date_gt, date_lt } = req.query;
+
+    // Build dynamic WHERE clause
+    let whereClauses = [];
+    let params = [];
+    let paramIndex = 1;
+
+    if (item_id) {
+      whereClauses.push(`p.item_id = $${paramIndex++}`);
+      params.push(item_id);
+    }
+
+    if (date) {
+      whereClauses.push(`p.date::date = $${paramIndex++}`);
+      params.push(date);
+    }
+
+    if (date_from && date_to) {
+      whereClauses.push(`p.date::date BETWEEN $${paramIndex++} AND $${paramIndex++}`);
+      params.push(date_from, date_to);
+    } else if (date_from) {
+      whereClauses.push(`p.date::date >= $${paramIndex++}`);
+      params.push(date_from);
+    } else if (date_to) {
+      whereClauses.push(`p.date::date <= $${paramIndex++}`);
+      params.push(date_to);
+    }
+
+    if (date_gt) {
+      whereClauses.push(`p.date::date > $${paramIndex++}`);
+      params.push(date_gt);
+    }
+
+    if (date_lt) {
+      whereClauses.push(`p.date::date < $${paramIndex++}`);
+      params.push(date_lt);
+    }
+
+    const whereSQL = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+    // Main query with pagination
+    const mainQuery = `
+      SELECT 
+        p.id,
+        i.name AS item_name,
+        i.id AS item_id,
+        TO_CHAR(p.quantity, 'FM999,999,999') AS quantity,
+        TO_CHAR(ROUND(p.price, 2), 'FM999,999,999.00') AS price,
+        TO_CHAR(ROUND(p.quantity * p.price, 2), 'FM999,999,999.00') AS total,
+        TO_CHAR(p.date::date, 'DD-MM-YYYY') AS date
+      FROM itempurchase p
+      LEFT JOIN item i ON p.item_id = i.id
+      ${whereSQL}
+      ORDER BY p.id
+      LIMIT $${paramIndex++} OFFSET $${paramIndex++};
+    `;
+    params.push(limit, offset);
+
+    const result = await pool.query(mainQuery, params);
+
+    // Count total matching records
+    const countQuery = `
+      SELECT COUNT(*) FROM itempurchase p
+      ${whereSQL};
+    `;
+    const countResult = await pool.query(countQuery, params.slice(0, paramIndex - 3)); // exclude pagination params
+    const totalRecords = parseInt(countResult.rows[0].count);
+    const totalPages = Math.ceil(totalRecords / limit);
+
+    // Totals (quantity & amount) for filtered data
+    const totalsQuery = `
+      SELECT 
+        TO_CHAR(SUM(p.quantity), 'FM999,999,999') AS total_quantity,
+        TO_CHAR(SUM(ROUND(p.quantity * p.price, 2)), 'FM999,999,999.00') AS total_amount
+      FROM itempurchase p
+      ${whereSQL};
+    `;
+    const totalsResult = await pool.query(totalsQuery, params.slice(0, paramIndex - 3));
+    const { total_quantity, total_amount } = totalsResult.rows[0];
+    // Response
+    res.json({
+      page,
+      limit,
+      totalRecords,
+      totalPages,
+      total_quantity,
+      total_amount,
+      data: result.rows
+    });
+  } catch (err) {
+    console.error('Error loading purchases:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update Purchase
+router.put('/:id', async (req, res) => {
+  const { id } = req.params;
+  const form = new formidable.IncomingForm();
+  form.parse(req, async (err, fields, files) => {
+    try {
+      const result = await pool.query(
+        'UPDATE itempurchase SET item_id=$1, quantity=$2, price=$3, date=$4 WHERE id=$5 RETURNING *',
+        [fields.item_id?.[0], fields.quantity?.[0], fields.price?.[0], fields.date?.[0], id]
+      );
+      res.json(result.rows[0]);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  })
+});
+
+// Delete Purchase
+router.delete('/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM itempurchase WHERE id=$1', [req.params.id]);
+    res.json({ message: 'Purchase deleted' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+module.exports = router;
