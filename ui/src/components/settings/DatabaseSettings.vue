@@ -95,8 +95,8 @@
   const settingComponent = ref(null)
 
   const menuItems = {
-    ItemUnit: { label: 'Item Units', icon: 'mdi-domain' },
-    Item: { label: 'Items', icon: 'mdi-domain' },
+    ItemUnit: { label: 'Ingredients Units', icon: 'mdi-domain' },
+    Item: { label: 'Ingredients', icon: 'mdi-domain' },
     Products: { label: 'Products', icon: 'mdi-domain' },
   }
 

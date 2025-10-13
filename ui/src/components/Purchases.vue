@@ -81,7 +81,7 @@
     <div class="d-flex justify-space-between mb-4">
       <h3>Items Purchased</h3>
       <v-btn color="primary" class="text-white" size="small" @click="openAddDialog">
-        <v-icon start>mdi-plus</v-icon> Add New
+        <v-icon start>mdi-plus</v-icon> Add Purchase
       </v-btn>
     </div>
 

@@ -4,6 +4,32 @@ const router = express.Router();
 const formidable = require('formidable');
 const pool = require('../db');
 
+router.get('/availableStock', async (req, res) => {
+  try {
+    const sql = `
+      SELECT 
+        i.id AS item_id,
+        i.name AS item_name,
+        COALESCE(SUM(CASE WHEN il.type = 'IN' THEN il.quantity ELSE 0 END), 0) AS total_in,
+        COALESCE(SUM(CASE WHEN il.type = 'OUT' THEN il.quantity ELSE 0 END), 0) AS total_out,
+        COALESCE(SUM(CASE WHEN il.type = 'IN' THEN il.quantity ELSE 0 END), 0) -
+        COALESCE(SUM(CASE WHEN il.type = 'OUT' THEN il.quantity ELSE 0 END), 0) AS available_qty,
+        MAX(il.movement_date) AS last_movement_date
+      FROM item i
+      LEFT JOIN item_ledger il ON il.item_id = i.id
+      GROUP BY i.id, i.name
+      ORDER BY i.name;
+    `;
+
+    const result = await pool.query(sql);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('❌ Error fetching available stock:', err);
+    res.status(500).json({ error: 'Failed to fetch available stock' });
+  }
+});
+
+
 // Create Item
 router.post('/', async (req, res) => {
   const form = new formidable.IncomingForm();
