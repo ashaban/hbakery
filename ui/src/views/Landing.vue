@@ -28,28 +28,6 @@
           {{ item.title }}
         </v-btn>
 
-        <v-menu offset-y>
-          <template #activator="{ props }">
-            <v-btn
-              v-bind="props"
-              class="text-lowercase mr-2"
-              color="yellow"
-              variant="text"
-            >
-              {{ language }}
-            </v-btn>
-          </template>
-          <v-list>
-            <v-list-item
-              v-for="lang in availableLocales"
-              :key="lang.value"
-              @click="changeLanguage(lang.value)"
-            >
-              <v-list-item-title>{{ lang.text }}</v-list-item-title>
-            </v-list-item>
-          </v-list>
-        </v-menu>
-
         <v-btn
           class="text-green-darken-4 font-weight-bold"
           color="yellow"
@@ -116,12 +94,9 @@
 <script setup>
   import { onMounted, ref } from 'vue'
   import { useRouter } from 'vue-router'
-  import { setI18nLanguage } from '@/i18n'
-  import { useI18n } from 'vue-i18n'
   import StatusByCoverage from '@/components/reports/Charts/StatusByCoverage'
 
   const router = useRouter()
-  const { locale } = useI18n()
   const language = ref('English')
   const reloadDashboards = ref(0)
   const benId = ref(1)
@@ -194,29 +169,6 @@
     { title: 'Research Publications', link: '#' },
     { title: 'Weather Data', link: '#' },
   ])
-
-  const availableLocales = ref([{
-    text: 'English',
-    value: 'en',
-  }, {
-    text: 'Kiswahili',
-    value: 'sw',
-  }])
-  language.value = availableLocales.value.find(lang => {
-    return lang.value === locale.value
-  }).text
-
-  const changeLanguage = async newLocale => {
-    language.value = availableLocales.value.find(lang => {
-      return lang.value === newLocale
-    }).text
-    try {
-      await setI18nLanguage(newLocale)
-      localStorage.setItem('user-locale', newLocale)
-    } catch (e) {
-      console.error('Failed to change language:', e)
-    }
-  }
 
   const scrollTo = sectionId => {
     const element = document.getElementById(sectionId)

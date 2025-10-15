@@ -1600,8 +1600,12 @@ const canSave = computed(() => {
   if(isAddingActual.value) {
     hasValidActual = form.actual_qty !== null && form.actual_qty >= 0
   }
+  let hasProducedAt = true
+  if(form.actual_qty && !form.produced_at) {
+    hasProducedAt = false
+  }
 
-  return hasValidProduct && hasValidIngredients && hasValidQuantity && hasValidStaff && hasValidActual && !hasInsufficientStock.value && !saving.value
+  return hasValidProduct && hasValidIngredients && hasValidQuantity && hasValidStaff && hasValidActual && !hasInsufficientStock.value && form.planned_at && hasProducedAt && !saving.value
 })
 
 async function loadAvailableStock() {

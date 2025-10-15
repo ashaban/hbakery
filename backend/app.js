@@ -11,6 +11,7 @@ const purchaseRoutes = require('./routes/itempurchase');
 const productsRoutes = require('./routes/products');
 const productionRoutes = require('./routes/production');
 const staffRoutes = require('./routes/staffs');
+const reportRoutes = require('./routes/reports');
 
 const jwtValidator = function (req, res, next) {
   let allowedPaths = ['/authenticate'];
@@ -62,6 +63,7 @@ app.use('/purchases', purchaseRoutes);
 app.use('/products', productsRoutes);
 app.use('/productions', productionRoutes);
 app.use('/staffs', staffRoutes);
+app.use('/reports', reportRoutes);
 
 app.get('/', (req, res) => {
   res.send('PostgreSQL Item Management API');

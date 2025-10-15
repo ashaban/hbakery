@@ -90,6 +90,10 @@ export default defineConfig({
         target: 'http://localhost:3007/',
         logLevel: 'debug',
       },
+      '^/reports': {
+        target: 'http://localhost:3007/',
+        logLevel: 'debug',
+      },
       '^/login': {
         target: 'http://localhost:3007/',
         logLevel: 'debug',

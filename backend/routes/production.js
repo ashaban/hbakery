@@ -22,7 +22,7 @@ router.get('/discrepancyReasons', async (req, res) => {
 router.post('/', async (req, res) => {
   const client = await pool.connect();
   try {
-    const { product_id, mode, qty_product, base_ingredient_id, base_ingredient_qty, notes, ingredients, staffs, planned_at, produced_at } = req.body;
+    const { product_id, mode, qty_product, base_ingredient_id, base_ingredient_qty, notes, ingredients, staffs, planned_at, produced_at, actual_qty, discrepancies } = req.body;
     if (!product_id || !qty_product || !Array.isArray(ingredients) || ingredients.length === 0) {
       return res.status(400).json({ error: 'Missing required data' });
     }
@@ -74,7 +74,7 @@ router.post('/', async (req, res) => {
     }
 
     // Discrepancy reasons
-    for (const descrepancy of discrepancy_reason_ids) {
+    for (const descrepancy of discrepancies) {
       await client.query(
         `INSERT INTO product_production_discrepancy (production_id, reason_id, notes)
          VALUES ($1,$2,$3)`,

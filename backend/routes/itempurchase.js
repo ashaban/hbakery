@@ -134,6 +134,8 @@ router.put('/:id', async (req, res) => {
   const { id } = req.params;
   const form = new formidable.IncomingForm();
   form.parse(req, async (err, fields, files) => {
+    let quantity = fields.quantity?.[0]
+    let item_id = fields.item_id?.[0]
     try {
       const cur = await pool.query(
       `SELECT item_id, quantity::numeric, price::numeric FROM itempurchase WHERE id = $1`,
@@ -181,7 +183,7 @@ router.put('/:id', async (req, res) => {
       await pool.query(
         `INSERT INTO item_ledger (item_id, purchase_id, type, quantity, unit_price, movement_date)
         VALUES ($1, $2, 'IN', $3, $4, $5)`,
-        [newItemId, id, newQty, price ?? old.price, fields.date?.[0]]
+        [newItemId, id, newQty, fields.price?.[0] ?? old.price, fields.date?.[0]]
       );
 
       await pool.query('COMMIT');
@@ -190,8 +192,6 @@ router.put('/:id', async (req, res) => {
       await pool.query('ROLLBACK');
       console.error('Update purchase failed', err);
       res.status(500).json({ error: 'Failed to update purchase' });
-    } finally {
-      pool.release();
     }
   })
 });

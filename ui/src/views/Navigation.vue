@@ -83,6 +83,22 @@
       </v-list-item>
       <v-list-item
         class="rounded-lg"
+        to="ProfitProjection"
+        value="ProfitProjection"
+      >
+        <template #prepend>
+          <v-avatar
+            color="purple-lighten-5"
+            rounded="lg"
+            size="40"
+          >
+            <v-icon color="purple-darken-2" icon="mdi-animation" />
+          </v-avatar>
+        </template>
+        <v-list-item-title class="font-weight-medium">Profit Projection</v-list-item-title>
+      </v-list-item>
+      <v-list-item
+        class="rounded-lg"
         to="Staffs"
         value="Staffs"
       >

@@ -25,28 +25,6 @@
         {{ $store.state.auth.name }}
       </div>
 
-      <v-menu offset-y>
-        <template #activator="{ props }">
-          <v-btn
-            v-bind="props"
-            class="text-lowercase mr-2"
-            color="yellow"
-            variant="text"
-          >
-            {{ language }}
-          </v-btn>
-        </template>
-        <v-list>
-          <v-list-item
-            v-for="lang in availableLocales"
-            :key="lang.value"
-            @click="changeLanguage(lang.value)"
-          >
-            <v-list-item-title>{{ lang.text }}</v-list-item-title>
-          </v-list-item>
-        </v-list>
-      </v-menu>
-
       <v-btn
         color="white"
         dark
@@ -61,38 +39,7 @@
 </template>
 
 <script setup>
-  import { ref } from 'vue'
-  import { setI18nLanguage } from '@/i18n'
-  import { useI18n } from 'vue-i18n'
 
-  const { locale } = useI18n()
-  const language = ref('English')
-  const loading = ref(false)
-  const availableLocales = ref([{
-    text: 'English',
-    value: 'en',
-  }, {
-    text: 'Kiswahili',
-    value: 'sw',
-  }])
-  language.value = availableLocales.value.find(lang => {
-    return lang.value === locale.value
-  }).text
-
-  const changeLanguage = async newLocale => {
-    language.value = availableLocales.value.find(lang => {
-      return lang.value === newLocale
-    }).text
-    loading.value = true
-    try {
-      await setI18nLanguage(newLocale)
-      localStorage.setItem('user-locale', newLocale)
-    } catch (e) {
-      console.error('Failed to change language:', e)
-    } finally {
-      loading.value = false
-    }
-  }
 </script>
 
 <style scoped>
