@@ -54,6 +54,7 @@ const jwtValidator = function (req, res, next) {
 app.use(express.json());
 
 // Base routes
+app.use('/', express.static(`${__dirname}/gui`));
 app.use('/login/', loginRoutes);
 app.use(jwtValidator);
 app.use('/users', usersRoutes);
