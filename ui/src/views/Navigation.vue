@@ -132,7 +132,7 @@
 
       <v-list-item
         class="rounded-lg"
-        to="ReportsBase"
+        to="ReportsList"
         value="reports"
       >
         <template #prepend>

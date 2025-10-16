@@ -137,4 +137,106 @@ router.get('/productionProfitability', async (req, res) => {
   }
 });
 
+router.get('/stockStatus', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { start_date, end_date, items } = req.query;
+
+    const where = [];
+    const params = [];
+
+    // Filter by ingredients (multiple)
+    if (items) {
+      const arr = Array.isArray(items) ? items : [items];
+      const placeholders = arr.map((_, i) => `$${params.length + i + 1}`).join(',');
+      params.push(...arr);
+      where.push(`i.id IN (${placeholders})`);
+    }
+
+    const whereSQL = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    // 🧾 Opening balance (before start date)
+    const openingSQL = `
+      SELECT 
+        i.id AS item_id,
+        i.name AS item_name,
+        COALESCE(SUM(il.quantity), 0) AS opening_balance
+      FROM item i
+      LEFT JOIN item_ledger il ON il.item_id = i.id
+        AND il.movement_date < $1::date
+      ${whereSQL ? `${whereSQL.replace('i.id', 'i.id')}` : ''}
+      GROUP BY i.id, i.name
+    `;
+
+    // 📥 Inward movements within the range
+    const inwardSQL = `
+      SELECT 
+        i.id AS item_id,
+        COALESCE(SUM(il.quantity), 0) AS inwards
+      FROM item i
+      LEFT JOIN item_ledger il ON il.item_id = i.id
+        AND il.type = 'IN'
+        AND il.movement_date BETWEEN $1::date AND $2::date
+      ${whereSQL ? `${whereSQL.replace('i.id', 'i.id')}` : ''}
+      GROUP BY i.id
+    `;
+
+    // 📤 Outward movements within the range
+    const outwardSQL = `
+      SELECT 
+        i.id AS item_id,
+        COALESCE(SUM(ABS(il.quantity)), 0) AS outwards
+      FROM item i
+      LEFT JOIN item_ledger il ON il.item_id = i.id
+        AND il.type = 'OUT'
+        AND il.movement_date BETWEEN $1::date AND $2::date
+      ${whereSQL ? `${whereSQL.replace('i.id', 'i.id')}` : ''}
+      GROUP BY i.id
+    `;
+
+    const openingRes = await client.query(openingSQL, [start_date || '1900-01-01', ...(params.length ? params : [])]);
+    const inwardRes = await client.query(inwardSQL, [start_date || '1900-01-01', end_date || '2999-12-31', ...(params.length ? params : [])]);
+    const outwardRes = await client.query(outwardSQL, [start_date || '1900-01-01', end_date || '2999-12-31', ...(params.length ? params : [])]);
+
+    // 🧮 Combine data
+    const result = new Map();
+
+    const addOrUpdate = (row, key, field) => {
+      if (!result.has(row.item_id)) {
+        result.set(row.item_id, {
+          item_id: row.item_id,
+          item_name: row.item_name || '',
+          opening_balance: 0,
+          inwards: 0,
+          outwards: 0,
+          closing_balance: 0,
+        });
+      }
+      const obj = result.get(row.item_id);
+      obj[field] = Number(row[key] || 0);
+      result.set(row.item_id, obj);
+    };
+
+    openingRes.rows.forEach(r => addOrUpdate(r, 'opening_balance', 'opening_balance'));
+    inwardRes.rows.forEach(r => addOrUpdate(r, 'inwards', 'inwards'));
+    outwardRes.rows.forEach(r => addOrUpdate(r, 'outwards', 'outwards'));
+
+    // Calculate closing balance
+    for (const row of result.values()) {
+      row.closing_balance = row.opening_balance + row.inwards - row.outwards;
+    }
+
+    res.json({
+      filters: { start_date, end_date, items },
+      data: Array.from(result.values()).sort((a, b) => a.item_name.localeCompare(b.item_name)),
+    });
+
+  } catch (err) {
+    console.error('❌ Error generating stock status report:', err);
+    res.status(500).json({ error: 'Failed to generate stock status report' });
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;
