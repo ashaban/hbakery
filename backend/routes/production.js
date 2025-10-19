@@ -1,30 +1,50 @@
-const moment = require('moment');
-const express = require('express');
+const moment = require("moment");
+const express = require("express");
 const router = express.Router();
-const pool = require('../db');
+const pool = require("../db");
 
 const {
   getAvailableQty,
   allocateFifoOut,
   revertProductionOuts,
-} = require('../modules/ledger');
+} = require("../modules/ledger");
 
-router.get('/discrepancyReasons', async (req, res) => {
+router.get("/discrepancyReasons", async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT id, name, description FROM discrepancy_reason ORDER BY name');
+    const { rows } = await pool.query(
+      "SELECT id, name, description FROM discrepancy_reason ORDER BY name"
+    );
     res.json({ data: rows });
   } catch (err) {
-    console.error('Failed to fetch discrepancy reasons:', err);
-    res.status(500).json({ error: 'Failed to fetch discrepancy reasons' });
+    console.error("Failed to fetch discrepancy reasons:", err);
+    res.status(500).json({ error: "Failed to fetch discrepancy reasons" });
   }
 });
 
-router.post('/', async (req, res) => {
+router.post("/", async (req, res) => {
   const client = await pool.connect();
   try {
-    const { product_id, mode, qty_product, base_ingredient_id, base_ingredient_qty, notes, ingredients, staffs, planned_at, produced_at, actual_qty, discrepancies } = req.body;
-    if (!product_id || !qty_product || !Array.isArray(ingredients) || ingredients.length === 0) {
-      return res.status(400).json({ error: 'Missing required data' });
+    const {
+      product_id,
+      mode,
+      qty_product,
+      base_ingredient_id,
+      base_ingredient_qty,
+      notes,
+      ingredients,
+      staffs,
+      planned_at,
+      produced_at,
+      actual_qty,
+      discrepancies,
+    } = req.body;
+    if (
+      !product_id ||
+      !qty_product ||
+      !Array.isArray(ingredients) ||
+      ingredients.length === 0
+    ) {
+      return res.status(400).json({ error: "Missing required data" });
     }
 
     // Validate stock via ledger before writing
@@ -32,13 +52,17 @@ router.post('/', async (req, res) => {
       const available = await getAvailableQty(client, ing.item_id);
       if (Number(ing.qty_required) > available) {
         return res.status(400).json({
-          error: 'INSUFFICIENT_STOCK',
+          error: "INSUFFICIENT_STOCK",
           message: `Insufficient stock for ingredient item_id=${ing.item_id}`,
-          details: { item_id: ing.item_id, available, required: ing.qty_required }
+          details: {
+            item_id: ing.item_id,
+            available,
+            required: ing.qty_required,
+          },
         });
       }
     }
-    await client.query('BEGIN');
+    await client.query("BEGIN");
 
     // Header
     const hdr = await client.query(
@@ -47,8 +71,18 @@ router.post('/', async (req, res) => {
          produced_by, notes, planned_at, produced_at, actual_qty)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
        RETURNING id`,
-      [product_id, mode, qty_product, base_ingredient_id || null, base_ingredient_qty || null,
-       req.user?.id || 1, notes || null, planned_at || null, produced_at || null, actual_qty || null]
+      [
+        product_id,
+        mode,
+        qty_product,
+        base_ingredient_id || null,
+        base_ingredient_qty || null,
+        req.user?.id || 1,
+        notes || null,
+        planned_at || null,
+        produced_at || null,
+        actual_qty || null,
+      ]
     );
     const productionId = hdr.rows[0].id;
 
@@ -84,32 +118,63 @@ router.post('/', async (req, res) => {
 
     // Ledger OUT allocations (FIFO)
     for (const ing of ingredients) {
-      await allocateFifoOut(client, productionId, ing.item_id, ing.qty_required, planned_at);
+      await allocateFifoOut(
+        client,
+        productionId,
+        ing.item_id,
+        ing.qty_required,
+        planned_at
+      );
     }
 
-    await client.query('COMMIT');
-    res.json({ id: productionId, message: 'Production created' });
+    await client.query("COMMIT");
+    res.json({ id: productionId, message: "Production created" });
   } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('Create production failed', err);
-    if (String(err.message).startsWith('INSUFFICIENT_STOCK')) {
-      return res.status(400).json({ error: 'INSUFFICIENT_STOCK', message: err.message });
+    await client.query("ROLLBACK");
+    console.error("Create production failed", err);
+    if (String(err.message).startsWith("INSUFFICIENT_STOCK")) {
+      return res
+        .status(400)
+        .json({ error: "INSUFFICIENT_STOCK", message: err.message });
     }
-    res.status(500).json({ error: 'Failed to create production' });
+    res.status(500).json({ error: "Failed to create production" });
   } finally {
     client.release();
   }
 });
 
-router.put('/:id', async (req, res) => {
+router.put("/:id", async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
-    const { product_id, mode, qty_product, base_ingredient_id, base_ingredient_qty, notes, ingredients, staffs, discrepancies, planned_at, produced_at, actual_qty } = req.body;
+    const {
+      product_id,
+      mode,
+      qty_product,
+      base_ingredient_id,
+      base_ingredient_qty,
+      notes,
+      ingredients,
+      staffs,
+      discrepancies,
+      planned_at,
+      produced_at,
+      actual_qty,
+    } = req.body;
 
-    if (!id || !product_id || !qty_product || !Array.isArray(ingredients) || ingredients.length === 0) {
-      return res.status(400).json({ error: 'Missing required data' });
+    if (
+      !id ||
+      !product_id ||
+      !qty_product ||
+      !Array.isArray(ingredients) ||
+      ingredients.length === 0
+    ) {
+      return res.status(400).json({ error: "Missing required data" });
     }
+    await client.query("BEGIN");
+
+    // Rebuild OUT ledger for this production
+    await revertProductionOuts(client, id);
 
     // Check stock first (based on current global availability + we’ll revert old outs anyway)
     for (const ing of ingredients) {
@@ -117,14 +182,18 @@ router.put('/:id', async (req, res) => {
       // NOTE: Because we will delete *this production's* OUTs first before reallocating,
       // global available is safe to use here.
       if (Number(ing.qty_required) > available) {
+        await client.query("ROLLBACK");
         return res.status(400).json({
-          error: 'INSUFFICIENT_STOCK',
+          error: "INSUFFICIENT_STOCK",
           message: `Insufficient stock for ingredient item_id=${ing.item_id}`,
-          details: { item_id: ing.item_id, available, required: ing.qty_required }
+          details: {
+            item_id: ing.item_id,
+            available,
+            required: ing.qty_required,
+          },
         });
       }
     }
-    await client.query('BEGIN');
 
     // 1️⃣ Update header
     await client.query(
@@ -141,11 +210,26 @@ router.put('/:id', async (req, res) => {
              produced_at = $10,
              actual_qty = $11
        WHERE id = $8`,
-      [product_id, mode, qty_product, base_ingredient_id || null, base_ingredient_qty || null, notes || null, req.user?.id || 1, id, planned_at, produced_at, actual_qty]
+      [
+        product_id,
+        mode,
+        qty_product,
+        base_ingredient_id || null,
+        base_ingredient_qty || null,
+        notes || null,
+        req.user?.id || 1,
+        id,
+        planned_at,
+        produced_at,
+        actual_qty,
+      ]
     );
 
     // 2️⃣ Replace production items
-    await client.query('DELETE FROM product_production_item WHERE production_id = $1', [id]);
+    await client.query(
+      "DELETE FROM product_production_item WHERE production_id = $1",
+      [id]
+    );
 
     const insertItemSQL = `
       INSERT INTO product_production_item (production_id, item_id, qty_required)
@@ -156,51 +240,64 @@ router.put('/:id', async (req, res) => {
     }
 
     // 3️⃣ Replace assigned staff
-    await client.query('DELETE FROM product_production_staff WHERE production_id = $1', [id]);
+    await client.query(
+      "DELETE FROM product_production_staff WHERE production_id = $1",
+      [id]
+    );
     if (Array.isArray(staffs) && staffs.length > 0) {
       for (const sid of staffs) {
         await client.query(
           `INSERT INTO product_production_staff (production_id, staff_id, role, notes)
            VALUES ($1, $2, $3, $4)`,
-          [id, sid.staff_id.id, sid.role, sid.notes || '']
+          [id, sid.staff_id.id, sid.role, sid.notes || ""]
         );
       }
     }
 
     // 4️⃣ Replace discrepancies
-    await client.query('DELETE FROM product_production_discrepancy WHERE production_id=$1', [id]);
+    await client.query(
+      "DELETE FROM product_production_discrepancy WHERE production_id=$1",
+      [id]
+    );
     for (const d of discrepancies || []) {
-      await client.query(`
+      await client.query(
+        `
         INSERT INTO product_production_discrepancy (production_id, reason_id, notes)
         VALUES ($1, $2, $3)
-      `, [id, d.reason_id, d.notes || null]);
+      `,
+        [id, d.reason_id, d.notes || null]
+      );
     }
 
-    // Rebuild OUT ledger for this production
-    await revertProductionOuts(client, id);
     //use produced_at as movement date if available, else planned_at
     let movementDate = produced_at || planned_at;
     for (const ing of ingredients) {
-      await allocateFifoOut(client, id, ing.item_id, ing.qty_required, movementDate);
+      await allocateFifoOut(
+        client,
+        id,
+        ing.item_id,
+        ing.qty_required,
+        movementDate
+      );
     }
 
-    await client.query('COMMIT');
-    res.json({ id, message: 'Production updated successfully' });
+    await client.query("COMMIT");
+    res.json({ id, message: "Production updated successfully" });
   } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('❌ Failed to update production:', err);
-    res.status(500).json({ error: 'Failed to update production' });
+    await client.query("ROLLBACK");
+    console.error("❌ Failed to update production:", err);
+    res.status(500).json({ error: "Failed to update production" });
   } finally {
     client.release();
   }
 });
 
-router.get('/', async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     const page = Math.max(Number(req.query.page) || 1, 1);
     const limit = Math.max(Number(req.query.limit) || 10, 1);
     const offset = (page - 1) * limit;
-    const search = (req.query.search || '').trim();
+    const search = (req.query.search || "").trim();
 
     let {
       planned_at,
@@ -211,10 +308,10 @@ router.get('/', async (req, res) => {
       produced_at_op,
       team_leader,
       discrepancy_reason,
-      status
+      status,
     } = req.query;
 
-    console.log(planned_at)
+    console.log(planned_at);
 
     const where = [];
     const params = [];
@@ -226,24 +323,30 @@ router.get('/', async (req, res) => {
     }
 
     if (req.query.product_id) {
-      params.push(req.query.product_id)
-      where.push(`pp.product_id = $${params.length}`)
+      params.push(req.query.product_id);
+      where.push(`pp.product_id = $${params.length}`);
     }
 
     // 🗓 Planned date filter
     if (planned_at) {
-      if(planned_at.split(" ").length == 1 && !planned_at_op) {
-        planned_at_op = "in"
-        planned_end = planned_at + " 23:59"
-      } else if(planned_end) {
-        planned_end += " 23:59"
+      if (planned_at.split(" ").length == 1 && !planned_at_op) {
+        planned_at_op = "in";
+        planned_end = planned_at + " 23:59";
+      } else if (planned_end) {
+        planned_end += " 23:59";
       }
-      planned_at = moment(planned_at, 'DD-MM-YYYY HH:mm').format("YYYY-MM-DD HH:mm")
-      if (planned_at_op === 'in' && planned_end) {
-        planned_end = moment(planned_end, 'DD-MM-YYYY HH:mm').format("YYYY-MM-DD HH:mm")
+      planned_at = moment(planned_at, "DD-MM-YYYY HH:mm").format(
+        "YYYY-MM-DD HH:mm"
+      );
+      if (planned_at_op === "in" && planned_end) {
+        planned_end = moment(planned_end, "DD-MM-YYYY HH:mm").format(
+          "YYYY-MM-DD HH:mm"
+        );
         params.push(planned_at, planned_end);
-        where.push(`pp.planned_at BETWEEN $${params.length - 1} AND $${params.length}`);
-      } else if (['=', '>', '<', '>=', '<='].includes(planned_at_op)) {
+        where.push(
+          `pp.planned_at BETWEEN $${params.length - 1} AND $${params.length}`
+        );
+      } else if (["=", ">", "<", ">=", "<="].includes(planned_at_op)) {
         params.push(planned_at);
         where.push(`pp.planned_at ${planned_at_op} $${params.length}`);
       }
@@ -251,18 +354,24 @@ router.get('/', async (req, res) => {
 
     // 🕒 Produced date filter
     if (produced_at) {
-      if(produced_at.split(" ").length == 1 && !produced_at_op) {
-        produced_at_op = "in"
-        produced_end = produced_at + " 23:59"
-      } else if(produced_end) {
-        produced_end += " 23:59"
+      if (produced_at.split(" ").length == 1 && !produced_at_op) {
+        produced_at_op = "in";
+        produced_end = produced_at + " 23:59";
+      } else if (produced_end) {
+        produced_end += " 23:59";
       }
-      produced_at = moment(produced_at, 'DD-MM-YYYY HH:mm').format("YYYY-MM-DD HH:mm")
-      if (produced_at_op === 'in' && produced_end) {
-        produced_end = moment(produced_end, 'DD-MM-YYYY HH:mm').format("YYYY-MM-DD HH:mm")
+      produced_at = moment(produced_at, "DD-MM-YYYY HH:mm").format(
+        "YYYY-MM-DD HH:mm"
+      );
+      if (produced_at_op === "in" && produced_end) {
+        produced_end = moment(produced_end, "DD-MM-YYYY HH:mm").format(
+          "YYYY-MM-DD HH:mm"
+        );
         params.push(produced_at, produced_end);
-        where.push(`pp.produced_at BETWEEN $${params.length - 1} AND $${params.length}`);
-      } else if (['=', '>', '<', '>=', '<='].includes(produced_at_op)) {
+        where.push(
+          `pp.produced_at BETWEEN $${params.length - 1} AND $${params.length}`
+        );
+      } else if (["=", ">", "<", ">=", "<="].includes(produced_at_op)) {
         params.push(produced_at);
         where.push(`pp.produced_at ${produced_at_op} $${params.length}`);
       }
@@ -270,9 +379,9 @@ router.get('/', async (req, res) => {
 
     // 🆕 Production Status Filter
     if (status) {
-      if (status.toLowerCase() === 'pending') {
+      if (status.toLowerCase() === "pending") {
         where.push(`pp.produced_at IS NULL`);
-      } else if (status.toLowerCase() === 'completed') {
+      } else if (status.toLowerCase() === "completed") {
         where.push(`pp.produced_at IS NOT NULL`);
       }
     }
@@ -294,8 +403,16 @@ router.get('/', async (req, res) => {
     if (discrepancy_reason) {
       // Normalize to array (handles repeated or comma-separated)
       const raw = Array.isArray(discrepancy_reason)
-        ? discrepancy_reason.flatMap(v => String(v).split(',').map(s => s.trim()).filter(Boolean))
-        : String(discrepancy_reason).split(',').map(s => s.trim()).filter(Boolean);
+        ? discrepancy_reason.flatMap((v) =>
+            String(v)
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          )
+        : String(discrepancy_reason)
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
 
       const reasonIds = [];
       const reasonNames = [];
@@ -320,12 +437,12 @@ router.get('/', async (req, res) => {
             FROM product_production_discrepancy pd
             JOIN discrepancy_reason dr ON dr.id = pd.reason_id
            WHERE pd.production_id = pp.id
-             AND (${conds.join(' OR ')})
+             AND (${conds.join(" OR ")})
         )`);
       }
     }
 
-    const whereSQL = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const whereSQL = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
     // 🧮 Total count (DISTINCT to avoid duplication from joins/exists)
     const totalSql = `
@@ -396,20 +513,21 @@ router.get('/', async (req, res) => {
     res.json({
       data: rowsRes.rows,
       totalPages,
-      totalRecords
+      totalRecords,
     });
   } catch (err) {
-    console.error('❌ Failed to fetch productions:', err);
-    res.status(500).json({ error: 'Failed to fetch productions' });
+    console.error("❌ Failed to fetch productions:", err);
+    res.status(500).json({ error: "Failed to fetch productions" });
   }
 });
 
-router.get('/:id', async (req, res) => {
+router.get("/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
     // Header
-    const hdrRes = await pool.query(`
+    const hdrRes = await pool.query(
+      `
       SELECT 
         pp.*, 
         p.name AS product_name, 
@@ -418,14 +536,17 @@ router.get('/:id', async (req, res) => {
       JOIN product p ON p.id = pp.product_id
       LEFT JOIN users u ON u.id = pp.produced_by
       WHERE pp.id = $1
-    `, [id]);
+    `,
+      [id]
+    );
 
     if (hdrRes.rows.length === 0) {
-      return res.status(404).json({ error: 'Not found' });
+      return res.status(404).json({ error: "Not found" });
     }
 
     // Lines
-    const linesRes = await pool.query(`
+    const linesRes = await pool.query(
+      `
       SELECT 
         ppi.item_id, 
         i.name AS item_name,
@@ -436,61 +557,80 @@ router.get('/:id', async (req, res) => {
       LEFT JOIN itemunit iu ON iu.id = i.unit_id
       WHERE ppi.production_id = $1
       ORDER BY i.name
-    `, [id]);
+    `,
+      [id]
+    );
 
     // Staff
-    const staffRes = await pool.query(`
+    const staffRes = await pool.query(
+      `
       SELECT s.id, s.name, ps.role, ps.notes
       FROM product_production_staff ps
       JOIN staff s ON s.id = ps.staff_id
       WHERE ps.production_id = $1
       ORDER BY s.name
-    `, [id]);
+    `,
+      [id]
+    );
 
-    const discRes = await pool.query(`
+    const discRes = await pool.query(
+      `
       SELECT d.id, dr.name, d.notes, d.reason_id
       FROM product_production_discrepancy d
       JOIN discrepancy_reason dr ON dr.id = d.reason_id
       WHERE d.production_id=$1
-    `, [id]);
+    `,
+      [id]
+    );
 
     res.json({
       production: hdrRes.rows[0],
       items: linesRes.rows,
       staff: staffRes.rows,
-      discrepancies: discRes.rows
+      discrepancies: discRes.rows,
     });
   } catch (err) {
-    console.error('❌ Error fetching production:', err);
-    res.status(500).json({ error: 'Failed to fetch production details' });
+    console.error("❌ Error fetching production:", err);
+    res.status(500).json({ error: "Failed to fetch production details" });
   }
 });
 
-
 /** DELETE production */
-router.delete('/:id', async (req, res) => {
+router.delete("/:id", async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
-    await client.query('BEGIN');
+    await client.query("BEGIN");
 
     // Remove ledger OUT movements for this production first
     await revertProductionOuts(client, id);
 
     // Then remove detail tables and header (ON DELETE CASCADE may already handle some)
-    await client.query(`DELETE FROM product_production_discrepancy WHERE production_id = $1`, [id]);
-    await client.query(`DELETE FROM product_production_staff WHERE production_id = $1`, [id]);
-    await client.query(`DELETE FROM product_production_item WHERE production_id = $1`, [id]);
+    await client.query(
+      `DELETE FROM product_production_discrepancy WHERE production_id = $1`,
+      [id]
+    );
+    await client.query(
+      `DELETE FROM product_production_staff WHERE production_id = $1`,
+      [id]
+    );
+    await client.query(
+      `DELETE FROM product_production_item WHERE production_id = $1`,
+      [id]
+    );
 
-    const del = await client.query(`DELETE FROM product_production WHERE id = $1`, [id]);
+    const del = await client.query(
+      `DELETE FROM product_production WHERE id = $1`,
+      [id]
+    );
 
-    await client.query('COMMIT');
-    if (del.rowCount === 0) return res.status(404).json({ error: 'Not found' });
-    res.json({ id, message: 'Production deleted' });
+    await client.query("COMMIT");
+    if (del.rowCount === 0) return res.status(404).json({ error: "Not found" });
+    res.json({ id, message: "Production deleted" });
   } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('Delete production failed', err);
-    res.status(500).json({ error: 'Failed to delete production' });
+    await client.query("ROLLBACK");
+    console.error("Delete production failed", err);
+    res.status(500).json({ error: "Failed to delete production" });
   } finally {
     client.release();
   }

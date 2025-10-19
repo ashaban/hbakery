@@ -10,6 +10,7 @@ const unitRoutes = require('./routes/itemunit');
 const purchaseRoutes = require('./routes/itempurchase');
 const productsRoutes = require('./routes/products');
 const productionRoutes = require('./routes/production');
+const expenditureRoutes = require('./routes/expenditure');
 const staffRoutes = require('./routes/staffs');
 const reportRoutes = require('./routes/reports');
 
@@ -63,6 +64,7 @@ app.use('/units', unitRoutes);
 app.use('/purchases', purchaseRoutes);
 app.use('/products', productsRoutes);
 app.use('/productions', productionRoutes);
+app.use('/expenditures', expenditureRoutes);
 app.use('/staffs', staffRoutes);
 app.use('/reports', reportRoutes);
 

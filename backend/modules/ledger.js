@@ -1,4 +1,4 @@
-const pool = require('../db');
+const pool = require("../db");
 
 /** Get remaining (available) stock for an item based on the ledger */
 async function getAvailableQty(client, itemId) {
@@ -41,7 +41,13 @@ async function getFifoLots(client, itemId) {
 }
 
 /** Allocate FIFO and write OUT movements. Throws if insufficient. */
-async function allocateFifoOut(client, productionId, itemId, qtyNeeded, movementDate) {
+async function allocateFifoOut(
+  client,
+  productionId,
+  itemId,
+  qtyNeeded,
+  movementDate
+) {
   let remaining = Number(qtyNeeded);
   const lots = await getFifoLots(client, itemId);
 
@@ -52,7 +58,14 @@ async function allocateFifoOut(client, productionId, itemId, qtyNeeded, movement
     await client.query(
       `INSERT INTO item_ledger (item_id, purchase_id, production_id, type, quantity, unit_price, movement_date)
        VALUES ($1, $2, $3, 'OUT', $4, $5, $6)`,
-      [itemId, lot.purchase_id, productionId, take, lot.lot_price, movementDate || null]
+      [
+        itemId,
+        lot.purchase_id,
+        productionId,
+        take,
+        lot.lot_price,
+        movementDate || null,
+      ]
     );
 
     remaining -= take;

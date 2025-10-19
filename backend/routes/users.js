@@ -1,8 +1,8 @@
-const express = require('express');
-const formidable = require('formidable');
-const bcrypt = require('bcrypt');
-const pool = require('../db');
-const logger = require('../winston');
+const express = require("express");
+const formidable = require("formidable");
+const bcrypt = require("bcrypt");
+const pool = require("../db");
+const logger = require("../winston");
 
 const router = express.Router();
 
@@ -17,25 +17,31 @@ router.post("/addUser", async (req, res) => {
         if (Array.isArray(fields[key])) fields[key] = fields[key][0];
       }
 
-      const { name, title, email, phone, role, mda, dev_partner } = fields;
+      const { name, title, email, phone, role } = fields;
       const passwordHash = bcrypt.hashSync(fields.password, 8);
 
       // Check if user exists
-      const existing = await pool.query(`SELECT id FROM users WHERE email = $1`, [email]);
+      const existing = await pool.query(
+        `SELECT id FROM users WHERE email = $1`,
+        [email]
+      );
       if (existing.rows.length > 0) {
         return res.status(400).json({ error: "User exists" });
       }
 
-      // Default nulls
-      const mdaValue = mda && mda !== 'null' ? mda : null;
-      const devPartnerValue = dev_partner && dev_partner !== 'null' ? dev_partner : null;
-
       // Insert user
       const insertSQL = `
-        INSERT INTO users (name, title, email, phone, role, password, mda, development_partner)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO users (name, title, email, phone, role, password)
+        VALUES ($1, $2, $3, $4, $5, $6)
       `;
-      await pool.query(insertSQL, [name, title, email, phone, role, passwordHash, mdaValue, devPartnerValue]);
+      await pool.query(insertSQL, [
+        name,
+        title,
+        email,
+        phone,
+        role,
+        passwordHash,
+      ]);
 
       res.json({ message: "User added successfully" });
     } catch (error) {
@@ -44,7 +50,6 @@ router.post("/addUser", async (req, res) => {
     }
   });
 });
-
 
 router.post(["/editUser", "/editUser/:id"], (req, res) => {
   const form = new formidable.IncomingForm();
@@ -58,13 +63,13 @@ router.post(["/editUser", "/editUser/:id"], (req, res) => {
       }
 
       const userId = req.params.id;
-      const { name, title, email, phone, role, mda, dev_partner, password } = fields;
-
-      const mdaValue = mda && mda !== 'null' ? mda : null;
-      const devPartnerValue = dev_partner && dev_partner !== 'null' ? dev_partner : null;
+      const { name, title, email, phone, role, password } = fields;
 
       // Check duplicate email
-      const duplicate = await pool.query(`SELECT id FROM users WHERE email = $1 AND id != $2`, [email, userId]);
+      const duplicate = await pool.query(
+        `SELECT id FROM users WHERE email = $1 AND id != $2`,
+        [email, userId]
+      );
       if (duplicate.rows.length > 0) {
         return res.status(400).json({ error: "User exists" });
       }
@@ -75,17 +80,17 @@ router.post(["/editUser", "/editUser/:id"], (req, res) => {
         const passwordHash = bcrypt.hashSync(password, 8);
         sql = `
           UPDATE users 
-          SET name = $1, title = $2, email = $3, phone = $4, role = $5, password = $6, mda = $7, development_partner = $8 
-          WHERE id = $9
+          SET name = $1, title = $2, email = $3, phone = $4, role = $5, password = $6
+          WHERE id = $7
         `;
-        params = [name, title, email, phone, role, passwordHash, mdaValue, devPartnerValue, userId];
+        params = [name, title, email, phone, role, passwordHash, userId];
       } else {
         sql = `
           UPDATE users 
-          SET name = $1, title = $2, email = $3, phone = $4, role = $5, mda = $6, development_partner = $7
-          WHERE id = $8
+          SET name = $1, title = $2, email = $3, phone = $4, role = $5
+          WHERE id = $6
         `;
-        params = [name, title, email, phone, role, mdaValue, devPartnerValue, userId];
+        params = [name, title, email, phone, role, userId];
       }
 
       await pool.query(sql, params);
@@ -97,7 +102,6 @@ router.post(["/editUser", "/editUser/:id"], (req, res) => {
   });
 });
 
-
 router.delete("/deleteUser/:id", async (req, res) => {
   try {
     await pool.query(`DELETE FROM users WHERE id = $1`, [req.params.id]);
@@ -107,7 +111,6 @@ router.delete("/deleteUser/:id", async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
-
 
 router.get(["/getUsers", "/getUsers/:id"], async (req, res) => {
   try {
@@ -133,7 +136,6 @@ router.get(["/getUsers", "/getUsers/:id"], async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
-
 
 router.get(["/getRoles", "/getRoles/:id"], async (req, res) => {
   try {

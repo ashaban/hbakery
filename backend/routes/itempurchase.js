@@ -1,10 +1,10 @@
-const formidable = require('formidable');
-const express = require('express');
+const formidable = require("formidable");
+const express = require("express");
 const router = express.Router();
-const pool = require('../db');
+const pool = require("../db");
 
 // Get all Purchases with Item info
-router.get('/', async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     // Pagination
     const page = parseInt(req.query.page) || 1;
@@ -30,7 +30,9 @@ router.get('/', async (req, res) => {
     }
 
     if (date_from && date_to) {
-      whereClauses.push(`p.date::date BETWEEN $${paramIndex++} AND $${paramIndex++}`);
+      whereClauses.push(
+        `p.date::date BETWEEN $${paramIndex++} AND $${paramIndex++}`
+      );
       params.push(date_from, date_to);
     } else if (date_from) {
       whereClauses.push(`p.date::date >= $${paramIndex++}`);
@@ -50,7 +52,8 @@ router.get('/', async (req, res) => {
       params.push(date_lt);
     }
 
-    const whereSQL = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+    const whereSQL =
+      whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
 
     // Main query with pagination
     const mainQuery = `
@@ -58,9 +61,9 @@ router.get('/', async (req, res) => {
         p.id,
         i.name AS item_name,
         i.id AS item_id,
-        TO_CHAR(p.quantity, 'FM999,999,999') AS quantity,
-        TO_CHAR(ROUND(p.price, 2), 'FM999,999,999.00') AS price,
-        TO_CHAR(ROUND(p.quantity * p.price, 2), 'FM999,999,999.00') AS total,
+        p.quantity AS quantity,
+        p.price AS price,
+        p.quantity * p.price AS total,
         TO_CHAR(p.date::date, 'DD-MM-YYYY') AS date
       FROM itempurchase p
       LEFT JOIN item i ON p.item_id = i.id
@@ -77,19 +80,25 @@ router.get('/', async (req, res) => {
       SELECT COUNT(*) FROM itempurchase p
       ${whereSQL};
     `;
-    const countResult = await pool.query(countQuery, params.slice(0, paramIndex - 3)); // exclude pagination params
+    const countResult = await pool.query(
+      countQuery,
+      params.slice(0, paramIndex - 3)
+    ); // exclude pagination params
     const totalRecords = parseInt(countResult.rows[0].count);
     const totalPages = Math.ceil(totalRecords / limit);
 
     // Totals (quantity & amount) for filtered data
     const totalsQuery = `
       SELECT 
-        TO_CHAR(SUM(p.quantity), 'FM999,999,999') AS total_quantity,
-        TO_CHAR(SUM(ROUND(p.quantity * p.price, 2)), 'FM999,999,999.00') AS total_amount
+        SUM(p.quantity) AS total_quantity,
+        SUM(ROUND(p.quantity * p.price, 2)) AS total_amount
       FROM itempurchase p
       ${whereSQL};
     `;
-    const totalsResult = await pool.query(totalsQuery, params.slice(0, paramIndex - 3));
+    const totalsResult = await pool.query(
+      totalsQuery,
+      params.slice(0, paramIndex - 3)
+    );
     const { total_quantity, total_amount } = totalsResult.rows[0];
     // Response
     res.json({
@@ -99,109 +108,111 @@ router.get('/', async (req, res) => {
       totalPages,
       total_quantity,
       total_amount,
-      data: result.rows
+      data: result.rows,
     });
   } catch (err) {
-    console.error('Error loading purchases:', err);
+    console.error("Error loading purchases:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
 // Create Purchase
-router.post('/', async (req, res) => {
-  const form = new formidable.IncomingForm();
-  form.parse(req, async (err, fields, files) => {
-    try {
-      const result = await pool.query(
-        'INSERT INTO itempurchase (item_id, quantity, price, date) VALUES ($1, $2, $3, $4) RETURNING *',
-        [fields.item_id?.[0], fields.quantity?.[0], fields.price?.[0], fields.date?.[0]]
-      );
-      const purchaseId = result.rows[0].id;
-      await pool.query(`
+router.post("/", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "INSERT INTO itempurchase (item_id, quantity, price, date) VALUES ($1, $2, $3, $4) RETURNING *",
+      [req.body.item_id, req.body.quantity, req.body.price, req.body.date]
+    );
+    const purchaseId = result.rows[0].id;
+    await pool.query(
+      `
         INSERT INTO item_ledger (item_id, purchase_id, type, quantity, unit_price, movement_date)
-        VALUES ($1, $2, 'IN', $3, $4, $5)`, 
-        [fields.item_id?.[0], purchaseId, fields.quantity?.[0], fields.price?.[0], fields.date?.[0]]
-      );
-      res.json(result.rows[0]);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  })
+        VALUES ($1, $2, 'IN', $3, $4, $5)`,
+      [
+        req.body.item_id,
+        purchaseId,
+        req.body.quantity,
+        req.body.price,
+        req.body.date,
+      ]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Update Purchase
-router.put('/:id', async (req, res) => {
+router.put("/:id", async (req, res) => {
   const { id } = req.params;
-  const form = new formidable.IncomingForm();
-  form.parse(req, async (err, fields, files) => {
-    let quantity = fields.quantity?.[0]
-    let item_id = fields.item_id?.[0]
-    try {
-      const cur = await pool.query(
+  let quantity = req.body.quantity;
+  let item_id = req.body.item_id;
+  try {
+    const cur = await pool.query(
       `SELECT item_id, quantity::numeric, price::numeric FROM itempurchase WHERE id = $1`,
-        [id]
-      );
-      if (cur.rows.length === 0) {
-        await pool.query('ROLLBACK');
-        return res.status(404).json({ error: 'Not found' });
-      }
-      const old = cur.rows[0];
-      // consumed from this lot (sum of OUT ledger pointing to this purchase)
-      const used = await pool.query(
-        `SELECT COALESCE(SUM(quantity),0)::numeric AS used_qty
-        FROM item_ledger WHERE purchase_id = $1 AND type = 'OUT'`,
-        [id]
-      );
-      const usedQty = Number(used.rows[0].used_qty);
-      // Prevent shrinking below used
-      const newQty = quantity != null ? Number(quantity) : Number(old.quantity);
-      if (newQty < usedQty) {
-        await pool.query('ROLLBACK');
-        return res.status(400).json({
-          error: 'PURCHASE_QUANTITY_TOO_LOW',
-          message: `Cannot reduce below already consumed quantity (${usedQty}).`,
-        });
-      }
-      // Prevent changing item_id if any OUT exists
-      const newItemId = item_id || old.item_id;
-      if (Number(newItemId) !== Number(old.item_id) && usedQty > 0) {
-        await pool.query('ROLLBACK');
-        return res.status(400).json({
-          error: 'ITEM_CHANGE_BLOCKED',
-          message: 'Cannot change item for a purchase that already has consumption.',
-        });
-      }
-      const result = await pool.query(
-        'UPDATE itempurchase SET item_id=$1, quantity=$2, price=$3, date=$4 WHERE id=$5 RETURNING *',
-        [fields.item_id?.[0], fields.quantity?.[0], fields.price?.[0], fields.date?.[0], id]
-      );
-      // Remove old IN ledger for this purchase (if any), then re-insert to reflect new qty/price
-      await pool.query(
-        `DELETE FROM item_ledger WHERE purchase_id = $1 AND type = 'IN'`,
-        [id]
-      );
-      await pool.query(
-        `INSERT INTO item_ledger (item_id, purchase_id, type, quantity, unit_price, movement_date)
-        VALUES ($1, $2, 'IN', $3, $4, $5)`,
-        [newItemId, id, newQty, fields.price?.[0] ?? old.price, fields.date?.[0]]
-      );
-
-      await pool.query('COMMIT');
-      res.json(result.rows[0]);
-    } catch (err) {
-      await pool.query('ROLLBACK');
-      console.error('Update purchase failed', err);
-      res.status(500).json({ error: 'Failed to update purchase' });
+      [id]
+    );
+    if (cur.rows.length === 0) {
+      await pool.query("ROLLBACK");
+      return res.status(404).json({ error: "Not found" });
     }
-  })
+    const old = cur.rows[0];
+    // consumed from this lot (sum of OUT ledger pointing to this purchase)
+    const used = await pool.query(
+      `SELECT COALESCE(SUM(quantity),0)::numeric AS used_qty
+        FROM item_ledger WHERE purchase_id = $1 AND type = 'OUT'`,
+      [id]
+    );
+    const usedQty = Number(used.rows[0].used_qty);
+    // Prevent shrinking below used
+    const newQty = quantity != null ? Number(quantity) : Number(old.quantity);
+    if (newQty < usedQty) {
+      await pool.query("ROLLBACK");
+      return res.status(400).json({
+        error: "PURCHASE_QUANTITY_TOO_LOW",
+        message: `Cannot reduce below already consumed quantity (${usedQty}).`,
+      });
+    }
+    // Prevent changing item_id if any OUT exists
+    const newItemId = item_id || old.item_id;
+    if (Number(newItemId) !== Number(old.item_id) && usedQty > 0) {
+      await pool.query("ROLLBACK");
+      return res.status(400).json({
+        error: "ITEM_CHANGE_BLOCKED",
+        message:
+          "Cannot change item for a purchase that already has consumption.",
+      });
+    }
+    const result = await pool.query(
+      "UPDATE itempurchase SET item_id=$1, quantity=$2, price=$3, date=$4 WHERE id=$5 RETURNING *",
+      [req.body.item_id, quantity, req.body.price, req.body.date, id]
+    );
+    // Remove old IN ledger for this purchase (if any), then re-insert to reflect new qty/price
+    await pool.query(
+      `DELETE FROM item_ledger WHERE purchase_id = $1 AND type = 'IN'`,
+      [id]
+    );
+    await pool.query(
+      `INSERT INTO item_ledger (item_id, purchase_id, type, quantity, unit_price, movement_date)
+        VALUES ($1, $2, 'IN', $3, $4, $5)`,
+      [newItemId, id, newQty, req.body.price ?? old.price, req.body.date]
+    );
+
+    await pool.query("COMMIT");
+    res.json(result.rows[0]);
+  } catch (err) {
+    await pool.query("ROLLBACK");
+    console.error("Update purchase failed", err);
+    res.status(500).json({ error: "Failed to update purchase" });
+  }
 });
 
 /** Delete purchase (only if no OUT consumption from this purchase) */
-router.delete('/:id', async (req, res) => {
+router.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
-    await pool.query('BEGIN');
+    await pool.query("BEGIN");
 
     const used = await pool.query(
       `SELECT COUNT(*)::int AS c
@@ -210,23 +221,26 @@ router.delete('/:id', async (req, res) => {
       [id]
     );
     if (used.rows[0].c > 0) {
-      await pool.query('ROLLBACK');
+      await pool.query("ROLLBACK");
       return res.status(400).json({
-        error: 'PURCHASE_HAS_CONSUMPTION',
-        message: 'Cannot delete; stock from this purchase has already been consumed.',
+        error: "PURCHASE_HAS_CONSUMPTION",
+        message:
+          "Cannot delete; stock from this purchase has already been consumed.",
       });
     }
 
     await pool.query(`DELETE FROM item_ledger WHERE purchase_id = $1`, [id]); // delete IN
-    const del = await pool.query(`DELETE FROM itempurchase WHERE id = $1`, [id]);
+    const del = await pool.query(`DELETE FROM itempurchase WHERE id = $1`, [
+      id,
+    ]);
 
-    await pool.query('COMMIT');
-    if (del.rowCount === 0) return res.status(404).json({ error: 'Not found' });
-    res.json({ id, message: 'Purchase deleted' });
+    await pool.query("COMMIT");
+    if (del.rowCount === 0) return res.status(404).json({ error: "Not found" });
+    res.json({ id, message: "Purchase deleted" });
   } catch (err) {
-    await pool.query('ROLLBACK');
-    console.error('Delete purchase failed', err);
-    res.status(500).json({ error: 'Failed to delete purchase' });
+    await pool.query("ROLLBACK");
+    console.error("Delete purchase failed", err);
+    res.status(500).json({ error: "Failed to delete purchase" });
   } finally {
     pool.release();
   }

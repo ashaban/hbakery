@@ -1,18 +1,12 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const pool = require('../db');
+const pool = require("../db");
 
-
-router.get('/productionProfitability', async (req, res) => {
+router.get("/productionProfitability", async (req, res) => {
   const client = await pool.connect();
   try {
-    const {
-      start_date,
-      end_date,
-      ingredients,
-      products,
-      team_leader
-    } = req.query;
+    const { start_date, end_date, ingredients, products, team_leader } =
+      req.query;
 
     const where = ["pp.produced_at IS NOT NULL"];
     const params = [];
@@ -20,7 +14,11 @@ router.get('/productionProfitability', async (req, res) => {
     // 🗓️ Date range (produced_at)
     if (start_date && end_date) {
       params.push(start_date, end_date);
-      where.push(`pp.produced_at::date BETWEEN $${params.length - 1}::date AND $${params.length}::date`);
+      where.push(
+        `pp.produced_at::date BETWEEN $${params.length - 1}::date AND $${
+          params.length
+        }::date`
+      );
     } else if (start_date) {
       params.push(start_date);
       where.push(`pp.produced_at::date >= $${params.length}::date`);
@@ -32,7 +30,9 @@ router.get('/productionProfitability', async (req, res) => {
     // 🧂 Ingredients filter
     if (ingredients) {
       const arr = Array.isArray(ingredients) ? ingredients : [ingredients];
-      const placeholders = arr.map((_, i) => `$${params.length + i + 1}`).join(',');
+      const placeholders = arr
+        .map((_, i) => `$${params.length + i + 1}`)
+        .join(",");
       params.push(...arr);
       where.push(`ppi.item_id IN (${placeholders})`);
     }
@@ -40,7 +40,9 @@ router.get('/productionProfitability', async (req, res) => {
     // 📦 Product filter
     if (products) {
       const arr = Array.isArray(products) ? products : [products];
-      const placeholders = arr.map((_, i) => `$${params.length + i + 1}`).join(',');
+      const placeholders = arr
+        .map((_, i) => `$${params.length + i + 1}`)
+        .join(",");
       params.push(...arr);
       where.push(`pp.product_id IN (${placeholders})`);
     }
@@ -60,9 +62,9 @@ router.get('/productionProfitability', async (req, res) => {
       `);
     }
 
-    const whereSQL = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const whereSQL = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
-    // 🧾 Ingredient consumption and cost (using item_ledger)
+    // 🧾 Ingredient consumption and cost (from item_ledger)
     const ingredientsSQL = `
       SELECT 
         i.id AS ingredient_id,
@@ -73,23 +75,25 @@ router.get('/productionProfitability', async (req, res) => {
       FROM item_ledger il
       JOIN item i ON i.id = il.item_id
       JOIN product_production pp ON pp.id = il.production_id
-      ${whereSQL ? `${whereSQL} AND il.type = 'OUT'` 
-                 : `WHERE il.type = 'OUT'`}
+      ${whereSQL ? `${whereSQL} AND il.type = 'OUT'` : `WHERE il.type = 'OUT'`}
       GROUP BY i.id, i.name
       ORDER BY i.name;
     `;
     const ingredientsRes = await client.query(ingredientsSQL, params);
     const ingredientData = ingredientsRes.rows;
 
-    // 💰 Labour cost (completed productions only)
+    // 💰 Labour cost
     const labourSQL = `
       SELECT 
         COALESCE(SUM(s.salary / 30.0), 0) AS total_labour_cost
       FROM product_production pp
       JOIN product_production_staff ps ON ps.production_id = pp.id
       JOIN staff s ON s.id = ps.staff_id
-      ${whereSQL ? `${whereSQL} AND pp.produced_at IS NOT NULL`
-                 : `WHERE pp.produced_at IS NOT NULL`};
+      ${
+        whereSQL
+          ? `${whereSQL} AND pp.produced_at IS NOT NULL`
+          : `WHERE pp.produced_at IS NOT NULL`
+      };
     `;
     const labourRes = await client.query(labourSQL, params);
     const totalLabourCost = labourRes.rows[0]?.total_labour_cost || 0;
@@ -111,10 +115,61 @@ router.get('/productionProfitability', async (req, res) => {
     const productsRes = await client.query(productsSQL, params);
     const productData = productsRes.rows;
 
+    // 💵 Production Expenditures
+    const expenditureParams = [];
+    const expenditureWhere = ["ct.category = 'Production Cost'"];
+
+    if (start_date && end_date) {
+      expenditureParams.push(start_date, end_date);
+      expenditureWhere.push(
+        `e.start_date::date >= $1::date AND e.end_date::date <= $2::date`
+      );
+    } else if (start_date) {
+      expenditureParams.push(start_date);
+      expenditureWhere.push(
+        `e.start_date::date >= $1::date AND e.end_date::date <= $1::date`
+      );
+    } else if (end_date) {
+      expenditureParams.push(end_date);
+      expenditureWhere.push(
+        `e.end_date::date <= $1::date AND e.start_date::date >= $1::date`
+      );
+    }
+
+    const expenditureSQL = `
+      SELECT 
+        e.id,
+        e.description,
+        e.amount,
+        ct.name AS cost_type
+      FROM expenditure e
+      JOIN cost_type ct ON ct.id = e.type_id
+      ${
+        expenditureWhere.length ? `WHERE ${expenditureWhere.join(" AND ")}` : ""
+      }
+      ORDER BY e.start_date DESC;
+    `;
+    const expenditureRes = await client.query(
+      expenditureSQL,
+      expenditureParams
+    );
+    const expenditures = expenditureRes.rows;
+    const totalExpenditure = expenditures.reduce(
+      (sum, e) => sum + Number(e.amount || 0),
+      0
+    );
+
     // 📊 Totals
-    const totalIngredientCost = ingredientData.reduce((sum, i) => sum + Number(i.total_cost || 0), 0);
-    const totalRevenue = productData.reduce((sum, p) => sum + Number(p.total_value || 0), 0);
-    const totalCost = totalIngredientCost + Number(totalLabourCost);
+    const totalIngredientCost = ingredientData.reduce(
+      (sum, i) => sum + Number(i.total_cost || 0),
+      0
+    );
+    const totalRevenue = productData.reduce(
+      (sum, p) => sum + Number(p.total_value || 0),
+      0
+    );
+    const totalCost =
+      totalIngredientCost + Number(totalLabourCost) + totalExpenditure;
     const margin = totalRevenue - totalCost;
 
     res.json({
@@ -123,21 +178,23 @@ router.get('/productionProfitability', async (req, res) => {
         totalRevenue,
         totalIngredientCost,
         totalLabourCost,
+        totalExpenditure,
         totalCost,
-        margin
+        margin,
       },
       ingredients: ingredientData,
-      products: productData
+      products: productData,
+      expenditures,
     });
   } catch (err) {
-    console.error('❌ Error generating profitability report:', err);
-    res.status(500).json({ error: 'Failed to generate profitability report' });
+    console.error("❌ Error generating profitability report:", err);
+    res.status(500).json({ error: "Failed to generate profitability report" });
   } finally {
     client.release();
   }
 });
 
-router.get('/stockStatus', async (req, res) => {
+router.get("/stockStatus", async (req, res) => {
   const client = await pool.connect();
   try {
     const { start_date, end_date, items } = req.query;
@@ -148,12 +205,14 @@ router.get('/stockStatus', async (req, res) => {
     // Filter by ingredients (multiple)
     if (items) {
       const arr = Array.isArray(items) ? items : [items];
-      const placeholders = arr.map((_, i) => `$${params.length + i + 1}`).join(',');
+      const placeholders = arr
+        .map((_, i) => `$${params.length + i + 1}`)
+        .join(",");
       params.push(...arr);
       where.push(`i.id IN (${placeholders})`);
     }
 
-    const whereSQL = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const whereSQL = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
     // 🧾 Opening balance (before start date)
     const openingSQL = `
@@ -164,7 +223,7 @@ router.get('/stockStatus', async (req, res) => {
       FROM item i
       LEFT JOIN item_ledger il ON il.item_id = i.id
         AND il.movement_date < $1::date
-      ${whereSQL ? `${whereSQL.replace('i.id', 'i.id')}` : ''}
+      ${whereSQL ? `${whereSQL.replace("i.id", "i.id")}` : ""}
       GROUP BY i.id, i.name
     `;
 
@@ -177,7 +236,7 @@ router.get('/stockStatus', async (req, res) => {
       LEFT JOIN item_ledger il ON il.item_id = i.id
         AND il.type = 'IN'
         AND il.movement_date BETWEEN $1::date AND $2::date
-      ${whereSQL ? `${whereSQL.replace('i.id', 'i.id')}` : ''}
+      ${whereSQL ? `${whereSQL.replace("i.id", "i.id")}` : ""}
       GROUP BY i.id
     `;
 
@@ -190,13 +249,24 @@ router.get('/stockStatus', async (req, res) => {
       LEFT JOIN item_ledger il ON il.item_id = i.id
         AND il.type = 'OUT'
         AND il.movement_date BETWEEN $1::date AND $2::date
-      ${whereSQL ? `${whereSQL.replace('i.id', 'i.id')}` : ''}
+      ${whereSQL ? `${whereSQL.replace("i.id", "i.id")}` : ""}
       GROUP BY i.id
     `;
 
-    const openingRes = await client.query(openingSQL, [start_date || '1900-01-01', ...(params.length ? params : [])]);
-    const inwardRes = await client.query(inwardSQL, [start_date || '1900-01-01', end_date || '2999-12-31', ...(params.length ? params : [])]);
-    const outwardRes = await client.query(outwardSQL, [start_date || '1900-01-01', end_date || '2999-12-31', ...(params.length ? params : [])]);
+    const openingRes = await client.query(openingSQL, [
+      start_date || "1900-01-01",
+      ...(params.length ? params : []),
+    ]);
+    const inwardRes = await client.query(inwardSQL, [
+      start_date || "1900-01-01",
+      end_date || "2999-12-31",
+      ...(params.length ? params : []),
+    ]);
+    const outwardRes = await client.query(outwardSQL, [
+      start_date || "1900-01-01",
+      end_date || "2999-12-31",
+      ...(params.length ? params : []),
+    ]);
 
     // 🧮 Combine data
     const result = new Map();
@@ -205,7 +275,7 @@ router.get('/stockStatus', async (req, res) => {
       if (!result.has(row.item_id)) {
         result.set(row.item_id, {
           item_id: row.item_id,
-          item_name: row.item_name || '',
+          item_name: row.item_name || "",
           opening_balance: 0,
           inwards: 0,
           outwards: 0,
@@ -217,9 +287,11 @@ router.get('/stockStatus', async (req, res) => {
       result.set(row.item_id, obj);
     };
 
-    openingRes.rows.forEach(r => addOrUpdate(r, 'opening_balance', 'opening_balance'));
-    inwardRes.rows.forEach(r => addOrUpdate(r, 'inwards', 'inwards'));
-    outwardRes.rows.forEach(r => addOrUpdate(r, 'outwards', 'outwards'));
+    openingRes.rows.forEach((r) =>
+      addOrUpdate(r, "opening_balance", "opening_balance")
+    );
+    inwardRes.rows.forEach((r) => addOrUpdate(r, "inwards", "inwards"));
+    outwardRes.rows.forEach((r) => addOrUpdate(r, "outwards", "outwards"));
 
     // Calculate closing balance
     for (const row of result.values()) {
@@ -228,12 +300,13 @@ router.get('/stockStatus', async (req, res) => {
 
     res.json({
       filters: { start_date, end_date, items },
-      data: Array.from(result.values()).sort((a, b) => a.item_name.localeCompare(b.item_name)),
+      data: Array.from(result.values()).sort((a, b) =>
+        a.item_name.localeCompare(b.item_name)
+      ),
     });
-
   } catch (err) {
-    console.error('❌ Error generating stock status report:', err);
-    res.status(500).json({ error: 'Failed to generate stock status report' });
+    console.error("❌ Error generating stock status report:", err);
+    res.status(500).json({ error: "Failed to generate stock status report" });
   } finally {
     client.release();
   }
