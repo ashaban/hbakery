@@ -117,7 +117,10 @@ router.get("/productionProfitability", async (req, res) => {
 
     // 💵 Production Expenditures
     const expenditureParams = [];
-    const expenditureWhere = ["ct.category = 'Production Cost'"];
+    const expenditureWhere = [
+      "ct.category = 'Production Cost'",
+      "ct.name != 'Labour'",
+    ];
 
     if (start_date && end_date) {
       expenditureParams.push(start_date, end_date);
