@@ -169,6 +169,27 @@
             </v-chip>
           </template>
         </v-list-item>
+
+        <v-list-item
+          active-class="menu-item--active"
+          class="menu-item rounded-xl"
+          to="StockTransfers"
+          value="StockTransfers"
+        >
+          <template #prepend>
+            <v-avatar
+              class="menu-avatar"
+              color="green-lighten-5"
+              rounded="lg"
+              size="42"
+            >
+              <v-icon color="green-darken-2" icon="mdi-factory" size="20" />
+            </v-avatar>
+          </template>
+          <v-list-item-title class="font-weight-medium menu-title"
+            >Stock Transfers</v-list-item-title
+          >
+        </v-list-item>
       </div>
 
       <!-- Analytics Section -->

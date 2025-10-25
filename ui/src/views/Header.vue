@@ -5,7 +5,7 @@
     </v-app-bar-nav-icon>
 
     <v-app-bar-title class="text-center text-yellow font-weight-bold">
-      Hanein Tanzania Investment | Bakery Management System
+      <!-- Hanein Tanzania Investment | Bakery Management System -->
     </v-app-bar-title>
 
     <v-spacer />

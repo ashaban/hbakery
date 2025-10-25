@@ -9,6 +9,11 @@ const {
   revertProductionOuts,
 } = require("../modules/ledger");
 
+const {
+  recordProductLedger,
+  deleteProductLedgerByProduction,
+} = require("../modules/productledger");
+
 router.get("/discrepancyReasons", async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -36,6 +41,9 @@ router.post("/", async (req, res) => {
       planned_at,
       produced_at,
       actual_qty,
+      good_qty,
+      damaged_qty,
+      reject_qty,
       discrepancies,
     } = req.body;
     if (
@@ -68,8 +76,8 @@ router.post("/", async (req, res) => {
     const hdr = await client.query(
       `INSERT INTO product_production
         (product_id, mode, qty_product, base_ingredient_id, base_ingredient_qty,
-         produced_by, notes, planned_at, produced_at, actual_qty)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         produced_by, notes, planned_at, produced_at, actual_qty, good_qty, damaged_qty, reject_qty)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        RETURNING id`,
       [
         product_id,
@@ -82,6 +90,9 @@ router.post("/", async (req, res) => {
         planned_at || null,
         produced_at || null,
         actual_qty || null,
+        good_qty || null,
+        damaged_qty || null,
+        reject_qty || null,
       ]
     );
     const productionId = hdr.rows[0].id;
@@ -127,6 +138,17 @@ router.post("/", async (req, res) => {
       );
     }
 
+    if (actual_qty && produced_at) {
+      const movementDate = produced_at;
+      await recordProductLedger(
+        client,
+        productionId,
+        product_id,
+        { good_qty, damaged_qty, reject_qty },
+        movementDate
+      );
+    }
+
     await client.query("COMMIT");
     res.json({ id: productionId, message: "Production created" });
   } catch (err) {
@@ -160,6 +182,9 @@ router.put("/:id", async (req, res) => {
       planned_at,
       produced_at,
       actual_qty,
+      good_qty,
+      damaged_qty,
+      reject_qty,
     } = req.body;
 
     if (
@@ -208,7 +233,10 @@ router.put("/:id", async (req, res) => {
              updated_by = $7,
              planned_at = $9,
              produced_at = $10,
-             actual_qty = $11
+             actual_qty = $11,
+             good_qty = $12,
+             damaged_qty = $13,
+             reject_qty = $14
        WHERE id = $8`,
       [
         product_id,
@@ -222,6 +250,9 @@ router.put("/:id", async (req, res) => {
         planned_at,
         produced_at,
         actual_qty,
+        good_qty,
+        damaged_qty,
+        reject_qty,
       ]
     );
 
@@ -277,6 +308,17 @@ router.put("/:id", async (req, res) => {
         id,
         ing.item_id,
         ing.qty_required,
+        movementDate
+      );
+    }
+
+    await deleteProductLedgerByProduction(client, id);
+    if (actual_qty) {
+      await recordProductLedger(
+        client,
+        id,
+        product_id,
+        { good_qty, damaged_qty, reject_qty },
         movementDate
       );
     }
@@ -464,6 +506,9 @@ router.get("/", async (req, res) => {
         pp.mode,
         pp.qty_product,
         pp.actual_qty,
+        pp.good_qty,
+        pp.damaged_qty,
+        pp.reject_qty,
         -- Aggregate discrepancy reasons as names
         COALESCE((
           SELECT ARRAY_AGG(DISTINCT dr2.name)
@@ -604,6 +649,8 @@ router.delete("/:id", async (req, res) => {
 
     // Remove ledger OUT movements for this production first
     await revertProductionOuts(client, id);
+
+    await deleteProductLedgerByProduction(client, id);
 
     // Then remove detail tables and header (ON DELETE CASCADE may already handle some)
     await client.query(

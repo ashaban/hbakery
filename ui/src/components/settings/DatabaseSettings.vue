@@ -17,7 +17,9 @@
         <!-- Desktop Navigation -->
         <v-col class="bg-grey-lighten-4" cols="12" md="3">
           <v-list class="py-2" nav>
-            <v-list-subheader class="text-h6 text-primary mt-2">SETTINGS MENU</v-list-subheader>
+            <v-list-subheader class="text-h6 text-primary mt-2"
+              >SETTINGS MENU</v-list-subheader
+            >
             <v-divider class="my-2" />
 
             <v-list-item
@@ -30,7 +32,10 @@
               @click="loadComponent(key)"
             >
               <template #prepend>
-                <v-icon :color="selectedComponent === key ? 'primary' : ''" :icon="item.icon" />
+                <v-icon
+                  :color="selectedComponent === key ? 'primary' : ''"
+                  :icon="item.icon"
+                />
               </template>
 
               <v-list-item-title class="font-weight-medium">
@@ -59,8 +64,8 @@
                 :variant="isSelected ? 'flat' : 'text'"
                 @click="
                   () => {
-                    loadComponent(key)
-                    toggle()
+                    loadComponent(key);
+                    toggle();
                   }
                 "
               >
@@ -76,8 +81,15 @@
           <v-fade-transition mode="out-in">
             <div class="d-flex flex-column h-100">
               <div class="d-flex align-center mb-6">
-                <v-icon class="mr-3" color="primary" :icon="currentItem.icon" size="large" />
-                <h2 class="text-h4 font-weight-bold text-primary">{{ currentItem.label }}</h2>
+                <v-icon
+                  class="mr-3"
+                  color="primary"
+                  :icon="currentItem.icon"
+                  size="large"
+                />
+                <h2 class="text-h4 font-weight-bold text-primary">
+                  {{ currentItem.label }}
+                </h2>
               </div>
 
               <v-card class="flex-grow-1" rounded="lg" variant="outlined">
@@ -92,36 +104,39 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from "vue";
 
-const selectedComponent = ref('ItemUnit')
-const settingComponent = ref(null)
+const selectedComponent = ref("ItemUnit");
+const settingComponent = ref(null);
 
 const menuItems = {
-  ItemUnit: { label: 'Ingredients Units', icon: 'mdi-domain' },
-  Item: { label: 'Ingredients', icon: 'mdi-domain' },
-  Products: { label: 'Products', icon: 'mdi-domain' },
-  CostTypes: { label: 'Cost Types', icon: 'mdi-domain' },
-}
+  ItemUnit: { label: "Ingredients Units", icon: "mdi-domain" },
+  Item: { label: "Ingredients", icon: "mdi-domain" },
+  Products: { label: "Products", icon: "mdi-domain" },
+  CostTypes: { label: "Cost Types", icon: "mdi-domain" },
+  Outlets: { label: "Sales Points", icon: "mdi-domain" },
+};
 
-const currentItem = computed(() => menuItems[selectedComponent.value] || menuItems.ItemUnit)
+const currentItem = computed(
+  () => menuItems[selectedComponent.value] || menuItems.ItemUnit,
+);
 
 const loadComponent = async (component) => {
   try {
     // Dynamically import the component
-    const module = await import(`../../components/settings/${component}.vue`)
-    settingComponent.value = module.default
-    selectedComponent.value = component
+    const module = await import(`../../components/settings/${component}.vue`);
+    settingComponent.value = module.default;
+    selectedComponent.value = component;
   } catch (error) {
-    console.error(`Error loading component ${component}:`, error)
+    console.error(`Error loading component ${component}:`, error);
     // Fallback to default component
-    const module = await import(`../../components/settings/ItemUnit.vue`)
-    settingComponent.value = module.default
-    selectedComponent.value = 'ItemUnit'
+    const module = await import(`../../components/settings/ItemUnit.vue`);
+    settingComponent.value = module.default;
+    selectedComponent.value = "ItemUnit";
   }
-}
+};
 
-onMounted(() => loadComponent('ItemUnit'))
+onMounted(() => loadComponent("ItemUnit"));
 </script>
 
 <style scoped>
