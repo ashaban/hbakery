@@ -260,7 +260,6 @@
       </v-card-actions>
     </v-card>
 
-    <!-- ✨ ENHANCED ADD/EDIT TRANSFER DIALOG -->
     <v-dialog v-model="showDialog" max-width="1200" persistent scrollable>
       <v-card class="rounded-lg">
         <v-toolbar
@@ -284,6 +283,21 @@
             <v-icon>mdi-close</v-icon>
           </v-btn>
         </v-toolbar>
+        <v-alert
+          v-if="saving && hasQualityChanges"
+          class="mb-4"
+          color="info"
+          icon="mdi-autorenew"
+          variant="tonal"
+        >
+          <v-progress-linear
+            class="mb-2"
+            color="info"
+            height="4"
+            indeterminate
+          />
+          Processing quality adjustments...
+        </v-alert>
 
         <v-card-text class="pa-6">
           <!-- Basic Info Section -->
@@ -354,7 +368,12 @@
                   {{ form.items.length }} items
                 </v-chip>
               </div>
-              <v-btn color="green" size="small" @click="addItem">
+              <v-btn
+                color="green"
+                :disabled="!canAddTransferItem"
+                size="small"
+                @click="addItem"
+              >
                 <v-icon start>mdi-plus</v-icon>
                 Add Item
               </v-btn>
@@ -573,7 +592,11 @@
                 <div class="text-body-1 text-grey mb-4">
                   Click "Add Item" to start adding products to this transfer
                 </div>
-                <v-btn color="primary" @click="addItem">
+                <v-btn
+                  color="primary"
+                  :disabled="!canAddTransferItem"
+                  @click="addItem"
+                >
                   <v-icon start>mdi-plus</v-icon>
                   Add Your First Item
                 </v-btn>
@@ -1152,12 +1175,24 @@ const hasQualityChanges = computed(() => {
   return form.items.some((item) => item.from_quality !== item.to_quality);
 });
 
+// Update the qualityChangeSummary computed property
 const qualityChangeSummary = computed(() => {
   const changes = form.items.filter(
     (item) => item.from_quality !== item.to_quality,
   );
   if (changes.length === 0) return "";
-  return `${changes.length} item(s) will change quality during transfer`;
+
+  const changeTypes = changes.reduce((acc, item) => {
+    const key = `${item.from_quality}→${item.to_quality}`;
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+
+  const changeText = Object.entries(changeTypes)
+    .map(([change, count]) => `${count} ${change}`)
+    .join(", ");
+
+  return `${changes.length} item(s) will undergo quality conversion: ${changeText}`;
 });
 
 const canSave = computed(() => {
@@ -1168,6 +1203,10 @@ const canSave = computed(() => {
     form.items.length > 0 &&
     validationErrors.value.length === 0
   );
+});
+
+const canAddTransferItem = computed(() => {
+  return form.from_outlet_id && form.to_outlet_id && form.movement_date;
 });
 
 const hasReplacements = computed(() => {
@@ -1326,17 +1365,18 @@ function getItemError(item) {
 }
 
 function getAvailableProducts(currentIndex) {
-  const usedCombinations = form.items
-    .filter((_, index) => index !== currentIndex)
-    .map((item) => `${item.product_id}_${item.to_quality}`)
-    .filter((combo) => combo !== "_");
+  // const usedCombinations = form.items
+  //   .filter((_, index) => index !== currentIndex)
+  //   .map((item) => `${item.product_id}_${item.to_quality}`)
+  //   .filter((combo) => combo !== "_");
 
-  return products.value.filter((product) => {
-    if (form.items[currentIndex].product_id === product.id) return true;
-    const currentToQuality = form.items[currentIndex].to_quality || "GOOD";
-    const combination = `${product.id}_${currentToQuality}`;
-    return !usedCombinations.includes(combination);
-  });
+  // return products.value.filter((product) => {
+  //   if (form.items[currentIndex].product_id === product.id) return true;
+  //   const currentToQuality = form.items[currentIndex].to_quality || "GOOD";
+  //   const combination = `${product.id}_${currentToQuality}`;
+  //   return !usedCombinations.includes(combination);
+  // });
+  return products.value;
 }
 
 // Enhanced Item Management
@@ -1351,6 +1391,7 @@ function addItem() {
     availableStock: 0,
     stockData: null,
   });
+  validateForm();
 }
 
 // Quality Adjustment Methods
@@ -1409,9 +1450,11 @@ async function applyQualityAdjustment() {
 
     if (!res.ok) throw new Error("Failed to adjust quality");
 
+    const result = await res.json();
+
     store.commit("setMessage", {
       type: "success",
-      text: "Quality adjusted successfully",
+      text: `Quality adjusted successfully (Adjustment ID: ${result.adjustmentId})`,
     });
 
     showAdjustDialog.value = false;
@@ -1426,6 +1469,7 @@ async function applyQualityAdjustment() {
 }
 
 // Enhanced Save Transfer
+// In saveTransfer() - Handle the new response format
 async function saveTransfer() {
   if (!canSave.value) return;
 
@@ -1444,8 +1488,8 @@ async function saveTransfer() {
       items: form.items.map((item) => ({
         product_id: item.product_id,
         quantity: Number(item.quantity),
-        from_quality: item.from_quality, // Actual stock quality
-        to_quality: item.to_quality, // Transfer quality
+        from_quality: item.from_quality,
+        to_quality: item.to_quality,
         is_replacement: item.is_replacement,
         replacement_note: item.replacement_note,
       })),
@@ -1459,9 +1503,23 @@ async function saveTransfer() {
 
     if (!res.ok) throw new Error("Failed to save transfer");
 
+    const result = await res.json(); // Get the full response
+
+    let successMessage = `Transfer ${isEditing.value ? "updated" : "created"} successfully`;
+
+    // Add quality adjustment info if applicable
+    if (result.adjustmentIds && result.adjustmentIds.length > 0) {
+      successMessage += ` (${result.adjustmentIds.length} quality adjustments processed)`;
+    }
+
+    // Add undo info for updates
+    if (result.undoneAdjustments && result.undoneAdjustments > 0) {
+      successMessage += ` (${result.undoneAdjustments} previous adjustments reversed)`;
+    }
+
     store.commit("setMessage", {
       type: "success",
-      text: `Transfer ${isEditing.value ? "updated" : "created"} successfully`,
+      text: successMessage,
     });
 
     closeDialog();
@@ -1653,6 +1711,7 @@ function openDeleteDialog(transfer) {
   showDeleteDialog.value = true;
 }
 
+// In confirmDelete() - Handle the enhanced response
 async function confirmDelete() {
   deleting.value = true;
 
@@ -1662,10 +1721,18 @@ async function confirmDelete() {
     });
     if (!res.ok) throw new Error("Failed to delete transfer");
 
+    const result = await res.json();
+
+    let successMessage = "Transfer deleted successfully";
+    if (result.undoneAdjustments && result.undoneAdjustments > 0) {
+      successMessage += ` (${result.undoneAdjustments} quality adjustments reversed)`;
+    }
+
     store.commit("setMessage", {
       type: "success",
-      text: "Transfer deleted successfully",
+      text: successMessage,
     });
+
     showDeleteDialog.value = false;
     loadTransfers();
   } catch (error) {

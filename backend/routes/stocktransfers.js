@@ -2,12 +2,18 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 const {
-  recordTransferLedger,
-  deleteTransferLedger,
   getProductAvailableQty,
-  determineOriginDestination,
-  validateTransferAvailability,
+  deleteTransferLedger,
 } = require("../modules/productledger");
+const {
+  performQualityAdjustment,
+  undoQualityAdjustment,
+  getAdjustmentsByReference,
+  undoTransferAdjustments,
+} = require("../modules/qualityAdjustment");
+const {
+  processTransferWithQualityAdjustments,
+} = require("../modules/transferProcessor");
 
 /**
  * GET /stock/available-all - Get available stock for all qualities at once
@@ -215,125 +221,57 @@ router.get("/:id", async (req, res) => {
 });
 
 router.post("/adjust-quality", async (req, res) => {
-  const {
-    outlet_id,
-    product_id,
-    from_quality,
-    to_quality,
-    quantity,
-    remarks,
-    movement_date,
-  } = req.body;
-
-  if (!outlet_id || !product_id || !from_quality || !to_quality || !quantity) {
-    return res.status(400).json({ error: "Missing required fields" });
-  }
-
   const client = await pool.connect();
   try {
-    await client.query("BEGIN");
-
-    const available = await getProductAvailableQty(
-      client,
+    const {
       outlet_id,
       product_id,
-      from_quality
-    );
-    if (quantity > available) {
-      throw {
-        code: "INSUFFICIENT_STOCK",
-        message: `Not enough ${from_quality} stock to reclassify.`,
-      };
+      from_quality,
+      to_quality,
+      quantity,
+      remarks,
+      movement_date,
+    } = req.body;
+
+    if (
+      !outlet_id ||
+      !product_id ||
+      !from_quality ||
+      !to_quality ||
+      !quantity
+    ) {
+      return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // FIFO selection (reuse logic from recordTransferLedger)
-    const batches = await client.query(
-      `
-      SELECT production_id,
-        SUM(
-          CASE
-            WHEN movement_type IN ('IN','TRANSFER_IN','QUALITY_CHANGE') THEN quantity
-            WHEN movement_type IN ('OUT','TRANSFER_OUT','SALE') THEN -quantity
-            ELSE 0
-          END
-        ) AS available_qty
-      FROM product_ledger
-      WHERE outlet_id=$1 AND product_id=$2 AND quality=$3
-      GROUP BY production_id
-      HAVING SUM(
-        CASE
-          WHEN movement_type IN ('IN','TRANSFER_IN','QUALITY_CHANGE') THEN quantity
-          WHEN movement_type IN ('OUT','TRANSFER_OUT','SALE') THEN -quantity
-          ELSE 0
-        END
-      ) > 0
-      ORDER BY production_id ASC
-    `,
-      [outlet_id, product_id, from_quality]
-    );
+    await client.query("BEGIN");
 
-    let remaining = quantity;
-
-    for (const batch of batches.rows) {
-      if (remaining <= 0) break;
-      const moveQty = Math.min(remaining, Number(batch.available_qty));
-      remaining -= moveQty;
-
-      // OUT (old quality)
-      await client.query(
-        `INSERT INTO product_ledger
-          (product_id, outlet_id, movement_type, quantity, quality,
-           production_id, movement_date, remarks)
-         VALUES ($1,$2,'QUALITY_CHANGE',-$3,$4,$5,$6,$7)`,
-        [
-          product_id,
-          outlet_id,
-          moveQty,
-          from_quality,
-          batch.production_id,
-          movement_date,
-          remarks,
-        ]
-      );
-
-      // IN (new quality)
-      await client.query(
-        `INSERT INTO product_ledger
-          (product_id, outlet_id, movement_type, quantity, quality,
-           production_id, movement_date, remarks)
-         VALUES ($1,$2,'QUALITY_CHANGE',$3,$4,$5,$6,$7)`,
-        [
-          product_id,
-          outlet_id,
-          moveQty,
-          to_quality,
-          batch.production_id,
-          movement_date,
-          remarks,
-        ]
-      );
-    }
-
-    // optional audit trail
-    await client.query(
-      `INSERT INTO stock_quality_adjustment
-        (outlet_id, product_id, from_quality, to_quality, quantity, remarks, movement_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-      [
-        outlet_id,
-        product_id,
-        from_quality,
-        to_quality,
-        quantity,
-        remarks,
-        movement_date,
-      ]
-    );
+    const result = await performQualityAdjustment(client, {
+      outlet_id,
+      product_id,
+      from_quality,
+      to_quality,
+      quantity,
+      remarks: remarks || "Direct quality adjustment",
+      movement_date: movement_date || new Date(),
+      created_by: req.user?.id || 1,
+    });
 
     await client.query("COMMIT");
-    res.json({ message: "Quality adjusted successfully" });
+
+    res.json({
+      adjustmentId: result.adjustmentId,
+      message: "Quality adjusted successfully",
+      summary: result.summary,
+    });
   } catch (err) {
     await client.query("ROLLBACK");
+    if (err.code === "INSUFFICIENT_STOCK") {
+      return res.status(400).json({
+        error: err.code,
+        message: err.message,
+        details: err.meta,
+      });
+    }
     console.error("❌ Quality adjustment failed:", err);
     res.status(500).json({ error: "Failed to adjust quality" });
   } finally {
@@ -341,11 +279,15 @@ router.post("/adjust-quality", async (req, res) => {
   }
 });
 
+/**
+ * POST / - Create transfer with quality adjustments
+ */
 router.post("/", async (req, res) => {
   const client = await pool.connect();
   try {
     const { from_outlet_id, to_outlet_id, remarks, items, movement_date } =
       req.body;
+
     if (
       !from_outlet_id ||
       !to_outlet_id ||
@@ -357,161 +299,96 @@ router.post("/", async (req, res) => {
 
     await client.query("BEGIN");
 
-    // 1) figure origin/destination + pre-validate
-    const { origin } = await determineOriginDestination(
+    const result = await processTransferWithQualityAdjustments(
       client,
-      from_outlet_id,
-      to_outlet_id
-    );
-    await validateTransferAvailability(client, origin, items);
-
-    // 2) insert header
-    const hdr = await client.query(
-      `INSERT INTO stock_transfer (from_outlet_id, to_outlet_id, type, remarks, transfer_date, created_by)
-       VALUES ($1,$2,'OUTWARD',$3,$4,$5) RETURNING id`,
-      [
-        from_outlet_id,
-        to_outlet_id,
-        remarks || null,
-        movement_date || new Date(),
-        req.user?.id || 1,
-      ]
-    );
-    const transferId = hdr.rows[0].id;
-
-    // 3) insert items
-    const insertItem = `
-      INSERT INTO stock_transfer_item (transfer_id, product_id, quantity, quality, from_quality, to_quality, is_replacement, replacement_note)
-      VALUES ($1,$2,$3,$4,$5,$6)`;
-    for (const it of items) {
-      await client.query(insertItem, [
-        transferId,
-        it.product_id,
-        it.quantity,
-        it.to_quality,
-        it.from_quality,
-        it.to_quality,
-        it.is_replacement || false,
-        it.is_replacement ? it.replacement_note : null,
-      ]);
-      if (it.from_quality !== it.to_quality) {
-        await client.query(
-          `INSERT INTO stock_quality_adjustment
-            (outlet_id, product_id, from_quality, to_quality, quantity, remarks, movement_date)
-        VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-          [
-            from_outlet_id,
-            it.product_id,
-            it.from_quality,
-            it.to_quality,
-            it.quantity,
-            remarks,
-            movement_date,
-          ]
-        );
-      }
-    }
-
-    // 4) ledger (has internal safety validation too)
-    await recordTransferLedger(
-      client,
-      transferId,
       from_outlet_id,
       to_outlet_id,
+      remarks,
       items,
-      movement_date
+      movement_date,
+      req.user?.id || 1
     );
 
     await client.query("COMMIT");
-    res.json({ id: transferId, message: "Transfer recorded successfully" });
+
+    res.json({
+      id: result.transferId,
+      adjustmentIds: result.adjustmentIds,
+      message: "Transfer recorded successfully",
+    });
   } catch (err) {
     await client.query("ROLLBACK");
     if (err.code === "INSUFFICIENT_STOCK") {
-      return res
-        .status(400)
-        .json({ error: err.code, message: err.message, details: err.meta });
+      return res.status(400).json({
+        error: err.code,
+        message: err.message,
+        details: err.meta,
+      });
     }
-    console.error("❌ Transfer create failed:", err);
+    console.error("❌ Transfer creation failed:", err);
     res.status(500).json({ error: "Failed to create transfer" });
   } finally {
     client.release();
   }
 });
 
+/**
+ * PUT /:id - Update transfer with quality adjustment handling
+ */
 router.put("/:id", async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
     const { from_outlet_id, to_outlet_id, remarks, movement_date, items } =
       req.body;
+
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: "No transfer items provided" });
     }
 
     await client.query("BEGIN");
 
-    // 0) remove existing items + ledger so availability reflects the new ask
-    await client.query(`DELETE FROM stock_transfer_item WHERE transfer_id=$1`, [
-      id,
-    ]);
+    // First, undo previous adjustments for this transfer
+    const undoResults = await undoTransferAdjustments(client, id);
+    console.log(
+      `Undid ${undoResults.length} previous adjustments for transfer ${id}`
+    );
+
+    // Delete existing transfer data
+    await client.query(
+      `DELETE FROM stock_transfer_item WHERE transfer_id = $1`,
+      [id]
+    );
     await deleteTransferLedger(client, id);
 
-    // 1) work out origin/destination for new data, then pre-validate
-    const { origin } = await determineOriginDestination(
+    // Then process with new adjustments
+    const result = await processTransferWithQualityAdjustments(
       client,
-      from_outlet_id,
-      to_outlet_id
-    );
-    await validateTransferAvailability(client, origin, items);
-
-    // 2) update header
-    await client.query(
-      `UPDATE stock_transfer
-         SET from_outlet_id=$1, to_outlet_id=$2, remarks=$3, transfer_date=$4, updated_by=$5, updated_at=NOW()
-       WHERE id=$6`,
-      [
-        from_outlet_id,
-        to_outlet_id,
-        remarks || null,
-        movement_date,
-        req.user?.id || 1,
-        id,
-      ]
-    );
-
-    // 3) reinsert items
-    const insertItem = `
-      INSERT INTO stock_transfer_item (transfer_id, product_id, quantity, quality, is_replacement, replacement_note)
-      VALUES ($1,$2,$3,$4,$5,$6)`;
-    for (const it of items) {
-      await client.query(insertItem, [
-        id,
-        it.product_id,
-        it.quantity,
-        it.quality || "GOOD",
-        it.is_replacement || false,
-        it.is_replacement ? it.replacement_note : null,
-      ]);
-    }
-
-    // 4) rebuild ledger (still validates inside)
-    await recordTransferLedger(
-      client,
-      id,
       from_outlet_id,
       to_outlet_id,
+      remarks,
       items,
-      movement_date
+      movement_date,
+      req.user?.id || 1,
+      id
     );
 
     await client.query("COMMIT");
-    res.json({ id, message: "Stock transfer updated successfully" });
+
+    res.json({
+      id: result.transferId,
+      adjustmentIds: result.adjustmentIds,
+      undoneAdjustments: undoResults.length,
+      message: "Transfer updated successfully",
+    });
   } catch (err) {
     await client.query("ROLLBACK");
     if (err.code === "INSUFFICIENT_STOCK") {
-      return res
-        .status(400)
-        .json({ error: err.code, message: err.message, details: err.meta });
+      return res.status(400).json({
+        error: err.code,
+        message: err.message,
+        details: err.meta,
+      });
     }
     console.error("❌ Transfer update failed:", err);
     res.status(500).json({ error: "Failed to update transfer" });
@@ -520,27 +397,73 @@ router.put("/:id", async (req, res) => {
   }
 });
 
+/**
+ * DELETE /:id - Delete transfer with adjustment cleanup
+ */
 router.delete("/:id", async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
 
     await client.query("BEGIN");
+
+    // Undo all adjustments for this transfer
+    const undoResults = await undoTransferAdjustments(client, id);
+
+    // Delete transfer data
     await deleteTransferLedger(client, id);
-    await client.query(`DELETE FROM stock_transfer_item WHERE transfer_id=$1`, [
+    await client.query(
+      `DELETE FROM stock_transfer_item WHERE transfer_id = $1`,
+      [id]
+    );
+    const del = await client.query(`DELETE FROM stock_transfer WHERE id = $1`, [
       id,
     ]);
-    const del = await client.query(`DELETE FROM stock_transfer WHERE id=$1`, [
-      id,
-    ]);
+
+    if (del.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Transfer not found" });
+    }
+
     await client.query("COMMIT");
 
-    if (del.rowCount === 0) return res.status(404).json({ error: "Not found" });
-    res.json({ id, message: "Transfer deleted" });
+    res.json({
+      id,
+      undoneAdjustments: undoResults.length,
+      message: "Transfer deleted successfully",
+    });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("❌ Delete transfer failed:", err);
     res.status(500).json({ error: "Failed to delete transfer" });
+  } finally {
+    client.release();
+  }
+});
+
+/**
+ * GET /adjustments/:reference_type/:reference_id - Get adjustments by reference
+ */
+router.get("/adjustments/:reference_type/:reference_id", async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { reference_type, reference_id } = req.params;
+
+    const adjustments = await getAdjustmentsByReference(
+      client,
+      reference_type,
+      reference_id
+    );
+
+    res.json({
+      reference_type,
+      reference_id,
+      adjustments,
+      count: adjustments.length,
+    });
+  } catch (err) {
+    console.error("❌ Fetch adjustments failed:", err);
+    res.status(500).json({ error: "Failed to fetch adjustments" });
   } finally {
     client.release();
   }

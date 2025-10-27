@@ -71,22 +71,7 @@
           value="Purchases"
         >
           <template #prepend>
-            <v-badge v-if="hasNewPurchases" color="error" dot inline>
-              <v-avatar
-                class="menu-avatar"
-                color="blue-lighten-5"
-                rounded="lg"
-                size="42"
-              >
-                <v-icon
-                  color="blue-darken-2"
-                  icon="mdi-cart-arrow-down"
-                  size="20"
-                />
-              </v-avatar>
-            </v-badge>
             <v-avatar
-              v-else
               class="menu-avatar"
               color="blue-lighten-5"
               rounded="lg"
@@ -102,16 +87,6 @@
           <v-list-item-title class="font-weight-medium menu-title"
             >Purchases</v-list-item-title
           >
-          <template #append>
-            <v-chip
-              v-if="!mini && purchaseCount"
-              class="menu-badge"
-              color="blue"
-              size="x-small"
-            >
-              {{ purchaseCount }}
-            </v-chip>
-          </template>
         </v-list-item>
 
         <v-list-item
@@ -158,16 +133,6 @@
           <v-list-item-title class="font-weight-medium menu-title"
             >Productions</v-list-item-title
           >
-          <template #append>
-            <v-chip
-              v-if="!mini && productionCount"
-              class="menu-badge"
-              color="green"
-              size="x-small"
-            >
-              {{ productionCount }}
-            </v-chip>
-          </template>
         </v-list-item>
 
         <v-list-item
@@ -292,16 +257,6 @@
           <v-list-item-title class="font-weight-medium menu-title"
             >Staffs</v-list-item-title
           >
-          <template #append>
-            <v-chip
-              v-if="!mini && staffCount"
-              class="menu-badge"
-              color="teal"
-              size="x-small"
-            >
-              {{ staffCount }}
-            </v-chip>
-          </template>
         </v-list-item>
 
         <v-list-item
@@ -380,10 +335,7 @@ export default {
     return {
       mini: false,
       drawer: true,
-      purchaseCount: 12,
-      productionCount: 8,
-      staffCount: 24,
-      hasNewPurchases: true,
+      hasNewPurchases: false,
     };
   },
   computed: {

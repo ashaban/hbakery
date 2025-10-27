@@ -1,13 +1,13 @@
 <template>
-  <v-container fluid class="reports-dashboard">
+  <v-container class="reports-dashboard" fluid>
     <!-- List View -->
     <div v-if="!activeReport" class="pt-6">
       <!-- Header Section -->
       <v-row class="mb-6">
         <v-col cols="12" md="8">
           <div class="d-flex align-center">
-            <v-avatar color="primary" size="56" variant="tonal" class="mr-4">
-              <v-icon size="28" color="primary">mdi-file-chart</v-icon>
+            <v-avatar class="mr-4" color="primary" size="56" variant="tonal">
+              <v-icon color="primary" size="28">mdi-file-chart</v-icon>
             </v-avatar>
             <div>
               <h1 class="text-h4 font-weight-bold text-primary">
@@ -19,72 +19,80 @@
             </div>
           </div>
         </v-col>
-        <v-col cols="12" md="4" class="d-flex align-center justify-end">
+        <v-col class="d-flex align-center justify-end" cols="12" md="4">
           <v-text-field
             v-model="search"
+            class="search-field"
+            clearable
             density="comfortable"
+            hide-details
             placeholder="Search reports..."
             prepend-inner-icon="mdi-magnify"
             variant="outlined"
-            hide-details
-            clearable
-            class="search-field"
-          ></v-text-field>
+          />
         </v-col>
       </v-row>
 
       <!-- Stats Overview -->
       <v-row class="mb-6">
-        <v-col cols="12" sm="6" md="3">
+        <v-col cols="12" md="3" sm="6">
           <v-card class="stat-card" color="blue-lighten-5" elevation="2">
             <v-card-text class="d-flex align-center">
-              <v-avatar color="blue" size="48" variant="tonal" class="mr-3">
+              <v-avatar class="mr-3" color="blue" size="48" variant="tonal">
                 <v-icon color="blue">mdi-file-document</v-icon>
               </v-avatar>
               <div>
-                <div class="text-h5 font-weight-bold text-blue">{{ totalReports }}</div>
+                <div class="text-h5 font-weight-bold text-blue">
+                  {{ totalReports }}
+                </div>
                 <div class="text-caption text-grey">Total Reports</div>
               </div>
             </v-card-text>
           </v-card>
         </v-col>
-        
-        <v-col cols="12" sm="6" md="3">
+
+        <v-col cols="12" md="3" sm="6">
           <v-card class="stat-card" color="green-lighten-5" elevation="2">
             <v-card-text class="d-flex align-center">
-              <v-avatar color="green" size="48" variant="tonal" class="mr-3">
+              <v-avatar class="mr-3" color="green" size="48" variant="tonal">
                 <v-icon color="green">mdi-chart-bar</v-icon>
               </v-avatar>
               <div>
-                <div class="text-h5 font-weight-bold text-green">{{ analyticsReports }}</div>
+                <div class="text-h5 font-weight-bold text-green">
+                  {{ analyticsReports }}
+                </div>
                 <div class="text-caption text-grey">Analytics</div>
               </div>
             </v-card-text>
           </v-card>
         </v-col>
-        
-        <v-col cols="12" sm="6" md="3">
+
+        <v-col cols="12" md="3" sm="6">
           <v-card class="stat-card" color="orange-lighten-5" elevation="2">
             <v-card-text class="d-flex align-center">
-              <v-avatar color="orange" size="48" variant="tonal" class="mr-3">
+              <v-avatar class="mr-3" color="orange" size="48" variant="tonal">
                 <v-icon color="orange">mdi-finance</v-icon>
               </v-avatar>
               <div>
-                <div class="text-h5 font-weight-bold text-orange">{{ financialReports }}</div>
+                <div class="text-h5 font-weight-bold text-orange">
+                  {{ financialReports }}
+                </div>
                 <div class="text-caption text-grey">Financial</div>
               </div>
             </v-card-text>
           </v-card>
         </v-col>
-        
-        <v-col cols="12" sm="6" md="3">
+
+        <v-col cols="12" md="3" sm="6">
           <v-card class="stat-card" color="purple-lighten-5" elevation="2">
             <v-card-text class="d-flex align-center">
-              <v-avatar color="purple" size="48" variant="tonal" class="mr-3">
+              <v-avatar class="mr-3" color="purple" size="48" variant="tonal">
                 <v-icon color="purple">mdi-package-variant</v-icon>
               </v-avatar>
               <div>
-                <div class="text-h5 font-weight-bold text-purple">{{ inventoryReports }}</div>
+                <div class="text-h5 font-weight-bold text-purple">
+                  {{ inventoryReports }}
+                </div>
                 <div class="text-caption text-grey">Inventory</div>
               </div>
             </v-card-text>
@@ -99,19 +107,19 @@
             <v-chip
               v-for="category in categories"
               :key="category"
+              class="category-chip"
               :color="selectedCategory === category ? 'primary' : 'default'"
               :variant="selectedCategory === category ? 'flat' : 'outlined'"
               @click="toggleCategory(category)"
-              class="category-chip"
             >
-              <v-icon start :icon="getCategoryIcon(category)" size="18"></v-icon>
+              <v-icon :icon="getCategoryIcon(category)" size="18" start />
               {{ category }}
               <v-badge
                 v-if="getCategoryCount(category) > 0"
+                class="ml-2"
                 :content="getCategoryCount(category)"
                 inline
-                class="ml-2"
-              ></v-badge>
+              />
             </v-chip>
           </div>
         </v-col>
@@ -123,9 +131,9 @@
           v-for="(report, index) in filteredReports"
           :key="index"
           cols="12"
-          sm="6"
-          md="4"
           lg="3"
+          md="4"
+          sm="6"
         >
           <v-card
             class="report-card hoverable transition-smooth"
@@ -133,23 +141,25 @@
             @click="openReport(report)"
           >
             <v-card-title class="d-flex align-center pb-2">
-              <v-avatar 
-                size="48" 
-                :color="getCategoryColor(report.category)" 
-                variant="tonal" 
+              <v-avatar
                 class="mr-3"
+                :color="getCategoryColor(report.category)"
+                size="48"
+                variant="tonal"
               >
-                <v-icon size="24" :color="getCategoryColor(report.category)">
+                <v-icon :color="getCategoryColor(report.category)" size="24">
                   {{ report.icon }}
                 </v-icon>
               </v-avatar>
               <div class="flex-grow-1">
-                <span class="text-h6 font-weight-bold line-clamp-1">{{ report.title }}</span>
+                <span class="text-h6 font-weight-bold line-clamp-1">{{
+                  report.title
+                }}</span>
                 <v-chip
-                  size="x-small"
-                  :color="getCategoryColor(report.category)"
-                  variant="flat"
                   class="mt-1"
+                  :color="getCategoryColor(report.category)"
+                  size="x-small"
+                  variant="flat"
                 >
                   {{ report.category }}
                 </v-chip>
@@ -158,15 +168,15 @@
 
             <v-card-text class="text-body-2 text-grey-darken-1 pt-2 pb-3">
               <div class="line-clamp-2 mb-3">{{ report.description }}</div>
-              
+
               <!-- Report Metadata -->
               <div class="report-meta">
                 <div class="d-flex align-center text-caption text-grey mb-1">
-                  <v-icon size="16" class="mr-1">mdi-clock-outline</v-icon>
+                  <v-icon class="mr-1" size="16">mdi-clock-outline</v-icon>
                   <span>{{ report.frequency }}</span>
                 </div>
                 <div class="d-flex align-center text-caption text-grey">
-                  <v-icon size="16" class="mr-1">mdi-file-outline</v-icon>
+                  <v-icon class="mr-1" size="16">mdi-file-outline</v-icon>
                   <span class="text-uppercase">{{ report.format }}</span>
                 </div>
               </div>
@@ -174,24 +184,26 @@
 
             <v-card-actions class="pt-0">
               <v-btn
-                variant="text"
+                class="font-weight-bold"
                 color="primary"
                 size="small"
-                class="font-weight-bold"
+                variant="text"
                 @click.stop="openReport(report)"
               >
-                <v-icon start size="18">mdi-chart-box</v-icon>
+                <v-icon size="18" start>mdi-chart-box</v-icon>
                 View Report
               </v-btn>
-              <v-spacer></v-spacer>
+              <v-spacer />
               <v-btn
-                icon
-                variant="text"
-                size="small"
-                @click.stop="toggleFavorite(report)"
                 :color="report.favorite ? 'amber' : 'grey'"
+                icon
+                size="small"
+                variant="text"
+                @click.stop="toggleFavorite(report)"
               >
-                <v-icon>{{ report.favorite ? 'mdi-star' : 'mdi-star-outline' }}</v-icon>
+                <v-icon>{{
+                  report.favorite ? "mdi-star" : "mdi-star-outline"
+                }}</v-icon>
               </v-btn>
             </v-card-actions>
           </v-card>
@@ -202,7 +214,9 @@
       <v-row v-if="filteredReports.length === 0">
         <v-col cols="12">
           <v-card class="text-center pa-12" elevation="2">
-            <v-icon size="80" color="grey-lighten-2" class="mb-4">mdi-file-remove</v-icon>
+            <v-icon class="mb-4" color="grey-lighten-2" size="80"
+              >mdi-file-remove</v-icon
+            >
             <div class="text-h5 text-grey mb-2">No reports found</div>
             <div class="text-body-1 text-grey mb-4">
               Try adjusting your search or filters
@@ -218,32 +232,36 @@
 
     <!-- Dynamic Report Viewer -->
     <div v-else class="report-viewer">
-      <v-card elevation="4" class="mb-4">
+      <v-card class="mb-4" elevation="4">
         <v-card-text class="pa-4">
           <div class="d-flex align-center">
             <v-btn
-              variant="text"
-              color="primary"
-              @click="activeReport = null"
               class="mr-4"
+              color="primary"
+              variant="text"
+              @click="activeReport = null"
             >
               <v-icon start>mdi-arrow-left</v-icon>
               Back to Reports
             </v-btn>
             <div class="d-flex align-center">
-              <v-avatar 
-                size="40" 
-                :color="getCategoryColor(activeReport.category)" 
-                variant="tonal" 
+              <v-avatar
                 class="mr-3"
+                :color="getCategoryColor(activeReport.category)"
+                size="40"
+                variant="tonal"
               >
                 <v-icon :color="getCategoryColor(activeReport.category)">
                   {{ activeReport.icon }}
                 </v-icon>
               </v-avatar>
               <div>
-                <h2 class="text-h5 font-weight-bold mb-0">{{ activeReport.title }}</h2>
-                <div class="text-caption text-grey">{{ activeReport.description }}</div>
+                <h2 class="text-h5 font-weight-bold mb-0">
+                  {{ activeReport.title }}
+                </h2>
+                <div class="text-caption text-grey">
+                  {{ activeReport.description }}
+                </div>
               </div>
             </div>
           </div>
@@ -260,109 +278,147 @@
 </template>
 
 <script setup>
-import { ref, computed, defineAsyncComponent } from 'vue'
+import { computed, defineAsyncComponent, ref } from "vue";
 
 // Reactive data
-const search = ref('')
-const selectedCategory = ref(null)
-const activeReport = ref(null)
-const showFavorites = ref(false)
+const search = ref("");
+const selectedCategory = ref(null);
+const activeReport = ref(null);
+const showFavorites = ref(false);
 
 // Predefined list of available reports
 const reports = ref([
   {
-    title: 'Ingredients Stock Status Report',
-    description: 'Shows opening, inwards, outwards, and closing balance of ingredients within a selected period.',
-    icon: 'mdi-database-eye',
-    category: 'Inventory',
-    frequency: 'Daily',
-    format: 'PDF',
+    title: "Ingredients Stock Status Report",
+    description:
+      "Shows opening, inwards, outwards, and closing balance of ingredients within a selected period.",
+    icon: "mdi-database-eye",
+    category: "Inventory",
+    frequency: "Daily",
+    format: "PDF",
     favorite: false,
-    component: defineAsyncComponent(() => import('@/components/reports/IngredientsStockReport.vue'))
-  }
-])
+    component: defineAsyncComponent(
+      () => import("@/components/reports/IngredientsStockReport.vue"),
+    ),
+  },
+  {
+    title: "Products Stock Report",
+    description:
+      "Shows opening, inwards, outwards, and closing balance of products within a selected period.",
+    icon: "mdi-database-eye",
+    category: "Inventory",
+    frequency: "Daily",
+    format: "PDF",
+    favorite: false,
+    component: defineAsyncComponent(
+      () => import("@/components/reports/StockReport.vue"),
+    ),
+  },
+  {
+    title: "Quality Adjustment Report",
+    description: "Shows quality adjustments of products.",
+    icon: "mdi-database-eye",
+    category: "Inventory",
+    frequency: "Daily",
+    format: "PDF",
+    favorite: false,
+    component: defineAsyncComponent(
+      () => import("@/components/reports/QualityAdjustmentReport.vue"),
+    ),
+  },
+]);
 
 // Computed properties
 const categories = computed(() => {
-  return [...new Set(reports.value.map(report => report.category))]
-})
+  return [...new Set(reports.value.map((report) => report.category))];
+});
 
 const filteredReports = computed(() => {
-  let filtered = reports.value
+  let filtered = reports.value;
 
   // Search filter
   if (search.value) {
-    const searchLower = search.value.toLowerCase()
-    filtered = filtered.filter(report => 
-      report.title.toLowerCase().includes(searchLower) ||
-      report.description.toLowerCase().includes(searchLower) ||
-      report.category.toLowerCase().includes(searchLower)
-    )
+    const searchLower = search.value.toLowerCase();
+    filtered = filtered.filter(
+      (report) =>
+        report.title.toLowerCase().includes(searchLower) ||
+        report.description.toLowerCase().includes(searchLower) ||
+        report.category.toLowerCase().includes(searchLower),
+    );
   }
 
   // Category filter
   if (selectedCategory.value) {
-    filtered = filtered.filter(report => report.category === selectedCategory.value)
+    filtered = filtered.filter(
+      (report) => report.category === selectedCategory.value,
+    );
   }
 
   // Favorites filter
   if (showFavorites.value) {
-    filtered = filtered.filter(report => report.favorite)
+    filtered = filtered.filter((report) => report.favorite);
   }
 
-  return filtered
-})
+  return filtered;
+});
 
-const totalReports = computed(() => reports.value.length)
-const analyticsReports = computed(() => reports.value.filter(r => r.category === 'Analytics').length)
-const financialReports = computed(() => reports.value.filter(r => r.category === 'Finance').length)
-const inventoryReports = computed(() => reports.value.filter(r => r.category === 'Inventory').length)
+const totalReports = computed(() => reports.value.length);
+const analyticsReports = computed(
+  () => reports.value.filter((r) => r.category === "Analytics").length,
+);
+const financialReports = computed(
+  () => reports.value.filter((r) => r.category === "Finance").length,
+);
+const inventoryReports = computed(
+  () => reports.value.filter((r) => r.category === "Inventory").length,
+);
 
 // Methods
 function openReport(report) {
-  activeReport.value = report
+  activeReport.value = report;
 }
 
 function toggleCategory(category) {
-  selectedCategory.value = selectedCategory.value === category ? null : category
+  selectedCategory.value =
+    selectedCategory.value === category ? null : category;
 }
 
 function toggleFavorite(report) {
-  report.favorite = !report.favorite
+  report.favorite = !report.favorite;
 }
 
 function clearFilters() {
-  search.value = ''
-  selectedCategory.value = null
-  showFavorites.value = false
+  search.value = "";
+  selectedCategory.value = null;
+  showFavorites.value = false;
 }
 
 function getCategoryColor(category) {
   const colors = {
-    'Inventory': 'blue',
-    'Analytics': 'green',
-    'Sales': 'orange',
-    'Finance': 'purple',
-    'Quality': 'teal',
-    'HR': 'pink'
-  }
-  return colors[category] || 'grey'
+    Inventory: "blue",
+    Analytics: "green",
+    Sales: "orange",
+    Finance: "purple",
+    Quality: "teal",
+    HR: "pink",
+  };
+  return colors[category] || "grey";
 }
 
 function getCategoryIcon(category) {
   const icons = {
-    'Inventory': 'mdi-package-variant',
-    'Analytics': 'mdi-chart-bar',
-    'Sales': 'mdi-chart-line',
-    'Finance': 'mdi-currency-usd',
-    'Quality': 'mdi-quality-high',
-    'HR': 'mdi-account-group'
-  }
-  return icons[category] || 'mdi-file-document'
+    Inventory: "mdi-package-variant",
+    Analytics: "mdi-chart-bar",
+    Sales: "mdi-chart-line",
+    Finance: "mdi-currency-usd",
+    Quality: "mdi-quality-high",
+    HR: "mdi-account-group",
+  };
+  return icons[category] || "mdi-file-document";
 }
 
 function getCategoryCount(category) {
-  return reports.value.filter(report => report.category === category).length
+  return reports.value.filter((report) => report.category === category).length;
 }
 </script>
 

@@ -2,6 +2,757 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 
+router.get("/stock-balance", async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const {
+      product_id,
+      outlet_id,
+      start_date,
+      end_date,
+      quality = "GOOD",
+      page = 1,
+      limit = 20,
+    } = req.query;
+
+    // Date handling
+    const defaultStartDate = new Date();
+    defaultStartDate.setDate(defaultStartDate.getDate() - 30);
+    const finalStartDate =
+      start_date || defaultStartDate.toISOString().split("T")[0];
+    const finalEndDate = end_date || new Date().toISOString().split("T")[0];
+
+    if (new Date(finalStartDate) > new Date(finalEndDate)) {
+      return res
+        .status(400)
+        .json({ error: "Start date cannot be after end date" });
+    }
+
+    const validQualities = ["GOOD", "DAMAGED", "REJECT", "ALL"];
+    const finalQuality = validQualities.includes(quality) ? quality : "GOOD";
+
+    // SIMPLE DIRECT QUERY - NO COMPLEX CTEs
+    const stockQuery = `
+WITH ledger AS (
+  SELECT
+    pl.product_id,
+    pl.outlet_id,
+    pl.quality,
+    CASE
+      WHEN pl.movement_type IN ('IN', 'TRANSFER_IN', 'RETURN') THEN pl.quantity
+      WHEN pl.movement_type IN ('OUT', 'TRANSFER_OUT', 'SALE') THEN -pl.quantity
+      WHEN pl.movement_type = 'QUALITY_CHANGE' THEN pl.quantity
+      ELSE 0
+    END AS effective_qty,
+    pl.movement_date
+  FROM product_ledger pl
+  WHERE
+    ($1::int IS NULL OR pl.product_id = $1)
+    AND ($2::int IS NULL OR pl.outlet_id = $2)
+    AND pl.movement_date <= $4::date
+),
+
+opening AS (
+  SELECT
+    product_id,
+    outlet_id,
+    quality,
+    SUM(effective_qty) AS opening_balance
+  FROM ledger
+  WHERE movement_date < $3::date
+  GROUP BY product_id, outlet_id, quality
+),
+
+period_movements AS (
+  SELECT
+    product_id,
+    outlet_id,
+    quality,
+    SUM(CASE WHEN effective_qty > 0 THEN effective_qty ELSE 0 END) AS incoming,
+    SUM(CASE WHEN effective_qty < 0 THEN ABS(effective_qty) ELSE 0 END) AS outgoing
+  FROM ledger
+  WHERE movement_date BETWEEN $3::date AND $4::date
+  GROUP BY product_id, outlet_id, quality
+),
+
+closing AS (
+  SELECT
+    product_id,
+    outlet_id,
+    quality,
+    SUM(effective_qty) AS closing_balance
+  FROM ledger
+  GROUP BY product_id, outlet_id, quality
+)
+
+SELECT
+  p.id AS product_id,
+  p.name AS product_name,
+  p.unit,
+  p.price,
+  o.id AS outlet_id,
+  o.name AS outlet_name,
+  o.type AS outlet_type,
+
+  COALESCE(op.opening_balance, 0) AS opening_balance,
+  COALESCE(pm.incoming, 0) AS incoming,
+  COALESCE(pm.outgoing, 0) AS outgoing,
+  COALESCE(cl.closing_balance, 0) AS closing_balance,
+
+  -- Quality breakdowns for the same outlet/product
+  COALESCE((
+    SELECT SUM(cl2.closing_balance)
+    FROM closing cl2
+    WHERE cl2.product_id = p.id AND cl2.outlet_id = o.id AND cl2.quality = 'GOOD'
+  ), 0) AS current_good,
+  COALESCE((
+    SELECT SUM(cl2.closing_balance)
+    FROM closing cl2
+    WHERE cl2.product_id = p.id AND cl2.outlet_id = o.id AND cl2.quality = 'DAMAGED'
+  ), 0) AS current_damaged,
+  COALESCE((
+    SELECT SUM(cl2.closing_balance)
+    FROM closing cl2
+    WHERE cl2.product_id = p.id AND cl2.outlet_id = o.id AND cl2.quality = 'REJECT'
+  ), 0) AS current_reject
+
+FROM product p
+JOIN outlet o ON o.is_active = true
+LEFT JOIN opening op ON op.product_id = p.id AND op.outlet_id = o.id AND ($5 = 'ALL' OR op.quality = $5)
+LEFT JOIN period_movements pm ON pm.product_id = p.id AND pm.outlet_id = o.id AND ($5 = 'ALL' OR pm.quality = $5)
+LEFT JOIN closing cl ON cl.product_id = p.id AND cl.outlet_id = o.id AND ($5 = 'ALL' OR cl.quality = $5)
+WHERE
+  ($1::int IS NULL OR p.id = $1)
+  AND ($2::int IS NULL OR o.id = $2)
+ORDER BY o.name, p.name;
+`;
+
+    const result = await client.query(stockQuery, [
+      product_id,
+      outlet_id,
+      finalStartDate,
+      finalEndDate,
+      finalQuality,
+    ]);
+
+    const stockData = result.rows.map((row) => {
+      const opening_balance = Number(row.opening_balance) || 0;
+      const incoming = Number(row.incoming) || 0;
+      const outgoing = Number(row.outgoing) || 0;
+      const closing_balance = opening_balance + incoming - outgoing;
+
+      return {
+        product_id: row.product_id,
+        product_name: row.product_name,
+        unit: row.unit,
+        price: Number(row.price) || 0,
+        outlet_id: row.outlet_id,
+        outlet_name: row.outlet_name,
+        outlet_type: row.outlet_type,
+        quality_breakdown: {
+          good: Math.max(0, Number(row.current_good) || 0),
+          damaged: Math.max(0, Number(row.current_damaged) || 0),
+          reject: Math.max(0, Number(row.current_reject) || 0),
+          total: Math.max(
+            0,
+            Number(row.current_good) +
+              Number(row.current_damaged) +
+              Number(row.current_reject)
+          ),
+        },
+        opening_balance: opening_balance,
+        incoming: incoming,
+        outgoing: outgoing,
+        closing_balance: closing_balance,
+        total_value: closing_balance * (Number(row.price) || 0),
+      };
+    });
+
+    // Simple pagination
+    const pageNum = Math.max(1, parseInt(page));
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
+    const offset = (pageNum - 1) * limitNum;
+    const totalRecords = stockData.length;
+    const totalPages = Math.ceil(totalRecords / limitNum);
+    const paginatedData = stockData.slice(offset, offset + limitNum);
+
+    // Generate summary
+    const summary = {
+      totalProducts: new Set(stockData.map((item) => item.product_id)).size,
+      totalOutlets: new Set(stockData.map((item) => item.outlet_id)).size,
+      totalOpening: stockData.reduce(
+        (sum, item) => sum + item.opening_balance,
+        0
+      ),
+      totalIncoming: stockData.reduce((sum, item) => sum + item.incoming, 0),
+      totalOutgoing: stockData.reduce((sum, item) => sum + item.outgoing, 0),
+      totalClosing: stockData.reduce(
+        (sum, item) => sum + item.closing_balance,
+        0
+      ),
+      totalValue: stockData.reduce((sum, item) => sum + item.total_value, 0),
+    };
+
+    // Generate chart data
+    const chartData = generateChartData(stockData);
+
+    res.json({
+      filters: {
+        product_id: product_id || null,
+        outlet_id: outlet_id || null,
+        quality: finalQuality,
+        start_date: finalStartDate,
+        end_date: finalEndDate,
+      },
+      pagination: {
+        currentPage: pageNum,
+        totalPages,
+        totalRecords,
+        limit: limitNum,
+        hasNext: pageNum < totalPages,
+        hasPrev: pageNum > 1,
+      },
+      summary,
+      chartData,
+      data: paginatedData,
+    });
+  } catch (err) {
+    console.error("❌ Error generating stock balance report:", err);
+    res.status(500).json({
+      error: "Failed to generate stock balance report",
+      details: process.env.NODE_ENV === "development" ? err.message : undefined,
+    });
+  } finally {
+    client.release();
+  }
+
+  function generateChartData(stockData) {
+    if (!stockData.length)
+      return { products: [], outlets: [], qualityDistribution: [] };
+
+    const productAggregation = {};
+    const outletAggregation = {};
+    const qualityDistribution = {};
+
+    stockData.forEach((item) => {
+      // Product aggregation (existing)
+      if (!productAggregation[item.product_name]) {
+        productAggregation[item.product_name] = {
+          opening: 0,
+          incoming: 0,
+          outgoing: 0,
+          closing: 0,
+          value: 0,
+        };
+      }
+      productAggregation[item.product_name].opening += item.opening_balance;
+      productAggregation[item.product_name].incoming += item.incoming;
+      productAggregation[item.product_name].outgoing += item.outgoing;
+      productAggregation[item.product_name].closing += item.closing_balance;
+      productAggregation[item.product_name].value += item.total_value;
+
+      // Outlet aggregation (existing)
+      if (!outletAggregation[item.outlet_name]) {
+        outletAggregation[item.outlet_name] = {
+          opening: 0,
+          incoming: 0,
+          outgoing: 0,
+          closing: 0,
+          value: 0,
+        };
+      }
+      outletAggregation[item.outlet_name].opening += item.opening_balance;
+      outletAggregation[item.outlet_name].incoming += item.incoming;
+      outletAggregation[item.outlet_name].outgoing += item.outgoing;
+      outletAggregation[item.outlet_name].closing += item.closing_balance;
+      outletAggregation[item.outlet_name].value += item.total_value;
+
+      // Quality Distribution by Product (NEW)
+      if (!qualityDistribution[item.product_name]) {
+        qualityDistribution[item.product_name] = {
+          GOOD: 0,
+          DAMAGED: 0,
+          REJECT: 0,
+          total: 0,
+        };
+      }
+      qualityDistribution[item.product_name].GOOD +=
+        item.quality_breakdown.good;
+      qualityDistribution[item.product_name].DAMAGED +=
+        item.quality_breakdown.damaged;
+      qualityDistribution[item.product_name].REJECT +=
+        item.quality_breakdown.reject;
+      qualityDistribution[item.product_name].total +=
+        item.quality_breakdown.total;
+    });
+
+    return {
+      products: Object.entries(productAggregation).map(([name, data]) => ({
+        name,
+        ...data,
+      })),
+      outlets: Object.entries(outletAggregation).map(([name, data]) => ({
+        name,
+        ...data,
+      })),
+      // NEW: Quality distribution data
+      qualityDistribution: Object.entries(qualityDistribution)
+        .map(([productName, qualities]) => ({
+          product: productName,
+          good: qualities.GOOD,
+          damaged: qualities.DAMAGED,
+          reject: qualities.REJECT,
+          total: qualities.total,
+          goodPercentage:
+            qualities.total > 0
+              ? ((qualities.GOOD / qualities.total) * 100).toFixed(1)
+              : 0,
+          damagedPercentage:
+            qualities.total > 0
+              ? ((qualities.DAMAGED / qualities.total) * 100).toFixed(1)
+              : 0,
+          rejectPercentage:
+            qualities.total > 0
+              ? ((qualities.REJECT / qualities.total) * 100).toFixed(1)
+              : 0,
+        }))
+        .sort((a, b) => b.total - a.total), // Sort by total stock descending
+    };
+  }
+
+  function generateStockSummary(stockData) {
+    const summary = {
+      totalProducts: new Set(stockData.map((item) => item.product_id)).size,
+      totalOutlets: new Set(stockData.map((item) => item.outlet_id)).size,
+      totalOpening: stockData.reduce(
+        (sum, item) => sum + item.opening_balance,
+        0
+      ),
+      totalIncoming: stockData.reduce((sum, item) => sum + item.incoming, 0),
+      totalOutgoing: stockData.reduce((sum, item) => sum + item.outgoing, 0),
+      totalClosing: stockData.reduce(
+        (sum, item) => sum + item.closing_balance,
+        0
+      ),
+      totalValue: stockData.reduce((sum, item) => sum + item.total_value, 0),
+    };
+
+    return summary;
+  }
+});
+
+router.get("/quality-adjustments", async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const {
+      product_id,
+      outlet_id,
+      start_date,
+      end_date,
+      from_quality,
+      to_quality,
+      is_replacement,
+      page = 1,
+      limit = 20,
+    } = req.query;
+
+    // Date handling
+    const defaultStartDate = new Date();
+    defaultStartDate.setDate(defaultStartDate.getDate() - 30);
+    const finalStartDate =
+      start_date || defaultStartDate.toISOString().split("T")[0];
+    const finalEndDate = end_date || new Date().toISOString().split("T")[0];
+
+    if (new Date(finalStartDate) > new Date(finalEndDate)) {
+      return res
+        .status(400)
+        .json({ error: "Start date cannot be after end date" });
+    }
+
+    // Simple query - just get all QUALITY_CHANGE movements and process in JavaScript
+    const simpleQuery = `
+      SELECT 
+        pl.id,
+        pl.product_id,
+        p.name as product_name,
+        p.unit,
+        p.price,
+        pl.outlet_id,
+        o.name as outlet_name,
+        o.type as outlet_type,
+        pl.quality,
+        pl.quantity,
+        pl.is_replacement,
+        pl.replacement_note,
+        pl.movement_date,
+        pl.created_at,
+        pl.remarks,
+        pl.created_by,
+        u.name as created_by_name,
+        pl.production_id,
+        pl.transfer_id,
+        pl.sale_id,
+        (ABS(pl.quantity) * p.price) as adjustment_value
+      FROM product_ledger pl
+      JOIN product p ON pl.product_id = p.id
+      JOIN outlet o ON pl.outlet_id = o.id
+      LEFT JOIN users u ON pl.created_by = u.id
+      WHERE pl.movement_type = 'QUALITY_CHANGE'
+        AND pl.movement_date BETWEEN $1 AND $2
+        AND ($3::int IS NULL OR pl.product_id = $3)
+        AND ($4::int IS NULL OR pl.outlet_id = $4)
+        AND ($5::boolean IS NULL OR pl.is_replacement = $5)
+      ORDER BY pl.movement_date DESC, pl.created_at DESC
+      LIMIT $6 OFFSET $7
+    `;
+
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM product_ledger pl
+      WHERE pl.movement_type = 'QUALITY_CHANGE'
+        AND pl.movement_date BETWEEN $1 AND $2
+        AND ($3::int IS NULL OR pl.product_id = $3)
+        AND ($4::int IS NULL OR pl.outlet_id = $4)
+        AND ($5::boolean IS NULL OR pl.is_replacement = $5)
+    `;
+
+    const pageNum = Math.max(1, parseInt(page));
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
+    const offset = (pageNum - 1) * limitNum;
+
+    // Prepare parameters
+    const queryParams = [
+      finalStartDate,
+      finalEndDate,
+      product_id || null,
+      outlet_id || null,
+      is_replacement && is_replacement !== "ALL"
+        ? is_replacement === "true"
+        : null,
+      limitNum,
+      offset,
+    ];
+
+    const countParams = queryParams.slice(0, -2); // Remove LIMIT/OFFSET
+
+    const [result, countResult] = await Promise.all([
+      client.query(simpleQuery, queryParams),
+      client.query(countQuery, countParams),
+    ]);
+
+    const totalRecords = parseInt(countResult.rows[0].total);
+    const totalPages = Math.ceil(totalRecords / limitNum);
+
+    // Process the data in JavaScript to match quality change pairs
+    const adjustmentsData = processQualityChanges(
+      result.rows,
+      from_quality,
+      to_quality
+    );
+
+    // Generate chart data and summary
+    const chartData = generateQualityChartData(adjustmentsData);
+    const summary = generateQualitySummary(adjustmentsData);
+
+    res.json({
+      filters: {
+        product_id: product_id || null,
+        outlet_id: outlet_id || null,
+        from_quality: from_quality || null,
+        to_quality: to_quality || null,
+        is_replacement: is_replacement || null,
+        start_date: finalStartDate,
+        end_date: finalEndDate,
+      },
+      pagination: {
+        currentPage: pageNum,
+        totalPages,
+        totalRecords,
+        limit: limitNum,
+        hasNext: pageNum < totalPages,
+        hasPrev: pageNum > 1,
+      },
+      summary,
+      chartData,
+      data: adjustmentsData,
+    });
+  } catch (err) {
+    console.error("❌ Error generating quality adjustments report:", err);
+    res.status(500).json({
+      error: "Failed to generate quality adjustments report",
+      details: process.env.NODE_ENV === "development" ? err.message : undefined,
+    });
+  } finally {
+    client.release();
+  }
+
+  function processQualityChanges(rows, from_quality, to_quality) {
+    // Group rows by their matching criteria
+    const groups = {};
+
+    rows.forEach((row) => {
+      const key = `${row.product_id}-${row.outlet_id}-${row.movement_date}-${row.production_id}-${row.transfer_id}-${row.sale_id}`;
+
+      if (!groups[key]) {
+        groups[key] = { negative: null, positive: null };
+      }
+
+      if (row.quantity < 0) {
+        groups[key].negative = row;
+      } else if (row.quantity > 0) {
+        groups[key].positive = row;
+      }
+    });
+
+    // Create matched pairs
+    const adjustments = [];
+
+    Object.values(groups).forEach((group) => {
+      if (
+        group.negative &&
+        group.positive &&
+        Math.abs(group.negative.quantity) === group.positive.quantity
+      ) {
+        // Apply quality filters in JavaScript
+        if (
+          from_quality &&
+          from_quality !== "ALL" &&
+          group.negative.quality !== from_quality
+        ) {
+          return;
+        }
+        if (
+          to_quality &&
+          to_quality !== "ALL" &&
+          group.positive.quality !== to_quality
+        ) {
+          return;
+        }
+
+        adjustments.push({
+          id: group.negative.id,
+          product_id: group.negative.product_id,
+          product_name: group.negative.product_name,
+          unit: group.negative.unit,
+          outlet_id: group.negative.outlet_id,
+          outlet_name: group.negative.outlet_name,
+          outlet_type: group.negative.outlet_type,
+          from_quality: group.negative.quality,
+          to_quality: group.positive.quality,
+          quantity: Math.abs(group.negative.quantity),
+          is_replacement: group.negative.is_replacement,
+          replacement_note: group.negative.replacement_note,
+          movement_date: group.negative.movement_date,
+          created_at: group.negative.created_at,
+          remarks: group.negative.remarks,
+          created_by: group.negative.created_by,
+          created_by_name: group.negative.created_by_name || "System",
+          adjustment_value: group.negative.adjustment_value,
+          production_id: group.negative.production_id,
+          transfer_id: group.negative.transfer_id,
+          sale_id: group.negative.sale_id,
+          reference_type: group.negative.production_id
+            ? "PRODUCTION"
+            : group.negative.transfer_id
+            ? "TRANSFER"
+            : group.negative.sale_id
+            ? "SALE"
+            : "DIRECT",
+        });
+      }
+    });
+
+    return adjustments;
+  }
+
+  function generateQualityChartData(adjustmentsData) {
+    if (!adjustmentsData.length)
+      return {
+        qualityFlow: [],
+        replacementAnalysis: [],
+        monthlyTrend: [],
+        productBreakdown: [],
+        referenceTypeBreakdown: [],
+        userBreakdown: [],
+      };
+
+    const qualityFlow = {};
+    const replacementAnalysis = { total: 0, replacement: 0, nonReplacement: 0 };
+    const monthlyTrend = {};
+    const productBreakdown = {};
+    const referenceTypeBreakdown = {};
+    const userBreakdown = {};
+
+    adjustmentsData.forEach((item) => {
+      // Quality Flow Analysis
+      const flowKey = `${item.from_quality} → ${item.to_quality}`;
+      if (!qualityFlow[flowKey]) {
+        qualityFlow[flowKey] = { count: 0, quantity: 0, value: 0 };
+      }
+      qualityFlow[flowKey].count += 1;
+      qualityFlow[flowKey].quantity += item.quantity;
+      qualityFlow[flowKey].value += item.adjustment_value;
+
+      // Replacement Analysis
+      replacementAnalysis.total += item.quantity;
+      if (item.is_replacement) {
+        replacementAnalysis.replacement += item.quantity;
+      } else {
+        replacementAnalysis.nonReplacement += item.quantity;
+      }
+
+      // Monthly Trend
+      const monthKey = item.movement_date.toISOString().substring(0, 7); // YYYY-MM
+      if (!monthlyTrend[monthKey]) {
+        monthlyTrend[monthKey] = { adjustments: 0, quantity: 0, value: 0 };
+      }
+      monthlyTrend[monthKey].adjustments += 1;
+      monthlyTrend[monthKey].quantity += item.quantity;
+      monthlyTrend[monthKey].value += item.adjustment_value;
+
+      // Product Breakdown
+      if (!productBreakdown[item.product_name]) {
+        productBreakdown[item.product_name] = {
+          adjustments: 0,
+          quantity: 0,
+          value: 0,
+        };
+      }
+      productBreakdown[item.product_name].adjustments += 1;
+      productBreakdown[item.product_name].quantity += item.quantity;
+      productBreakdown[item.product_name].value += item.adjustment_value;
+
+      // Reference Type Breakdown
+      if (!referenceTypeBreakdown[item.reference_type]) {
+        referenceTypeBreakdown[item.reference_type] = {
+          count: 0,
+          quantity: 0,
+          value: 0,
+        };
+      }
+      referenceTypeBreakdown[item.reference_type].count += 1;
+      referenceTypeBreakdown[item.reference_type].quantity += item.quantity;
+      referenceTypeBreakdown[item.reference_type].value +=
+        item.adjustment_value;
+
+      // User Breakdown
+      const userName = item.created_by_name || "Unknown";
+      if (!userBreakdown[userName]) {
+        userBreakdown[userName] = { count: 0, quantity: 0, value: 0 };
+      }
+      userBreakdown[userName].count += 1;
+      userBreakdown[userName].quantity += item.quantity;
+      userBreakdown[userName].value += item.adjustment_value;
+    });
+
+    return {
+      qualityFlow: Object.entries(qualityFlow)
+        .map(([flow, data]) => ({
+          flow,
+          ...data,
+        }))
+        .sort((a, b) => b.quantity - a.quantity),
+
+      replacementAnalysis: {
+        total: replacementAnalysis.total,
+        replacement: replacementAnalysis.replacement,
+        nonReplacement: replacementAnalysis.nonReplacement,
+        replacementPercentage:
+          replacementAnalysis.total > 0
+            ? (
+                (replacementAnalysis.replacement / replacementAnalysis.total) *
+                100
+              ).toFixed(1)
+            : 0,
+        nonReplacementPercentage:
+          replacementAnalysis.total > 0
+            ? (
+                (replacementAnalysis.nonReplacement /
+                  replacementAnalysis.total) *
+                100
+              ).toFixed(1)
+            : 0,
+      },
+
+      monthlyTrend: Object.entries(monthlyTrend)
+        .map(([month, data]) => ({
+          month,
+          ...data,
+        }))
+        .sort((a, b) => a.month.localeCompare(b.month)),
+
+      productBreakdown: Object.entries(productBreakdown)
+        .map(([product, data]) => ({
+          product,
+          ...data,
+        }))
+        .sort((a, b) => b.quantity - a.quantity)
+        .slice(0, 10),
+
+      referenceTypeBreakdown: Object.entries(referenceTypeBreakdown)
+        .map(([type, data]) => ({
+          type,
+          ...data,
+        }))
+        .sort((a, b) => b.quantity - a.quantity),
+
+      userBreakdown: Object.entries(userBreakdown)
+        .map(([user, data]) => ({
+          user,
+          ...data,
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10),
+    };
+  }
+
+  function generateQualitySummary(adjustmentsData) {
+    const uniqueUsers = new Set(
+      adjustmentsData.map((item) => item.created_by).filter(Boolean)
+    );
+
+    const summary = {
+      totalAdjustments: adjustmentsData.length,
+      totalQuantity: adjustmentsData.reduce(
+        (sum, item) => sum + item.quantity,
+        0
+      ),
+      totalValue: adjustmentsData.reduce(
+        (sum, item) => sum + item.adjustment_value,
+        0
+      ),
+      uniqueProducts: new Set(adjustmentsData.map((item) => item.product_id))
+        .size,
+      uniqueOutlets: new Set(adjustmentsData.map((item) => item.outlet_id))
+        .size,
+      uniqueUsers: uniqueUsers.size,
+      replacementCount: adjustmentsData.filter((item) => item.is_replacement)
+        .length,
+      nonReplacementCount: adjustmentsData.filter(
+        (item) => !item.is_replacement
+      ).length,
+      averageQuantity:
+        adjustmentsData.length > 0
+          ? adjustmentsData.reduce((sum, item) => sum + item.quantity, 0) /
+            adjustmentsData.length
+          : 0,
+      // Quality direction metrics
+      qualityDowngrades: adjustmentsData.filter(
+        (item) =>
+          (item.from_quality === "GOOD" && item.to_quality !== "GOOD") ||
+          (item.from_quality === "DAMAGED" && item.to_quality === "REJECT")
+      ).length,
+      qualityUpgrades: adjustmentsData.filter(
+        (item) =>
+          (item.from_quality !== "GOOD" && item.to_quality === "GOOD") ||
+          (item.from_quality === "REJECT" && item.to_quality === "DAMAGED")
+      ).length,
+    };
+
+    return summary;
+  }
+});
+
 router.get("/productionProfitability", async (req, res) => {
   const client = await pool.connect();
   try {
