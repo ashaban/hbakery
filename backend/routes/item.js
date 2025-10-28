@@ -1,10 +1,10 @@
 // routes/item.js
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const formidable = require('formidable');
-const pool = require('../db');
+const formidable = require("formidable");
+const pool = require("../db");
 
-router.get('/availableStock', async (req, res) => {
+router.get("/availableStock", async (req, res) => {
   try {
     const sql = `
       SELECT 
@@ -24,33 +24,32 @@ router.get('/availableStock', async (req, res) => {
     const result = await pool.query(sql);
     res.json(result.rows);
   } catch (err) {
-    console.error('❌ Error fetching available stock:', err);
-    res.status(500).json({ error: 'Failed to fetch available stock' });
+    console.error("❌ Error fetching available stock:", err);
+    res.status(500).json({ error: "Failed to fetch available stock" });
   }
 });
 
-
 // Create Item
-router.post('/', async (req, res) => {
+router.post("/", async (req, res) => {
   const form = new formidable.IncomingForm();
   form.parse(req, async (err, fields, files) => {
     try {
       const result = await pool.query(
-        'INSERT INTO item (name, unit_id) VALUES ($1, $2) RETURNING *',
+        "INSERT INTO item (name, unit_id) VALUES ($1, $2) RETURNING *",
         [fields.name?.[0], fields.unit?.[0]]
       );
       res.json(result.rows[0]);
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
-  })
+  });
 });
 
 // Get all Items with Unit name
-router.get('/', async (_, res) => {
+router.get("/", async (_, res) => {
   try {
     const result = await pool.query(`
-      SELECT i.id, i.name, u.name AS unit
+      SELECT i.id, i.name, u.name AS unit, u.id as unitid
       FROM item i
       LEFT JOIN itemunit u ON i.unit_id = u.id
       ORDER BY i.id
@@ -62,27 +61,27 @@ router.get('/', async (_, res) => {
 });
 
 // Update Item
-router.put('/:id', async (req, res) => {
+router.put("/:id", async (req, res) => {
   const { id } = req.params;
   const form = new formidable.IncomingForm();
   form.parse(req, async (err, fields, files) => {
     try {
       const result = await pool.query(
-        'UPDATE item SET name=$1, unit_id=$2 WHERE id=$3 RETURNING *',
+        "UPDATE item SET name=$1, unit_id=$2 WHERE id=$3 RETURNING *",
         [fields.name?.[0], fields.unit?.[0], id]
       );
       res.json(result.rows[0]);
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
-  })
+  });
 });
 
 // Delete Item
-router.delete('/:id', async (req, res) => {
+router.delete("/:id", async (req, res) => {
   try {
-    await pool.query('DELETE FROM item WHERE id=$1', [req.params.id]);
-    res.json({ message: 'Item deleted' });
+    await pool.query("DELETE FROM item WHERE id=$1", [req.params.id]);
+    res.json({ message: "Item deleted" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

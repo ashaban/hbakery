@@ -12,8 +12,10 @@ const purchaseRoutes = require("./routes/itempurchase");
 const productsRoutes = require("./routes/products");
 const productionRoutes = require("./routes/production");
 const stockTransfersRoutes = require("./routes/stocktransfers");
+const salesRoutes = require("./routes/sales");
 const expenditureRoutes = require("./routes/expenditure");
 const staffRoutes = require("./routes/staffs");
+const customersRoutes = require("./routes/customers");
 const reportRoutes = require("./routes/reports");
 
 const jwtValidator = function (req, res, next) {
@@ -74,8 +76,10 @@ app.use("/purchases", purchaseRoutes);
 app.use("/products", productsRoutes);
 app.use("/productions", productionRoutes);
 app.use("/stocktransfers", stockTransfersRoutes);
+app.use("/sales", salesRoutes);
 app.use("/expenditures", expenditureRoutes);
 app.use("/staffs", staffRoutes);
+app.use("/customers", customersRoutes);
 app.use("/reports", reportRoutes);
 
 app.get("/", (req, res) => {

@@ -86,11 +86,19 @@ export default defineConfig({
         target: "http://localhost:3007/",
         logLevel: "debug",
       },
+      "^/sales": {
+        target: "http://localhost:3007/",
+        logLevel: "debug",
+      },
       "^/expenditures": {
         target: "http://localhost:3007/",
         logLevel: "debug",
       },
       "^/staffs": {
+        target: "http://localhost:3007/",
+        logLevel: "debug",
+      },
+      "^/customers": {
         target: "http://localhost:3007/",
         logLevel: "debug",
       },
