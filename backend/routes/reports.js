@@ -1066,4 +1066,90 @@ router.get("/stockStatus", async (req, res) => {
   }
 });
 
+router.get("/expenditureByType", async (req, res) => {
+  const start = req.query.start || null;
+  const end = req.query.end || null;
+  const typeId = req.query.type_id ? parseInt(req.query.type_id) : null;
+  const affectsMargin = req.query.affects_margin || null;
+  const page = parseInt(req.query.page || "1", 10);
+  const limit = parseInt(req.query.limit || "20", 10);
+  const offset = (page - 1) * limit;
+
+  if (!start || !end) {
+    return res
+      .status(400)
+      .json({ error: "start and end are required (YYYY-MM-DD)" });
+  }
+
+  const filters = [];
+  const params = [start, end];
+
+  if (typeId) {
+    params.push(typeId);
+    filters.push(`e.type_id = $${params.length}`);
+  }
+  if (affectsMargin) {
+    params.push(affectsMargin);
+    filters.push(`c.affects_margin = $${params.length}`);
+  }
+
+  const where = [`e.start_date <= $2`, `e.end_date >= $1`];
+  if (filters.length) where.push(filters.join(" AND "));
+
+  const whereClause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+  try {
+    const dataSql = `
+      SELECT c.id AS type_id, c.name AS type_name, c.affects_margin,
+      COALESCE(SUM(e.amount),0)::numeric(18,2) AS total_amount
+      FROM expenditure e
+      JOIN cost_type c ON c.id = e.type_id
+      ${whereClause}
+      GROUP BY c.id, c.name, c.affects_margin
+      ORDER BY c.name
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+
+    const totalSql = `
+      SELECT COALESCE(SUM(e.amount),0)::numeric(18,2) AS total_expenditure
+      FROM expenditure e
+      JOIN cost_type c ON c.id = e.type_id
+      ${whereClause}`;
+
+    const countSql = `
+      SELECT COUNT(DISTINCT c.id) AS total_types
+      FROM expenditure e
+      JOIN cost_type c ON c.id = e.type_id
+      ${whereClause}`;
+
+    const dataParams = [...params, limit, offset];
+
+    const [dataRes, totalRes, countRes] = await Promise.all([
+      pool.query(dataSql, dataParams),
+      pool.query(totalSql, params),
+      pool.query(countSql, params),
+    ]);
+
+    const totalRecords = parseInt(countRes.rows[0].total_types || 0, 10);
+    const totalPages = Math.ceil(totalRecords / limit);
+    const totalExpenditure = Number(totalRes.rows[0].total_expenditure || 0);
+
+    res.json({
+      filters: { start, end, type_id: typeId, affects_margin: affectsMargin },
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalRecords,
+        limit,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+      },
+      totalExpenditure,
+      data: dataRes.rows,
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Failed to load expenditures summary" });
+  }
+});
+
 module.exports = router;

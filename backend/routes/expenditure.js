@@ -63,15 +63,22 @@ router.get("/summary", async (req, res) => {
 // ➕ Add Cost Type
 router.post("/types", async (req, res) => {
   try {
-    const { name, category } = req.body;
+    const { name, category, affects_margin = "Yes" } = req.body;
     if (!name || !category)
       return res.status(400).json({ error: "Missing name or category" });
 
+    // Validate affects_margin value
+    if (affects_margin !== "Yes" && affects_margin !== "No") {
+      return res
+        .status(400)
+        .json({ error: "affects_margin must be 'Yes' or 'No'" });
+    }
+
     const { rows } = await pool.query(
-      `INSERT INTO cost_type (name, category)
-       VALUES ($1, $2)
+      `INSERT INTO cost_type (name, category, affects_margin)
+       VALUES ($1, $2, $3)
        RETURNING *`,
-      [name, category]
+      [name, category, affects_margin]
     );
     res.json(rows[0]);
   } catch (err) {
@@ -84,14 +91,35 @@ router.post("/types", async (req, res) => {
 router.put("/types/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, category } = req.body;
+    const { name, category, affects_margin } = req.body;
+
+    if (!name || !category || !affects_margin) {
+      return res
+        .status(400)
+        .json({
+          error: "Missing required fields: name, category, or affects_margin",
+        });
+    }
+
+    // Validate affects_margin value
+    if (affects_margin !== "Yes" && affects_margin !== "No") {
+      return res
+        .status(400)
+        .json({ error: "affects_margin must be 'Yes' or 'No'" });
+    }
+
     const { rows } = await pool.query(
       `UPDATE cost_type
-       SET name = $1, category = $2
-       WHERE id = $3
+       SET name = $1, category = $2, affects_margin = $3
+       WHERE id = $4
        RETURNING *`,
-      [name, category, id]
+      [name, category, affects_margin, id]
     );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Cost type not found" });
+    }
+
     res.json(rows[0]);
   } catch (err) {
     console.error("❌ Failed to update cost type:", err);
@@ -103,6 +131,27 @@ router.put("/types/:id", async (req, res) => {
 router.delete("/types/:id", async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Check if cost type exists and if it's being used in expenditures
+    const checkResult = await pool.query(
+      `SELECT ct.id, COUNT(e.id) as usage_count 
+       FROM cost_type ct 
+       LEFT JOIN expenditure e ON ct.id = e.type_id 
+       WHERE ct.id = $1 
+       GROUP BY ct.id`,
+      [id]
+    );
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: "Cost type not found" });
+    }
+
+    if (checkResult.rows[0].usage_count > 0) {
+      return res.status(400).json({
+        error: "Cannot delete cost type. It is being used in expenditures.",
+      });
+    }
+
     await pool.query("DELETE FROM cost_type WHERE id = $1", [id]);
     res.json({ message: "Cost type deleted successfully" });
   } catch (err) {
@@ -112,7 +161,7 @@ router.delete("/types/:id", async (req, res) => {
 });
 
 // 📋 Get All Cost Types
-// GET /expenditures/types?page=1&limit=10&search=bread&category=Production%20Cost&category=Sale%20Cost
+// GET /expenditures/types?page=1&limit=10&search=bread&category=Production%20Cost&affects_margin=Yes
 router.get("/types", async (req, res) => {
   try {
     const page = Math.max(Number(req.query.page) || 1, 1);
@@ -120,6 +169,7 @@ router.get("/types", async (req, res) => {
     const offset = (page - 1) * limit;
 
     const search = (req.query.search || "").trim();
+
     // category can be a single string or repeated query param -> array
     const catParam = req.query.category;
     const categories = Array.isArray(catParam)
@@ -128,20 +178,31 @@ router.get("/types", async (req, res) => {
       ? [catParam]
       : [];
 
+    // affects_margin filter
+    const affectsMarginParam = req.query.affects_margin;
+
     const where = [];
     const params = [];
 
     if (search) {
       params.push(`%${search}%`);
-      // name or description ILIKE
-      where.push(
-        `(ct.name ILIKE $${params.length} OR ct.description ILIKE $${params.length})`
-      );
+      where.push(`(ct.name ILIKE $${params.length})`);
     }
 
     if (categories.length) {
       params.push(categories);
       where.push(`ct.category = ANY($${params.length})`);
+    }
+
+    if (affectsMarginParam) {
+      // Validate affects_margin value
+      if (affectsMarginParam !== "Yes" && affectsMarginParam !== "No") {
+        return res
+          .status(400)
+          .json({ error: "affects_margin must be 'Yes' or 'No'" });
+      }
+      params.push(affectsMarginParam);
+      where.push(`ct.affects_margin = $${params.length}`);
     }
 
     const whereSQL = where.length ? `WHERE ${where.join(" AND ")}` : "";
@@ -158,7 +219,9 @@ router.get("/types", async (req, res) => {
 
     // Paged rows
     const rowsSql = `
-      SELECT ct.*
+      SELECT 
+        ct.*,
+        (SELECT COUNT(*) FROM expenditure e WHERE e.type_id = ct.id) as usage_count
       FROM cost_type ct
       ${whereSQL}
       ORDER BY ct.category, ct.name
@@ -174,6 +237,72 @@ router.get("/types", async (req, res) => {
   } catch (err) {
     console.error("❌ Failed to fetch cost types:", err);
     res.status(500).json({ error: "Failed to fetch cost types" });
+  }
+});
+
+// 🔍 Get Single Cost Type
+router.get("/types/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rows } = await pool.query(
+      `SELECT 
+        ct.*,
+        (SELECT COUNT(*) FROM expenditure e WHERE e.type_id = ct.id) as usage_count
+       FROM cost_type ct
+       WHERE ct.id = $1`,
+      [id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Cost type not found" });
+    }
+
+    res.json(rows[0]);
+  } catch (err) {
+    console.error("❌ Failed to fetch cost type:", err);
+    res.status(500).json({ error: "Failed to fetch cost type" });
+  }
+});
+
+// 📊 Get Cost Type Statistics
+router.get("/types-stats", async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT 
+        COUNT(*) as total_types,
+        COUNT(CASE WHEN affects_margin = 'Yes' THEN 1 END) as affects_margin_count,
+        COUNT(CASE WHEN affects_margin = 'No' THEN 1 END) as no_affect_margin_count,
+        category,
+        COUNT(*) as category_count
+      FROM cost_type 
+      GROUP BY category
+      ORDER BY category
+    `);
+
+    const stats = {
+      total_types: 0,
+      affects_margin_count: 0,
+      no_affect_margin_count: 0,
+      categories: [],
+    };
+
+    if (rows.length > 0) {
+      // Sum up totals from all categories
+      rows.forEach((row) => {
+        stats.total_types += parseInt(row.category_count);
+        stats.affects_margin_count += parseInt(row.affects_margin_count);
+        stats.no_affect_margin_count += parseInt(row.no_affect_margin_count);
+        stats.categories.push({
+          category: row.category,
+          count: parseInt(row.category_count),
+        });
+      });
+    }
+
+    res.json(stats);
+  } catch (err) {
+    console.error("❌ Failed to fetch cost type statistics:", err);
+    res.status(500).json({ error: "Failed to fetch cost type statistics" });
   }
 });
 

@@ -326,6 +326,18 @@ const reports = ref([
       () => import("@/components/reports/QualityAdjustmentReport.vue"),
     ),
   },
+  {
+    title: "Sales Report",
+    description: "Sales report.",
+    icon: "mdi-database-eye",
+    category: "Inventory",
+    frequency: "Daily",
+    format: "PDF",
+    favorite: false,
+    component: defineAsyncComponent(
+      () => import("@/components/reports/SalesReport.vue"),
+    ),
+  },
 ]);
 
 // Computed properties
