@@ -669,7 +669,12 @@
     </v-dialog>
 
     <!-- VIEW DIALOG -->
-    <v-dialog v-model="showViewDialog" max-width="900">
+    <v-dialog
+      v-model="showViewDialog"
+      max-width="900"
+      scrollable
+      transition="dialog-bottom-transition"
+    >
       <v-card class="rounded-lg">
         <v-toolbar color="info" density="comfortable">
           <v-avatar class="mr-3" color="info" size="40">

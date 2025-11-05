@@ -215,6 +215,31 @@
         <v-list-item
           active-class="menu-item--active"
           class="menu-item rounded-xl"
+          to="MarginDashboard"
+          value="MarginDashboard"
+        >
+          <template #prepend>
+            <v-avatar
+              class="menu-avatar"
+              color="purple-lighten-5"
+              rounded="lg"
+              size="42"
+            >
+              <v-icon
+                color="purple-darken-2"
+                icon="mdi-trending-up"
+                size="20"
+              />
+            </v-avatar>
+          </template>
+          <v-list-item-title class="font-weight-medium menu-title"
+            >Profit Dashboard</v-list-item-title
+          >
+        </v-list-item>
+
+        <v-list-item
+          active-class="menu-item--active"
+          class="menu-item rounded-xl"
           to="ReportsList"
           value="reports"
         >

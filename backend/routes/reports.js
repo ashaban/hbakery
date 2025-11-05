@@ -1067,8 +1067,8 @@ router.get("/stockStatus", async (req, res) => {
 });
 
 router.get("/expenditureByType", async (req, res) => {
-  const start = req.query.start || null;
-  const end = req.query.end || null;
+  const start = req.query.start_date || null;
+  const end = req.query.end_date || null;
   const typeId = req.query.type_id ? parseInt(req.query.type_id) : null;
   const affectsMargin = req.query.affects_margin || null;
   const page = parseInt(req.query.page || "1", 10);
@@ -1149,6 +1149,195 @@ router.get("/expenditureByType", async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Failed to load expenditures summary" });
+  }
+});
+
+router.get("/productionIngredientsCost", async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { start_date, end_date, ingredients, products, team_leader } =
+      req.query;
+
+    const where = ["pp.produced_at IS NOT NULL"];
+    const params = [];
+
+    // 🗓️ Date range (produced_at)
+    if (start_date && end_date) {
+      params.push(start_date, end_date);
+      where.push(
+        `pp.produced_at::date BETWEEN $${params.length - 1}::date AND $${
+          params.length
+        }::date`
+      );
+    } else if (start_date) {
+      params.push(start_date);
+      where.push(`pp.produced_at::date >= $${params.length}::date`);
+    } else if (end_date) {
+      params.push(end_date);
+      where.push(`pp.produced_at::date <= $${params.length}::date`);
+    }
+
+    // 🧂 Ingredients filter
+    if (ingredients) {
+      const arr = Array.isArray(ingredients) ? ingredients : [ingredients];
+      const placeholders = arr
+        .map((_, i) => `$${params.length + i + 1}`)
+        .join(",");
+      params.push(...arr);
+      where.push(`ppi.item_id IN (${placeholders})`);
+    }
+
+    // 📦 Product filter
+    if (products) {
+      const arr = Array.isArray(products) ? products : [products];
+      const placeholders = arr
+        .map((_, i) => `$${params.length + i + 1}`)
+        .join(",");
+      params.push(...arr);
+      where.push(`pp.product_id IN (${placeholders})`);
+    }
+
+    // 👷 Team leader filter
+    if (team_leader) {
+      params.push(`%${team_leader}%`);
+      where.push(`
+        EXISTS (
+          SELECT 1
+          FROM product_production_staff ps
+          JOIN staff s ON s.id = ps.staff_id
+          WHERE ps.production_id = pp.id
+            AND ps.role = 'Team Leader'
+            AND s.name ILIKE $${params.length}
+        )
+      `);
+    }
+
+    const whereSQL = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+    // 🧾 Ingredient consumption and cost (from item_ledger)
+    const ingredientsSQL = `
+      SELECT 
+        i.id AS ingredient_id,
+        i.name AS ingredient_name,
+        SUM(ABS(il.quantity)) AS total_consumed,
+        AVG(il.unit_price) AS avg_price,
+        SUM(ABS(il.quantity) * il.unit_price) AS total_cost
+      FROM item_ledger il
+      JOIN item i ON i.id = il.item_id
+      JOIN product_production pp ON pp.id = il.production_id
+      ${whereSQL ? `${whereSQL} AND il.type = 'OUT'` : `WHERE il.type = 'OUT'`}
+      GROUP BY i.id, i.name
+      ORDER BY i.name;
+    `;
+    const ingredientsRes = await client.query(ingredientsSQL, params);
+    const ingredientData = ingredientsRes.rows;
+
+    // 📊 Totals
+    const totalIngredientCost = ingredientData.reduce(
+      (sum, i) => sum + Number(i.total_cost || 0),
+      0
+    );
+
+    res.json({
+      filters: { start_date, end_date, ingredients, products, team_leader },
+      totalIngredientCost,
+      data: ingredientData,
+    });
+  } catch (err) {
+    console.error("❌ Error generating profitability report:", err);
+    res.status(500).json({ error: "Failed to generate profitability report" });
+  } finally {
+    client.release();
+  }
+});
+
+router.get("/salesByProduct", async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    let where = ["s.status != 'CANCELLED'"];
+    let params = [];
+    let i = 0;
+
+    if (req.query.outlet_id) {
+      params.push(req.query.outlet_id);
+      i++;
+      where.push(`s.outlet_id = $${i}`);
+    }
+
+    if (req.query.start_date) {
+      params.push(req.query.start_date);
+      i++;
+      where.push(`s.sale_date >= $${i}`);
+    }
+
+    if (req.query.end_date) {
+      params.push(req.query.end_date);
+      i++;
+      where.push(`s.sale_date <= $${i}`);
+    }
+
+    const whereSQL = where.join(" AND ");
+
+    // 1️⃣ Get grouped results per product
+    const dataQuery = `
+      SELECT 
+        p.id AS product_id,
+        p.name AS product_name,
+        SUM(si.quantity) AS total_qty,
+        SUM(si.quantity * si.unit_price) AS total_sales,
+        SUM(COALESCE(sp.amount, 0)) AS total_paid
+      FROM sale s
+      JOIN sale_item si ON si.sale_id = s.id
+      JOIN product p ON si.product_id = p.id
+      LEFT JOIN sale_payment sp ON sp.sale_id = s.id
+      WHERE ${whereSQL}
+      GROUP BY p.id, p.name
+      ORDER BY p.name ASC
+      LIMIT $${i + 1} OFFSET $${i + 2}
+    `;
+
+    const paramsWithPagination = [...params, limit, offset];
+    const result = await pool.query(dataQuery, paramsWithPagination);
+
+    // 2️⃣ Get overall totals (ignores pagination)
+    const totalsQuery = `
+      SELECT 
+        SUM(si.quantity * si.unit_price) AS grand_total_sales,
+        SUM(COALESCE(sp.amount, 0)) AS grand_total_paid
+      FROM sale s
+      JOIN sale_item si ON si.sale_id = s.id
+      LEFT JOIN sale_payment sp ON sp.sale_id = s.id
+      WHERE ${whereSQL}
+    `;
+    const totalsRes = await pool.query(totalsQuery, params);
+
+    // 3️⃣ Pagination info
+    const countRes = await pool.query(
+      `SELECT COUNT(DISTINCT p.id)
+       FROM sale s
+       JOIN sale_item si ON si.sale_id = s.id
+       JOIN product p ON si.product_id = p.id
+       WHERE ${whereSQL}`,
+      params
+    );
+    const totalRecords = Number(countRes.rows[0].count);
+    const totalPages = Math.ceil(totalRecords / limit);
+
+    // 4️⃣ Respond with data
+    res.json({
+      data: result.rows,
+      totalRecords,
+      totalPages,
+      currentPage: page,
+      total_sales_amount: parseFloat(totalsRes.rows[0].grand_total_sales || 0),
+      total_paid_amount: parseFloat(totalsRes.rows[0].grand_total_paid || 0),
+    });
+  } catch (err) {
+    console.error("Error fetching grouped sales:", err);
+    res.status(500).json({ error: "Failed to fetch grouped sales data" });
   }
 });
 

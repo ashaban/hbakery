@@ -45,6 +45,7 @@ router.post("/", async (req, res) => {
       damaged_qty,
       reject_qty,
       discrepancies,
+      group_choices,
     } = req.body;
     if (
       !product_id ||
@@ -97,12 +98,29 @@ router.post("/", async (req, res) => {
     );
     const productionId = hdr.rows[0].id;
 
+    // 2️⃣ Record which ingredient combination(s) were chosen
+    if (Array.isArray(group_choices) && group_choices.length > 0) {
+      for (const gc of group_choices) {
+        await client.query(
+          `INSERT INTO product_production_group_choice (production_id, group_id, combination_id)
+           VALUES ($1, $2, $3)`,
+          [productionId, gc.group_id, gc.combination_id]
+        );
+      }
+    }
+
     // Lines
     for (const ing of ingredients) {
       await client.query(
-        `INSERT INTO product_production_item (production_id, item_id, qty_required)
-         VALUES ($1,$2,$3)`,
-        [productionId, ing.item_id, ing.qty_required]
+        `INSERT INTO product_production_item (production_id, item_id, qty_required, group_id, combination_id)
+         VALUES ($1,$2,$3,$4,$5)`,
+        [
+          productionId,
+          ing.item_id,
+          ing.qty_required,
+          ing.group_id || null,
+          ing.combination_id || null,
+        ]
       );
     }
 
@@ -185,6 +203,7 @@ router.put("/:id", async (req, res) => {
       good_qty,
       damaged_qty,
       reject_qty,
+      group_choices,
     } = req.body;
 
     if (
@@ -256,6 +275,21 @@ router.put("/:id", async (req, res) => {
       ]
     );
 
+    // 2️⃣ Replace group choices
+    await client.query(
+      `DELETE FROM product_production_group_choice WHERE production_id=$1`,
+      [id]
+    );
+    if (Array.isArray(group_choices) && group_choices.length > 0) {
+      for (const gc of group_choices) {
+        await client.query(
+          `INSERT INTO product_production_group_choice (production_id, group_id, combination_id)
+           VALUES ($1, $2, $3)`,
+          [id, gc.group_id, gc.combination_id]
+        );
+      }
+    }
+
     // 2️⃣ Replace production items
     await client.query(
       "DELETE FROM product_production_item WHERE production_id = $1",
@@ -263,11 +297,17 @@ router.put("/:id", async (req, res) => {
     );
 
     const insertItemSQL = `
-      INSERT INTO product_production_item (production_id, item_id, qty_required)
-      VALUES ($1, $2, $3)
+      INSERT INTO product_production_item (production_id, item_id, qty_required, group_id, combination_id)
+      VALUES ($1, $2, $3, $4, $5)
     `;
     for (const ing of ingredients) {
-      await client.query(insertItemSQL, [id, ing.item_id, ing.qty_required]);
+      await client.query(insertItemSQL, [
+        id,
+        ing.item_id,
+        ing.qty_required,
+        ing.group_id || null,
+        ing.combination_id || null,
+      ]);
     }
 
     // 3️⃣ Replace assigned staff
@@ -352,8 +392,6 @@ router.get("/", async (req, res) => {
       discrepancy_reason,
       status,
     } = req.query;
-
-    console.log(planned_at);
 
     const where = [];
     const params = [];
@@ -570,7 +608,7 @@ router.get("/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
-    // Header
+    // 1️⃣ HEADER
     const hdrRes = await pool.query(
       `
       SELECT 
@@ -586,30 +624,64 @@ router.get("/:id", async (req, res) => {
     );
 
     if (hdrRes.rows.length === 0) {
-      return res.status(404).json({ error: "Not found" });
+      return res.status(404).json({ error: "Production not found" });
     }
 
-    // Lines
+    // 2️⃣ INGREDIENTS
     const linesRes = await pool.query(
       `
       SELECT 
+        ppi.id,
         ppi.item_id, 
         i.name AS item_name,
         ppi.qty_required,
-        iu.shortname AS unit
+        iu.shortname AS unit,
+        ppi.group_id,
+        pig.name AS group_name,
+        ppi.combination_id,
+        pigc.name AS combination_name
       FROM product_production_item ppi
       JOIN item i ON i.id = ppi.item_id
       LEFT JOIN itemunit iu ON iu.id = i.unit_id
+      LEFT JOIN product_item_group pig ON pig.id = ppi.group_id
+      LEFT JOIN product_item_group_combination pigc ON pigc.id = ppi.combination_id
       WHERE ppi.production_id = $1
-      ORDER BY i.name
+      ORDER BY pig.name NULLS LAST, i.name
     `,
       [id]
     );
 
-    // Staff
+    // 3️⃣ GROUP CHOICES
+    const groupChoicesRes = await pool.query(
+      `
+      SELECT 
+        gc.id,
+        gc.group_id,
+        pig.name AS group_name,
+        gc.combination_id,
+        pigc.name AS combination_name,
+        gc.chosen_by,
+        s.name AS chosen_by_name,
+        gc.notes,
+        gc.created_at
+      FROM product_production_group_choice gc
+      JOIN product_item_group pig ON pig.id = gc.group_id
+      JOIN product_item_group_combination pigc ON pigc.id = gc.combination_id
+      LEFT JOIN staff s ON s.id = gc.chosen_by
+      WHERE gc.production_id = $1
+      ORDER BY pig.name
+    `,
+      [id]
+    );
+
+    // 4️⃣ STAFF
     const staffRes = await pool.query(
       `
-      SELECT s.id, s.name, ps.role, ps.notes
+      SELECT 
+        s.id AS staff_id, 
+        s.name AS staff_name, 
+        ps.role, 
+        ps.notes
       FROM product_production_staff ps
       JOIN staff s ON s.id = ps.staff_id
       WHERE ps.production_id = $1
@@ -618,19 +690,27 @@ router.get("/:id", async (req, res) => {
       [id]
     );
 
+    // 5️⃣ DISCREPANCIES
     const discRes = await pool.query(
       `
-      SELECT d.id, dr.name, d.notes, d.reason_id
+      SELECT 
+        d.id, 
+        dr.name AS reason_name, 
+        d.reason_id, 
+        d.notes
       FROM product_production_discrepancy d
       JOIN discrepancy_reason dr ON dr.id = d.reason_id
-      WHERE d.production_id=$1
+      WHERE d.production_id = $1
+      ORDER BY dr.name
     `,
       [id]
     );
 
+    // ✅ RESPONSE
     res.json({
       production: hdrRes.rows[0],
       items: linesRes.rows,
+      group_choices: groupChoicesRes.rows,
       staff: staffRes.rows,
       discrepancies: discRes.rows,
     });
@@ -659,6 +739,10 @@ router.delete("/:id", async (req, res) => {
     );
     await client.query(
       `DELETE FROM product_production_staff WHERE production_id = $1`,
+      [id]
+    );
+    await client.query(
+      `DELETE FROM product_production_group_choice WHERE production_id=$1`,
       [id]
     );
     await client.query(

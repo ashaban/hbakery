@@ -47,6 +47,11 @@ const router = createRouter({
       component: () => import("../components/ProfitProjection.vue"),
     },
     {
+      path: "/MarginDashboard",
+      name: "MarginDashboard",
+      component: () => import("../components/MarginDashboard.vue"),
+    },
+    {
       path: "/Staffs",
       name: "Staffs",
       component: () => import("../components/Staffs.vue"),

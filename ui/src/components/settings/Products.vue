@@ -6,13 +6,13 @@
         <v-col cols="12" sm="4">
           <v-text-field
             v-model="filters.search"
-            label="Search Product Name"
-            clearable
             append-inner-icon="mdi-close-circle"
+            clearable
+            label="Search Product Name"
             @click:append-inner="filters.search = ''"
           />
         </v-col>
-        <v-col cols="12" class="d-flex justify-end">
+        <v-col class="d-flex justify-end" cols="12">
           <v-btn color="primary" @click="applyFilters">
             <v-icon start>mdi-filter</v-icon> Apply
           </v-btn>
@@ -24,14 +24,19 @@
     </v-card>
 
     <!-- 🧾 TOTAL SUMMARY -->
-    <v-alert type="info" class="mb-4" border="start" variant="outlined">
-      <strong>Total Products:</strong> {{ totals.total_products || '0' }}
+    <v-alert border="start" class="mb-4" type="info" variant="outlined">
+      <strong>Total Products:</strong> {{ totals.total_products || "0" }}
     </v-alert>
 
     <!-- 📋 HEADER -->
     <div class="d-flex justify-space-between mb-4">
       <h3>Products</h3>
-      <v-btn color="primary" class="text-white" size="small" @click="activateAddDialog">
+      <v-btn
+        class="text-white"
+        color="primary"
+        size="small"
+        @click="activateAddDialog"
+      >
         <v-icon start>mdi-plus</v-icon> Add Product
       </v-btn>
     </div>
@@ -44,17 +49,15 @@
       class="elevation-1"
       dense
       :headers="headers"
+      height="400"
       :items="values"
       :loading="loading"
-      height="400"
     >
       <template #item.actions="{ item }">
-        <v-icon color="primary" class="mr-2" @click="activateEditDialog(item)">
+        <v-icon class="mr-2" color="primary" @click="activateEditDialog(item)">
           mdi-square-edit-outline
         </v-icon>
-        <v-icon color="green" @click="viewIngredients(item)">
-          mdi-eye
-        </v-icon>
+        <v-icon color="green" @click="viewIngredients(item)"> mdi-eye </v-icon>
       </template>
     </v-data-table>
 
@@ -64,18 +67,23 @@
         v-model="page"
         :length="totalPages"
         total-visible="7"
-        @update:modelValue="loadValues"
+        @update:model-value="loadValues"
       />
     </div>
 
     <!-- ADD / EDIT PRODUCT DIALOG -->
-    <v-dialog v-model="dialog" transition="dialog-top-transition" max-width="900">
+    <v-dialog
+      v-model="dialog"
+      max-width="1200"
+      scrollable
+      transition="dialog-top-transition"
+    >
       <v-card class="rounded-xl pa-4" elevation="10">
         <v-toolbar class="rounded-lg flex-wrap px-4" color="primary" flat>
           <div class="d-flex align-center flex-wrap">
             <v-icon class="mr-2 text-white">mdi-package-variant</v-icon>
             <span class="text-white font-weight-bold text-h6">
-              {{ isEditing ? 'Edit Product' : 'Add Product' }}
+              {{ isEditing ? "Edit Product" : "Add Product" }}
             </span>
           </div>
           <v-spacer />
@@ -84,54 +92,55 @@
 
         <v-card-text class="pt-6">
           <v-form @submit.prevent>
+            <!-- Basic Product Information -->
             <v-row dense>
               <v-col cols="12" sm="6">
                 <v-text-field
                   v-model="state.name"
-                  label="Product Name"
                   bg-color="#E0E0E0"
+                  :error-messages="v$.name.$errors.map((e) => e.$message)"
+                  label="Product Name"
                   required
-                  :error-messages="v$.name.$errors.map(e => e.$message)"
                 />
               </v-col>
               <v-col cols="12" sm="6">
                 <v-text-field
                   v-model="state.unit"
-                  label="Unit (e.g. Loaf, Pack)"
                   bg-color="#E0E0E0"
+                  :error-messages="v$.unit.$errors.map((e) => e.$message)"
+                  label="Unit (e.g. Loaf, Pack)"
                   required
-                  :error-messages="v$.unit.$errors.map(e => e.$message)"
                 />
               </v-col>
               <v-col cols="12">
                 <v-text-field
                   v-model="state.description"
-                  label="Description"
                   bg-color="#E0E0E0"
+                  label="Description"
                 />
               </v-col>
               <v-col cols="12" sm="4">
                 <v-text-field
                   v-model="state.price"
-                  label="Price"
-                  type="number"
-                  prefix="TSh "
                   bg-color="#E0E0E0"
+                  :error-messages="v$.price.$errors.map((e) => e.$message)"
+                  label="Price"
+                  prefix="TSh "
                   required
-                  :error-messages="v$.price.$errors.map(e => e.$message)"
+                  type="number"
                 />
               </v-col>
             </v-row>
 
-            <!-- 🧩 Product Items Section -->
-            <v-divider class="my-4"></v-divider>
-            <h4>Product Items (Ingredients)</h4>
+            <!-- 🧩 Mandatory Ingredients Section -->
+            <v-divider class="my-4" />
+            <h4>Mandatory Ingredients (Fixed Requirements)</h4>
 
             <v-alert
               v-if="v$.items.$error"
-              type="error"
-              class="mb-2"
               border="start"
+              class="mb-2"
+              type="error"
               variant="outlined"
             >
               Each ingredient must have Item and Quantity.
@@ -139,66 +148,385 @@
 
             <v-row
               v-for="(it, index) in state.items"
-              :key="index"
-              dense
+              :key="'mandatory-' + index"
               align="center"
               class="mb-2"
+              dense
             >
-              <!-- Item selection -->
               <v-col cols="12" sm="6">
                 <v-autocomplete
                   v-model="it.item_id"
-                  :items="availableItems(index)"
+                  clearable
+                  dense
+                  :error="v$.items.$dirty && !it.item_id"
+                  :error-messages="
+                    v$.items.$dirty && !it.item_id ? ['Item required'] : []
+                  "
                   item-title="name"
                   item-value="id"
+                  :items="availableMandatoryItems(index)"
                   label="Item"
-                  dense
-                  clearable
-                  :error="v$.items.$dirty && !it.item_id"
-                  :error-messages="v$.items.$dirty && !it.item_id ? ['Item required'] : []"
-                  @update:modelValue="onItemChange(it)"
+                  @update:model-value="onMandatoryItemChange(it)"
                 />
               </v-col>
 
-              <!-- Quantity per unit -->
               <v-col cols="12" sm="5">
                 <v-text-field
                   v-model="it.quantity_per_unit"
-                  type="number"
-                  :label="`Item Quantity in ${it.unit || ''}`"
                   dense
-                  :error="v$.items.$dirty && (!it.quantity_per_unit || it.quantity_per_unit <= 0)"
-                  :error-messages="v$.items.$dirty && (!it.quantity_per_unit || it.quantity_per_unit <= 0) ? ['Quantity > 0 required'] : []"
-                  @input="v$.items.$touch()"
+                  :error="
+                    v$.items.$dirty &&
+                    (!it.quantity_per_unit || it.quantity_per_unit <= 0)
+                  "
+                  :error-messages="
+                    v$.items.$dirty &&
+                    (!it.quantity_per_unit || it.quantity_per_unit <= 0)
+                      ? ['Quantity > 0 required']
+                      : []
+                  "
+                  :label="`Quantity in ${it.unit || ''}`"
+                  type="number"
                 />
               </v-col>
 
-              <v-col cols="12" sm="1" class="d-flex justify-end">
-                <v-btn icon color="error" size="small" @click="removeItem(index)">
+              <v-col class="d-flex justify-end" cols="12" sm="1">
+                <v-btn
+                  color="error"
+                  icon
+                  size="small"
+                  @click="removeMandatoryItem(index)"
+                >
                   <v-icon>mdi-delete</v-icon>
                 </v-btn>
               </v-col>
             </v-row>
 
-            <!-- Add new ingredient -->
             <div class="d-flex justify-end mt-2">
-              <v-btn color="primary" size="small" @click="addItem">
-                <v-icon start>mdi-plus</v-icon> Add Ingredient
+              <v-btn color="primary" size="small" @click="addMandatoryItem">
+                <v-icon start>mdi-plus</v-icon> Add Mandatory Ingredient
               </v-btn>
             </div>
 
-            <!-- Colored summary -->
+            <!-- 🧩 Ingredient Groups Section -->
+            <v-divider class="my-4" />
+            <div class="d-flex justify-space-between align-center mb-4">
+              <h4>Ingredient Groups (Flexible Combinations)</h4>
+              <v-btn color="primary" size="small" @click="addGroup">
+                <v-icon start>mdi-plus</v-icon> Add Group
+              </v-btn>
+            </div>
+
+            <v-alert
+              v-if="groupValidationError"
+              border="start"
+              class="mb-2"
+              type="error"
+              variant="outlined"
+            >
+              {{ groupValidationError }}
+            </v-alert>
+
+            <!-- Ingredient Groups -->
+            <v-card
+              v-for="(group, groupIndex) in state.groups"
+              :key="'group-' + groupIndex"
+              class="mb-4"
+              variant="outlined"
+            >
+              <v-card-title class="d-flex align-center bg-grey-lighten-3">
+                <v-text-field
+                  v-model="group.name"
+                  class="mr-2"
+                  density="compact"
+                  hide-details
+                  label="Group Name"
+                  @update:model-value="generateCombinations(groupIndex)"
+                />
+                <v-spacer />
+                <v-btn
+                  color="error"
+                  icon
+                  size="small"
+                  @click="removeGroup(groupIndex)"
+                >
+                  <v-icon>mdi-delete</v-icon>
+                </v-btn>
+              </v-card-title>
+
+              <v-card-text>
+                <v-row dense>
+                  <v-col cols="12" sm="6">
+                    <v-text-field
+                      v-model="group.description"
+                      density="compact"
+                      label="Description"
+                    />
+                  </v-col>
+                  <v-col cols="12" sm="3">
+                    <v-checkbox
+                      v-model="group.is_mandatory"
+                      density="compact"
+                      hide-details
+                      label="Mandatory"
+                    />
+                  </v-col>
+                  <v-col cols="12" sm="3">
+                    <v-select
+                      v-model="group.selection_mode"
+                      density="compact"
+                      hide-details
+                      item-title="text"
+                      item-value="value"
+                      :items="selectionModes"
+                      label="Selection Mode"
+                      @update:model-value="generateCombinations(groupIndex)"
+                    />
+                    <div class="text-caption text-grey mt-1">
+                      {{ getSelectionModeDescription(group.selection_mode) }}
+                    </div>
+                  </v-col>
+                </v-row>
+
+                <!-- Group Options -->
+                <v-divider class="my-3" />
+                <h5 class="mb-2">Available Options</h5>
+
+                <v-alert
+                  v-if="group.options.length >= 5"
+                  class="mb-2"
+                  density="compact"
+                  type="warning"
+                >
+                  {{ group.options.length }} options will generate
+                  {{ getCombinationCount(group) }} combinations
+                </v-alert>
+
+                <v-row
+                  v-for="(option, optionIndex) in group.options"
+                  :key="'option-' + groupIndex + '-' + optionIndex"
+                  align="center"
+                  class="mb-2"
+                  dense
+                >
+                  <v-col cols="12" sm="6">
+                    <v-autocomplete
+                      v-model="option.item_id"
+                      clearable
+                      density="compact"
+                      item-title="name"
+                      item-value="id"
+                      :items="availableGroupItems(groupIndex, optionIndex)"
+                      label="Item"
+                      @update:model-value="
+                        onGroupItemChange(groupIndex, optionIndex)
+                      "
+                    />
+                  </v-col>
+                  <v-col cols="12" sm="5">
+                    <v-text-field
+                      v-model="option.position"
+                      density="compact"
+                      label="Position"
+                      :max="group.options.length"
+                      min="1"
+                      type="number"
+                    />
+                  </v-col>
+                  <v-col class="d-flex justify-end" cols="12" sm="1">
+                    <v-btn
+                      color="error"
+                      icon
+                      size="small"
+                      @click="removeGroupOption(groupIndex, optionIndex)"
+                    >
+                      <v-icon>mdi-delete</v-icon>
+                    </v-btn>
+                  </v-col>
+                </v-row>
+
+                <div class="d-flex justify-end mt-2">
+                  <v-btn
+                    color="primary"
+                    size="small"
+                    @click="addGroupOption(groupIndex)"
+                  >
+                    <v-icon start>mdi-plus</v-icon> Add Option
+                  </v-btn>
+                </div>
+
+                <!-- Auto-generated Combinations -->
+                <v-divider class="my-3" />
+                <div class="d-flex justify-space-between align-center mb-2">
+                  <h5>Combinations (Auto-generated)</h5>
+                  <v-btn
+                    color="primary"
+                    :disabled="group.options.length < 1"
+                    size="small"
+                    @click="generateCombinations(groupIndex)"
+                  >
+                    <v-icon start>mdi-autorenew</v-icon> Regenerate
+                  </v-btn>
+                </div>
+
+                <v-alert
+                  v-if="group.options.length === 0"
+                  class="mb-2"
+                  density="compact"
+                  type="info"
+                >
+                  Add options above to generate combinations automatically
+                </v-alert>
+
+                <div
+                  v-else-if="group.combinations.length === 0"
+                  class="text-center py-4"
+                >
+                  <v-icon class="mb-2" color="grey" size="48"
+                    >mdi-cog-refresh</v-icon
+                  >
+                  <div class="text-grey">
+                    Click "Regenerate" to create combinations
+                  </div>
+                </div>
+
+                <div v-else>
+                  <v-alert class="mb-2" density="compact" type="info">
+                    {{ group.combinations.length }} combination(s) generated.
+                    Set quantities for included items.
+                  </v-alert>
+
+                  <v-card
+                    v-for="(combination, combIndex) in group.combinations"
+                    :key="'comb-' + groupIndex + '-' + combIndex"
+                    class="mb-3"
+                    variant="outlined"
+                  >
+                    <v-card-title class="d-flex align-center bg-grey-lighten-2">
+                      <div class="flex-grow-1">
+                        <span class="font-weight-medium">{{
+                          combination.name
+                        }}</span>
+                        <v-chip
+                          v-if="combination.is_default"
+                          class="ml-2"
+                          color="green"
+                          size="small"
+                        >
+                          Default
+                        </v-chip>
+                      </div>
+                      <v-checkbox
+                        v-model="combination.is_default"
+                        class="mr-2"
+                        density="compact"
+                        hide-details
+                        label="Default"
+                      />
+                      <v-btn
+                        color="error"
+                        icon
+                        size="small"
+                        @click="removeCombination(groupIndex, combIndex)"
+                      >
+                        <v-icon>mdi-delete</v-icon>
+                      </v-btn>
+                    </v-card-title>
+
+                    <v-card-text>
+                      <!-- Combination Quantities - Only show included items -->
+                      <div
+                        v-if="
+                          getIncludedOptions(group, combination).length === 0
+                        "
+                        class="text-center py-2 text-grey"
+                      >
+                        No items included in this combination
+                      </div>
+
+                      <v-row
+                        v-for="option in getIncludedOptions(group, combination)"
+                        :key="
+                          'qty-' +
+                          groupIndex +
+                          '-' +
+                          combIndex +
+                          '-' +
+                          option.item_id
+                        "
+                        align="center"
+                        class="mb-2"
+                        dense
+                      >
+                        <v-col cols="12" sm="4">
+                          <v-text-field
+                            density="compact"
+                            label="Item"
+                            :model-value="getItemName(option.item_id)"
+                            readonly
+                            variant="outlined"
+                          />
+                        </v-col>
+                        <v-col cols="12" sm="4">
+                          <v-text-field
+                            density="compact"
+                            :label="`Quantity (${option.unit || ''})`"
+                            min="0"
+                            :model-value="
+                              getCombinationQuantity(
+                                groupIndex,
+                                combIndex,
+                                option.item_id,
+                              )
+                            "
+                            step="0.001"
+                            type="number"
+                            @update:model-value="
+                              setCombinationQuantity(
+                                groupIndex,
+                                combIndex,
+                                option.item_id,
+                                $event,
+                              )
+                            "
+                          />
+                        </v-col>
+                        <v-col cols="12" sm="4">
+                          <v-chip color="primary" size="small" variant="flat">
+                            Required
+                          </v-chip>
+                        </v-col>
+                      </v-row>
+
+                      <!-- Show excluded items count -->
+                      <div
+                        v-if="getExcludedOptionsCount(group, combination) > 0"
+                        class="text-caption text-grey mt-2"
+                      >
+                        {{ getExcludedOptionsCount(group, combination) }}
+                        item(s) excluded from this combination
+                      </div>
+
+                      <v-text-field
+                        v-model="combination.notes"
+                        class="mt-2"
+                        density="compact"
+                        label="Notes (Optional)"
+                      />
+                    </v-card-text>
+                  </v-card>
+                </div>
+              </v-card-text>
+            </v-card>
+
+            <!-- Summary -->
             <div
               class="mt-4 text-caption font-weight-medium d-flex align-center"
-              :class="{
-                'text-success': ingredientSummaryColor === 'success',
-                'text-error': ingredientSummaryColor === 'error'
-              }"
+              :class="summaryColor"
             >
-              <v-icon size="small" :color="ingredientSummaryColor" class="mr-1">
+              <v-icon class="mr-1" :color="summaryColor" size="small">
                 mdi-information
               </v-icon>
-              {{ ingredientSummary }}
+              {{ summaryText }}
             </div>
           </v-form>
         </v-card-text>
@@ -206,96 +534,217 @@
         <v-card-actions class="d-flex justify-end mt-2">
           <v-btn
             color="success"
+            :disabled="v$.$invalid || hasGroupErrors"
             :loading="loading"
-            :disabled="v$.$invalid"
             @click="saveProduct"
           >
             <v-icon start>mdi-content-save</v-icon>
-            {{ isEditing ? 'Save Changes' : 'Add Product' }}
+            {{ isEditing ? "Save Changes" : "Add Product" }}
           </v-btn>
-          <v-btn v-if="isEditing" color="error" @click="confirmDeleteDialog = true">
+          <v-btn
+            v-if="isEditing"
+            color="error"
+            @click="confirmDeleteDialog = true"
+          >
             <v-icon start>mdi-delete</v-icon> Delete
           </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="viewDialog" max-width="550">
+    <!-- VIEW INGREDIENTS DIALOG -->
+    <v-dialog v-model="viewDialog" max-width="800">
       <v-card border elevation="0" rounded="xl">
-        <!-- Custom Header -->
         <div class="bg-primary pa-6 rounded-t-xl">
           <div class="d-flex align-center">
-            <v-avatar color="white" size="48" class="mr-4">
-              <v-icon icon="mdi-silverware-fork-knife" color="primary" size="24" />
+            <v-avatar class="mr-4" color="white" size="48">
+              <v-icon
+                color="primary"
+                icon="mdi-silverware-fork-knife"
+                size="24"
+              />
             </v-avatar>
             <div>
               <div class="text-h5 font-weight-bold text-white">
                 {{ viewedProduct?.name }}
               </div>
               <div class="text-body-2 text-white mt-1">
-                Ingredients Breakdown
+                Ingredients & Combinations
               </div>
             </div>
             <v-spacer />
             <v-btn
-              icon="mdi-close"
-              variant="text"
               color="white"
+              icon="mdi-close"
               size="small"
+              variant="text"
               @click="viewDialog = false"
             />
           </div>
         </div>
 
         <v-card-text class="pa-0">
-          <!-- Ingredients -->
-          <div class="pa-4">
-            <div v-if="!viewedProductItems?.length" class="text-center py-8">
-              <v-icon icon="mdi-food-off" size="48" color="grey" class="mb-3" />
-              <div class="text-h6 text-grey">No Ingredients</div>
-              <div class="text-body-2 text-grey mt-1">
-                Add ingredients to see them listed here
-              </div>
-            </div>
+          <v-tabs v-model="viewTab" grow>
+            <v-tab value="mandatory">Mandatory Ingredients</v-tab>
+            <v-tab value="groups">Ingredient Groups</v-tab>
+          </v-tabs>
 
-            <div v-else class="ingredients-grid">
-              <v-card
-                v-for="(ingredient, index) in viewedProductItems"
-                :key="ingredient.id || index"
-                variant="outlined"
-                border
-                class="mb-3 rounded-lg"
-                hover
-              >
-                <v-card-text class="pa-4">
-                  <div class="d-flex align-center">
-                    <div class="flex-grow-1">
-                      <div class="text-body-1 font-weight-medium">
-                        {{ ingredient.item_name }}
+          <v-window v-model="viewTab">
+            <v-window-item value="mandatory">
+              <div class="pa-4">
+                <div
+                  v-if="!viewedProductItems?.length"
+                  class="text-center py-8"
+                >
+                  <v-icon
+                    class="mb-3"
+                    color="grey"
+                    icon="mdi-food-off"
+                    size="48"
+                  />
+                  <div class="text-h6 text-grey">No Mandatory Ingredients</div>
+                </div>
+                <div v-else class="ingredients-grid">
+                  <v-card
+                    v-for="(ingredient, index) in viewedProductItems"
+                    :key="ingredient.id || index"
+                    border
+                    class="mb-3 rounded-lg"
+                    hover
+                    variant="outlined"
+                  >
+                    <v-card-text class="pa-4">
+                      <div class="d-flex align-center">
+                        <div class="flex-grow-1">
+                          <div class="text-body-1 font-weight-medium">
+                            {{ ingredient.item_name }}
+                          </div>
+                          <div class="d-flex align-center mt-2">
+                            <v-chip
+                              class="mr-2"
+                              color="primary"
+                              size="small"
+                              variant="flat"
+                            >
+                              {{ ingredient.quantity_per_unit }}
+                              {{ ingredient.unit }}
+                            </v-chip>
+                            <v-icon
+                              class="mr-1"
+                              color="orange"
+                              icon="mdi-alert-circle"
+                              size="16"
+                            />
+                            <span class="text-caption text-grey"
+                              >Mandatory</span
+                            >
+                          </div>
+                        </div>
+                        <v-avatar color="primary" size="32" variant="tonal">
+                          <span
+                            class="text-primary text-caption font-weight-bold"
+                          >
+                            {{ index + 1 }}
+                          </span>
+                        </v-avatar>
                       </div>
-                      <div class="d-flex align-center mt-2">
+                    </v-card-text>
+                  </v-card>
+                </div>
+              </div>
+            </v-window-item>
+
+            <v-window-item value="groups">
+              <div class="pa-4">
+                <div
+                  v-if="!viewedProductGroups?.length"
+                  class="text-center py-8"
+                >
+                  <v-icon
+                    class="mb-3"
+                    color="grey"
+                    icon="mdi-group"
+                    size="48"
+                  />
+                  <div class="text-h6 text-grey">No Ingredient Groups</div>
+                </div>
+                <div v-else>
+                  <v-card
+                    v-for="group in viewedProductGroups"
+                    :key="group.id"
+                    class="mb-4"
+                    variant="outlined"
+                  >
+                    <v-card-title class="bg-grey-lighten-3">
+                      {{ group.name }}
+                      <v-chip
+                        class="ml-2"
+                        :color="group.is_mandatory ? 'orange' : 'grey'"
+                        size="small"
+                      >
+                        {{ group.is_mandatory ? "Mandatory" : "Optional" }}
+                      </v-chip>
+                      <v-chip class="ml-2" color="primary" size="small">
+                        {{ group.selection_mode }}
+                      </v-chip>
+                    </v-card-title>
+                    <v-card-text>
+                      <div v-if="group.description" class="text-body-2 mb-3">
+                        {{ group.description }}
+                      </div>
+
+                      <div class="mb-3">
+                        <strong>Available Options:</strong>
                         <v-chip
+                          v-for="option in group.options"
+                          :key="option.id"
+                          class="ml-1"
                           size="small"
-                          color="primary"
-                          variant="flat"
-                          class="mr-2"
+                          variant="outlined"
                         >
-                          {{ ingredient.quantity_per_unit }} {{ ingredient.unit }}
+                          {{ option.item_name }}
                         </v-chip>
-                        <v-icon icon="mdi-scale-balance" size="16" color="grey" class="mr-1" />
-                        <span class="text-caption text-grey">Required</span>
                       </div>
-                    </div>
-                    <v-avatar color="primary" size="32" variant="tonal">
-                      <span class="text-primary text-caption font-weight-bold">
-                        {{ index + 1 }}
-                      </span>
-                    </v-avatar>
-                  </div>
-                </v-card-text>
-              </v-card>
-            </div>
-          </div>
+
+                      <div>
+                        <strong>Combinations:</strong>
+                        <v-card
+                          v-for="comb in group.combinations"
+                          :key="comb.id"
+                          class="mt-2"
+                          variant="outlined"
+                        >
+                          <v-card-title class="text-body-2 bg-grey-lighten-4">
+                            {{ comb.name }}
+                            <v-chip
+                              v-if="comb.is_default"
+                              class="ml-2"
+                              color="green"
+                              size="small"
+                            >
+                              Default
+                            </v-chip>
+                          </v-card-title>
+                          <v-card-text>
+                            <div
+                              v-for="qty in comb.quantities"
+                              :key="qty.option_id"
+                              class="text-caption"
+                            >
+                              •
+                              {{
+                                getItemNameForView(group.options, qty.item_id)
+                              }}: {{ qty.quantity_per_unit }}
+                            </div>
+                          </v-card-text>
+                        </v-card>
+                      </div>
+                    </v-card-text>
+                  </v-card>
+                </div>
+              </div>
+            </v-window-item>
+          </v-window>
         </v-card-text>
       </v-card>
     </v-dialog>
@@ -304,11 +753,19 @@
     <v-dialog v-model="confirmDeleteDialog" persistent width="400">
       <v-card>
         <v-toolbar color="warning" :title="'Confirm Deleting ' + state.name">
-          <v-btn color="white" icon="mdi-close" @click="confirmDeleteDialog = false" />
+          <v-btn
+            color="white"
+            icon="mdi-close"
+            @click="confirmDeleteDialog = false"
+          />
         </v-toolbar>
-        <v-card-text>Are you sure you want to delete {{ state.name }}?</v-card-text>
+        <v-card-text
+          >Are you sure you want to delete {{ state.name }}?</v-card-text
+        >
         <v-card-actions class="d-flex justify-end">
-          <v-btn color="grey" @click="confirmDeleteDialog = false">Cancel</v-btn>
+          <v-btn color="grey" @click="confirmDeleteDialog = false"
+            >Cancel</v-btn
+          >
           <v-btn color="error" @click="removeProduct">Delete</v-btn>
         </v-card-actions>
       </v-card>
@@ -317,215 +774,536 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
-import { useStore } from 'vuex'
-import { useVuelidate } from '@vuelidate/core'
-import { required, minValue, helpers } from '@vuelidate/validators'
+import { computed, onMounted, reactive, ref } from "vue";
+import { useStore } from "vuex";
+import { useVuelidate } from "@vuelidate/core";
+import { helpers, minValue, required } from "@vuelidate/validators";
 
-const store = useStore()
-const loading = ref(false)
-const values = ref([])
-const dialog = ref(false)
-const confirmDeleteDialog = ref(false)
-const viewDialog = ref(false)
-const isEditing = ref(false)
-const editingId = ref(null)
-const viewedProduct = ref(null)
-const viewedProductItems = ref([])
-const items = ref([])
-const page = ref(1)
-const totalPages = ref(1)
-const limit = 10
-const totals = reactive({ total_products: '' })
-const filters = reactive({ search: '' })
+const store = useStore();
+const loading = ref(false);
+const values = ref([]);
+const dialog = ref(false);
+const confirmDeleteDialog = ref(false);
+const viewDialog = ref(false);
+const viewTab = ref("mandatory");
+const isEditing = ref(false);
+const editingId = ref(null);
+const viewedProduct = ref(null);
+const viewedProductItems = ref([]);
+const viewedProductGroups = ref([]);
+const items = ref([]);
+const page = ref(1);
+const totalPages = ref(1);
+const limit = 10;
+const totals = reactive({ total_products: "" });
+const filters = reactive({ search: "" });
 
 const headers = [
-  { title: 'Name', key: 'name' },
-  { title: 'Description', key: 'description' },
-  { title: 'Unit', key: 'unit' },
-  { title: 'Price', key: 'price' },
-  { title: 'Actions', key: 'actions' }
-]
+  { title: "Name", key: "name" },
+  { title: "Description", key: "description" },
+  { title: "Unit", key: "unit" },
+  { title: "Price", key: "price" },
+  { title: "Actions", key: "actions" },
+];
+
+const selectionModes = [
+  { text: "Any Combination", value: "ANY" },
+  { text: "Exactly One", value: "EXACTLY_ONE" },
+  { text: "At Least One", value: "AT_LEAST_ONE" },
+];
 
 const state = reactive({
-  name: '',
-  description: '',
-  unit: '',
-  price: '',
-  items: []
-})
+  name: "",
+  description: "",
+  unit: "",
+  price: "",
+  items: [], // Mandatory ingredients
+  groups: [], // Ingredient groups
+});
 
-// validation rules
+// Validation rules
 const hasAtLeastOneItem = helpers.withMessage(
-  'At least one ingredient is required',
-  v => Array.isArray(v) && v.length > 0
-)
+  "At least one mandatory ingredient is required",
+  (v) => Array.isArray(v) && v.length > 0,
+);
 const validItems = helpers.withMessage(
-  'Each ingredient must have item and quantity',
-  v => Array.isArray(v) && v.every(it => it.item_id && it.quantity_per_unit && Number(it.quantity_per_unit) > 0)
-)
+  "Each mandatory ingredient must have item and quantity",
+  (v) =>
+    Array.isArray(v) &&
+    v.every(
+      (it) =>
+        it.item_id && it.quantity_per_unit && Number(it.quantity_per_unit) > 0,
+    ),
+);
+
 const rules = {
   name: { required },
   unit: { required },
   price: { required, minValue: minValue(1) },
-  items: { hasAtLeastOneItem, validItems }
-}
-const v$ = useVuelidate(rules, state)
+  items: { hasAtLeastOneItem, validItems },
+};
+const v$ = useVuelidate(rules, state);
 
-// computed
-const ingredientSummary = computed(() => {
-  const total = state.items.length
-  const incomplete = state.items.filter(it => !it.item_id || !it.quantity_per_unit).length
-  if (total === 0) return 'No ingredients added yet.'
-  if (incomplete > 0) return `${total} ingredient(s) added, ${incomplete} incomplete.`
-  return `${total} ingredient(s) added and complete.`
-})
-const ingredientSummaryColor = computed(() => {
-  const incomplete = state.items.some(it => !it.item_id || !it.quantity_per_unit)
-  return incomplete ? 'error' : 'success'
-})
+// Computed properties
+const summaryText = computed(() => {
+  const mandatoryCount = state.items.length;
+  const groupCount = state.groups.length;
+  const incompleteMandatory = state.items.filter(
+    (it) => !it.item_id || !it.quantity_per_unit,
+  ).length;
+  const incompleteGroups = state.groups.filter(
+    (g) => !g.name || g.options.length === 0,
+  ).length;
 
-// 🧩 Prevent duplicate items
-function availableItems(index) {
-  const selectedIds = state.items.map((it, i) => (i !== index ? it.item_id : null)).filter(Boolean)
-  return items.value.filter(i => !selectedIds.includes(i.id))
+  if (mandatoryCount === 0 && groupCount === 0)
+    return "No ingredients configured.";
+
+  let text = `${mandatoryCount} mandatory ingredient(s)`;
+  if (groupCount > 0) text += `, ${groupCount} group(s)`;
+  if (incompleteMandatory > 0 || incompleteGroups > 0)
+    text += ` - ${incompleteMandatory + incompleteGroups} incomplete`;
+
+  return text;
+});
+
+const summaryColor = computed(() => {
+  const incompleteMandatory = state.items.some(
+    (it) => !it.item_id || !it.quantity_per_unit,
+  );
+  const incompleteGroups = state.groups.some(
+    (g) => !g.name || g.options.length === 0,
+  );
+  return incompleteMandatory || incompleteGroups ? "error" : "success";
+});
+
+const groupValidationError = computed(() => {
+  for (const group of state.groups) {
+    if (!group.name) return "All groups must have a name";
+    if (group.options.length === 0)
+      return `Group "${group.name}" must have at least one option`;
+
+    // Check if combinations have quantities for all included options
+    for (const comb of group.combinations) {
+      const includedOptions = getIncludedOptions(group, comb);
+      for (const opt of includedOptions) {
+        const quantity = getCombinationQuantityDirect(group, comb, opt.item_id);
+        if (!quantity || quantity <= 0) {
+          return `Combination "${comb.name}" must have quantity for ${getItemName(opt.item_id)}`;
+        }
+      }
+    }
+
+    // Check if mandatory groups have default combinations
+    if (group.is_mandatory && !group.combinations.some((c) => c.is_default)) {
+      return `Mandatory group "${group.name}" must have a default combination`;
+    }
+  }
+  return null;
+});
+
+const hasGroupErrors = computed(() => !!groupValidationError.value);
+
+// Helper functions
+const getSelectionModeDescription = (mode) => {
+  const descriptions = {
+    ANY: "Any combination of options allowed",
+    EXACTLY_ONE: "Must select exactly one option",
+    AT_LEAST_ONE: "Must select at least one option",
+  };
+  return descriptions[mode] || "";
+};
+
+const getCombinationCount = (group) => {
+  const optionCount = group.options.filter((opt) => opt.item_id).length;
+  if (group.selection_mode === "EXACTLY_ONE") return optionCount;
+  if (group.selection_mode === "AT_LEAST_ONE")
+    return Math.pow(2, optionCount) - 1;
+  return Math.pow(2, optionCount) - 1; // ANY mode
+};
+
+const getItemName = (itemId) => {
+  const item = items.value.find((i) => i.id === itemId);
+  return item ? item.name : "Unknown Item";
+};
+
+const getItemNameForView = (options, itemId) => {
+  const option = options.find((o) => o.item_id === itemId);
+  return option ? option.item_name : "Unknown Item";
+};
+
+const getIncludedOptions = (group, combination) => {
+  return group.options.filter((opt, index) => {
+    return combination.combination_mask & (1 << index);
+  });
+};
+
+const getExcludedOptionsCount = (group, combination) => {
+  return group.options.length - getIncludedOptions(group, combination).length;
+};
+
+// Combination management
+// Replace the generateCombinations function with this corrected version:
+const generateCombinations = (groupIndex) => {
+  const group = state.groups[groupIndex];
+  const validOptions = group.options.filter((opt) => opt.item_id);
+
+  if (validOptions.length === 0) {
+    group.combinations = [];
+    return;
+  }
+
+  const allCombinations = [];
+
+  // Generate all possible combinations (2^n - 1, excluding empty set)
+  const totalCombinations = Math.pow(2, validOptions.length);
+
+  for (let i = 1; i < totalCombinations; i++) {
+    const combinationMask = i;
+    const includedOptions = [];
+
+    // Determine which options are included in this combination
+    for (let j = 0; j < validOptions.length; j++) {
+      if (combinationMask & (1 << j)) {
+        includedOptions.push(validOptions[j]);
+      }
+    }
+
+    // Generate combination name
+    const combinationName = includedOptions
+      .map((opt) => getItemName(opt.item_id))
+      .join(" + ");
+
+    // Check if this combination already exists
+    const existingCombination = group.combinations.find(
+      (c) => c.combination_mask === combinationMask,
+    );
+
+    if (existingCombination) {
+      // Update existing combination name and keep quantities
+      existingCombination.name = combinationName;
+      // Ensure all included options have quantity entries
+      includedOptions.forEach((opt) => {
+        if (
+          !existingCombination.quantities.find((q) => q.item_id === opt.item_id)
+        ) {
+          existingCombination.quantities.push({
+            item_id: opt.item_id,
+            quantity_per_unit: "",
+          });
+        }
+      });
+      // Remove quantities for options not in this combination
+      existingCombination.quantities = existingCombination.quantities.filter(
+        (q) => includedOptions.some((opt) => opt.item_id === q.item_id),
+      );
+
+      allCombinations.push(existingCombination);
+    } else {
+      // Create new combination
+      const quantities = includedOptions.map((opt) => ({
+        item_id: opt.item_id,
+        quantity_per_unit: "",
+      }));
+
+      allCombinations.push({
+        name: combinationName,
+        combination_mask: combinationMask,
+        is_default: allCombinations.length === 0 && group.is_mandatory, // First one is default for mandatory groups
+        notes: "",
+        quantities,
+      });
+    }
+  }
+
+  // Apply selection mode filtering AFTER generating all combinations
+  let filteredCombinations = allCombinations;
+
+  if (group.selection_mode === "EXACTLY_ONE") {
+    filteredCombinations = allCombinations.filter((comb) => {
+      const includedCount = getIncludedOptions(group, comb).length;
+      return includedCount === 1;
+    });
+  } else if (group.selection_mode === "AT_LEAST_ONE") {
+    filteredCombinations = allCombinations.filter((comb) => {
+      const includedCount = getIncludedOptions(group, comb).length;
+      return includedCount >= 1;
+    });
+  }
+
+  // Ensure at least one default combination for mandatory groups
+  if (
+    group.is_mandatory &&
+    filteredCombinations.length > 0 &&
+    !filteredCombinations.some((c) => c.is_default)
+  ) {
+    filteredCombinations[0].is_default = true;
+  }
+
+  group.combinations = filteredCombinations;
+};
+
+const getCombinationQuantity = (groupIndex, combIndex, itemId) => {
+  const combination = state.groups[groupIndex].combinations[combIndex];
+  const quantity = combination.quantities.find((q) => q.item_id === itemId);
+  return quantity ? quantity.quantity_per_unit : "";
+};
+
+const getCombinationQuantityDirect = (group, combination, itemId) => {
+  const quantity = combination.quantities.find((q) => q.item_id === itemId);
+  return quantity ? quantity.quantity_per_unit : "";
+};
+
+const setCombinationQuantity = (groupIndex, combIndex, itemId, value) => {
+  const combination = state.groups[groupIndex].combinations[combIndex];
+  const quantity = combination.quantities.find((q) => q.item_id === itemId);
+
+  if (quantity) {
+    quantity.quantity_per_unit = value;
+  } else {
+    // Create new quantity entry if it doesn't exist
+    combination.quantities.push({
+      item_id: itemId,
+      quantity_per_unit: value,
+    });
+  }
+};
+
+// Item management functions
+function availableMandatoryItems(index) {
+  const selectedIds = state.items
+    .map((it, i) => (i !== index ? it.item_id : null))
+    .filter(Boolean);
+  const groupSelectedIds = state.groups
+    .flatMap((g) => g.options.map((o) => o.item_id))
+    .filter(Boolean);
+  const allSelectedIds = [...selectedIds, ...groupSelectedIds];
+  return items.value.filter((i) => !allSelectedIds.includes(i.id));
 }
 
-// 🧩 Item selection
-function onItemChange(it) {
-  v$.value.items.$touch()
-  const selected = items.value.find(i => i.id === it.item_id)
-  it.unit = selected ? selected.unit : ''
+function availableGroupItems(groupIndex, optionIndex) {
+  const currentGroup = state.groups[groupIndex];
+  const selectedInGroup = currentGroup.options
+    .map((opt, idx) => (idx !== optionIndex ? opt.item_id : null))
+    .filter(Boolean);
+
+  const selectedInOtherGroups = state.groups
+    .flatMap((g, idx) =>
+      idx !== groupIndex ? g.options.map((o) => o.item_id) : [],
+    )
+    .filter(Boolean);
+
+  const selectedInMandatory = state.items
+    .map((it) => it.item_id)
+    .filter(Boolean);
+
+  const allSelectedIds = [
+    ...selectedInGroup,
+    ...selectedInOtherGroups,
+    ...selectedInMandatory,
+  ];
+  return items.value.filter((i) => !allSelectedIds.includes(i.id));
 }
 
-// Manage ingredients
-function addItem() {
-  state.items.push({ item_id: '', quantity_per_unit: '', unit: '' })
-  v$.value.items.$touch()
+function onMandatoryItemChange(it) {
+  const selected = items.value.find((i) => i.id === it.item_id);
+  it.unit = selected ? selected.unit : "";
 }
-function removeItem(index) {
-  state.items.splice(index, 1)
-  v$.value.items.$touch()
+
+function onGroupItemChange(groupIndex, optionIndex) {
+  const option = state.groups[groupIndex].options[optionIndex];
+  const selected = items.value.find((i) => i.id === option.item_id);
+  option.item_name = selected ? selected.name : "";
+  option.unit = selected ? selected.unit : "";
+
+  if (option.item_id) {
+    generateCombinations(groupIndex);
+  }
+}
+
+// Mandatory items management
+function addMandatoryItem() {
+  state.items.push({ item_id: "", quantity_per_unit: "", unit: "" });
+}
+
+function removeMandatoryItem(index) {
+  state.items.splice(index, 1);
+}
+
+// Group management
+function addGroup() {
+  state.groups.push({
+    name: "",
+    description: "",
+    is_mandatory: true,
+    selection_mode: "ANY",
+    options: [],
+    combinations: [],
+  });
+}
+
+function removeGroup(index) {
+  state.groups.splice(index, 1);
+}
+
+function addGroupOption(groupIndex) {
+  state.groups[groupIndex].options.push({
+    item_id: "",
+    item_name: "",
+    position: state.groups[groupIndex].options.length + 1,
+    unit: "",
+  });
+}
+
+function removeGroupOption(groupIndex, optionIndex) {
+  state.groups[groupIndex].options.splice(optionIndex, 1);
+  generateCombinations(groupIndex);
+}
+
+function removeCombination(groupIndex, combIndex) {
+  state.groups[groupIndex].combinations.splice(combIndex, 1);
 }
 
 // Data functions
 async function loadItems() {
-  const res = await fetch('/items')
-  items.value = await res.json()
+  const res = await fetch("/items");
+  items.value = await res.json();
 }
+
 async function loadValues() {
-  loading.value = true
-  const params = new URLSearchParams({ page: page.value, limit })
-  if (filters.search) params.append('search', filters.search)
+  loading.value = true;
+  const params = new URLSearchParams({ page: page.value, limit });
+  if (filters.search) params.append("search", filters.search);
   try {
-    const res = await fetch(`/products?${params}`)
-    const data = await res.json()
-    values.value = data.data || []
-    totalPages.value = data.totalPages || 1
-    totals.total_products = data.totalRecords || 0
+    const res = await fetch(`/products?${params}`);
+    const data = await res.json();
+    values.value = data.data || [];
+    totalPages.value = data.totalPages || 1;
+    totals.total_products = data.totalRecords || 0;
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 // Filters
 function applyFilters() {
-  page.value = 1
-  loadValues()
+  page.value = 1;
+  loadValues();
 }
+
 function resetFilters() {
-  filters.search = ''
-  page.value = 1
-  loadValues()
+  filters.search = "";
+  page.value = 1;
+  loadValues();
 }
 
 // Dialog control
 function activateAddDialog() {
-  isEditing.value = false
-  Object.assign(state, { name: '', description: '', unit: '', price: '', items: [] })
-  dialog.value = true
-  v$.value.$reset()
+  isEditing.value = false;
+  Object.assign(state, {
+    name: "",
+    description: "",
+    unit: "",
+    price: "",
+    items: [],
+    groups: [],
+  });
+  dialog.value = true;
+  v$.value.$reset();
 }
 
 async function activateEditDialog(item) {
-  isEditing.value = true
-  editingId.value = item.id
-  loading.value = true
+  isEditing.value = true;
+  editingId.value = item.id;
+  loading.value = true;
   try {
-    const res = await fetch(`/products/${item.id}`)
-    const data = await res.json()
-    const product = data.product || data
+    const res = await fetch(`/products/${item.id}`);
+    const data = await res.json();
+    const product = data.product || data;
     Object.assign(state, {
       name: product.name,
       description: product.description,
       unit: product.unit,
       price: product.price,
-      items: (data.items || product.items || []).map(i => ({
+      items: (data.items || []).map((i) => ({
         item_id: i.item_id,
         quantity_per_unit: i.quantity_per_unit,
-        unit: i.unit
-      }))
-    })
-    dialog.value = true
+        unit: i.unit,
+      })),
+      groups: (data.groups || []).map((g) => ({
+        name: g.name,
+        description: g.description,
+        is_mandatory: g.is_mandatory,
+        selection_mode: g.selection_mode,
+        options: g.options || [],
+        combinations: g.combinations || [],
+      })),
+    });
+    dialog.value = true;
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
-// 👁 View ingredients
+// View ingredients
 async function viewIngredients(item) {
-  viewedProduct.value = item
-  const res = await fetch(`/products/${item.id}`)
-  const data = await res.json()
-  viewedProductItems.value = data.items || []
-  viewDialog.value = true
+  viewedProduct.value = item;
+  const res = await fetch(`/products/${item.id}`);
+  const data = await res.json();
+  viewedProductItems.value = data.items || [];
+  viewedProductGroups.value = data.groups || [];
+  viewTab.value = "mandatory";
+  viewDialog.value = true;
 }
 
 // Save & delete
 async function saveProduct() {
-  v$.value.$touch()
-  if (v$.value.$invalid) return
+  v$.value.$touch();
+  if (v$.value.$invalid || hasGroupErrors.value) return;
 
-  loading.value = true
-  const formData = new FormData()
-  formData.append('name', state.name)
-  formData.append('description', state.description)
-  formData.append('unit', state.unit)
-  formData.append('price', state.price)
-  formData.append('items', JSON.stringify(state.items))
+  loading.value = true;
+  const formData = new FormData();
+  formData.append("name", state.name);
+  formData.append("description", state.description);
+  formData.append("unit", state.unit);
+  formData.append("price", state.price);
+  formData.append("items", JSON.stringify(state.items));
+  formData.append("groups", JSON.stringify(state.groups));
 
-  const url = isEditing.value ? `/products/${editingId.value}` : '/products'
-  const method = isEditing.value ? 'PUT' : 'POST'
+  const url = isEditing.value ? `/products/${editingId.value}` : "/products";
+  const method = isEditing.value ? "PUT" : "POST";
   try {
-    const res = await fetch(url, { method, body: formData })
-    if (!res.ok) throw new Error('Failed to save')
-    dialog.value = false
-    loadValues()
-    store.commit('setMessage', {
-      type: 'success',
-      text: isEditing.value ? 'Product updated!' : 'Product added!'
-    })
+    const res = await fetch(url, { method, body: formData });
+    if (!res.ok) throw new Error("Failed to save");
+    dialog.value = false;
+    loadValues();
+    store.commit("setMessage", {
+      type: "success",
+      text: isEditing.value ? "Product updated!" : "Product added!",
+    });
   } catch {
-    store.commit('setMessage', { type: 'error', text: 'Failed to save product' })
+    store.commit("setMessage", {
+      type: "error",
+      text: "Failed to save product",
+    });
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 async function removeProduct() {
-  loading.value = true
-  await fetch(`/products/${editingId.value}`, { method: 'DELETE' })
-  confirmDeleteDialog.value = false
-  dialog.value = false
-  loadValues()
-  store.commit('setMessage', { type: 'success', text: 'Product deleted!' })
-  loading.value = false
+  loading.value = true;
+  await fetch(`/products/${editingId.value}`, { method: "DELETE" });
+  confirmDeleteDialog.value = false;
+  dialog.value = false;
+  loadValues();
+  store.commit("setMessage", { type: "success", text: "Product deleted!" });
+  loading.value = false;
 }
 
 onMounted(() => {
-  loadValues()
-  loadItems()
-})
+  loadValues();
+  loadItems();
+});
 </script>
 
 <style scoped>

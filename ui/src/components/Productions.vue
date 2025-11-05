@@ -7,9 +7,10 @@
       type="warning"
       variant="tonal"
     >
-      Some quantities were marked as damaged or reject — please ensure they’re
+      Some quantities were marked as damaged or reject — please ensure they're
       tracked in the ledger.
     </v-alert>
+
     <!-- HEADER SECTION -->
     <v-card class="mb-6" elevation="2" rounded="lg">
       <v-card-text class="pa-6">
@@ -109,7 +110,6 @@
     </v-row>
 
     <!-- MAIN TABLE -->
-
     <v-card class="mb-4" elevation="2" rounded="lg">
       <v-card-text class="pa-0">
         <!-- Table Header -->
@@ -117,6 +117,8 @@
           <v-icon class="mr-2" color="primary">mdi-table</v-icon>
           <h3 class="text-h6 font-weight-medium">Production Records</h3>
         </div>
+
+        <!-- Filters -->
         <v-card border class="pa-6 mb-6" elevation="3" rounded="lg">
           <!-- Header -->
           <div class="d-flex align-center mb-4">
@@ -186,25 +188,7 @@
                     color="primary"
                     density="compact"
                     hide-details
-                    :items="[
-                      {
-                        title: 'All Status',
-                        value: 'all',
-                        icon: 'mdi-view-grid',
-                      },
-                      {
-                        title: 'Pending',
-                        value: 'pending',
-                        icon: 'mdi-clock-outline',
-                        color: 'orange',
-                      },
-                      {
-                        title: 'Completed',
-                        value: 'completed',
-                        icon: 'mdi-check-circle',
-                        color: 'green',
-                      },
-                    ]"
+                    :items="statusItems"
                     placeholder="Select Status"
                     variant="underlined"
                   >
@@ -256,92 +240,7 @@
                     :items="staffList"
                     placeholder="All Leaders"
                     variant="underlined"
-                  >
-                    <template #item="{ props, item }">
-                      <v-list-item v-bind="props">
-                        <template #prepend>
-                          <v-avatar
-                            class="mr-3"
-                            color="blue-grey-lighten-5"
-                            size="28"
-                          >
-                            <v-icon color="blue-grey" size="14"
-                              >mdi-account</v-icon
-                            >
-                          </v-avatar>
-                        </template>
-                      </v-list-item>
-                    </template>
-                  </v-autocomplete>
-                </v-card-text>
-              </v-card>
-            </v-col>
-
-            <!-- Discrepancy Reasons -->
-            <v-col cols="12" lg="3" md="4" sm="6">
-              <v-card border class="rounded-lg h-100" variant="outlined">
-                <v-card-text class="pa-3">
-                  <div class="d-flex align-center mb-2">
-                    <v-icon class="mr-2" color="red" size="18"
-                      >mdi-alert-circle</v-icon
-                    >
-                    <label class="text-caption font-weight-medium text-primary"
-                      >Discrepancy Reasons</label
-                    >
-                  </div>
-                  <v-select
-                    v-model="filters.discrepancy_reason"
-                    clearable
-                    color="primary"
-                    density="compact"
-                    hide-details
-                    :items="[
-                      {
-                        title: 'Machine Failure',
-                        icon: 'mdi-robot-off',
-                        color: 'red',
-                      },
-                      {
-                        title: 'Ingredient Shortage',
-                        icon: 'mdi-sack',
-                        color: 'orange',
-                      },
-                      {
-                        title: 'Power Outage',
-                        icon: 'mdi-power-plug-off',
-                        color: 'amber',
-                      },
-                      {
-                        title: 'Human Error',
-                        icon: 'mdi-account-alert',
-                        color: 'blue',
-                      },
-                    ]"
-                    multiple
-                    placeholder="Select Reasons"
-                    variant="underlined"
-                  >
-                    <template #item="{ item, props }">
-                      <v-list-item v-bind="props">
-                        <template #prepend>
-                          <v-icon :color="item.raw.color" size="16">{{
-                            item.raw.icon
-                          }}</v-icon>
-                        </template>
-                      </v-list-item>
-                    </template>
-                    <template #selection="{ item }">
-                      <v-chip
-                        class="mr-1 mb-1"
-                        :color="item.raw.color"
-                        size="small"
-                        variant="tonal"
-                      >
-                        <v-icon size="14" start>{{ item.raw.icon }}</v-icon>
-                        {{ item.title }}
-                      </v-chip>
-                    </template>
-                  </v-select>
+                  />
                 </v-card-text>
               </v-card>
             </v-col>
@@ -365,14 +264,7 @@
                         color="primary"
                         density="compact"
                         hide-details
-                        :items="[
-                          { title: 'On Date', value: '=' },
-                          { title: 'After', value: '>' },
-                          { title: 'Before', value: '<' },
-                          { title: 'On or After', value: '>=' },
-                          { title: 'On or Before', value: '<=' },
-                          { title: 'Between', value: 'in' },
-                        ]"
+                        :items="dateOperators"
                         variant="underlined"
                       />
                     </v-col>
@@ -404,70 +296,10 @@
                 </v-card-text>
               </v-card>
             </v-col>
-
-            <!-- Produced Date Range -->
-            <v-col cols="12" lg="6" md="8">
-              <v-card border class="rounded-lg" variant="outlined">
-                <v-card-text class="pa-3">
-                  <div class="d-flex align-center mb-2">
-                    <v-icon class="mr-2" color="orange" size="18"
-                      >mdi-calendar-check</v-icon
-                    >
-                    <label class="text-caption font-weight-medium text-primary"
-                      >Produced Date Range</label
-                    >
-                  </div>
-                  <v-row class="align-center" dense>
-                    <v-col cols="12" sm="4">
-                      <v-select
-                        v-model="filters.produced_at_op"
-                        color="primary"
-                        density="compact"
-                        hide-details
-                        :items="[
-                          { title: 'On Date', value: '=' },
-                          { title: 'After', value: '>' },
-                          { title: 'Before', value: '<' },
-                          { title: 'On or After', value: '>=' },
-                          { title: 'On or Before', value: '<=' },
-                          { title: 'Between', value: 'in' },
-                        ]"
-                        variant="underlined"
-                      />
-                    </v-col>
-                    <v-col cols="12" sm="4">
-                      <VueDatePicker
-                        v-model="filters.produced_at"
-                        auto-apply
-                        format="dd-MM-yyyy"
-                        model-type="format"
-                        placeholder="Start Date"
-                        :teleport="true"
-                      />
-                    </v-col>
-                    <v-col
-                      v-if="filters.produced_at_op === 'in'"
-                      cols="12"
-                      sm="4"
-                    >
-                      <VueDatePicker
-                        v-model="filters.produced_end"
-                        auto-apply
-                        format="dd-MM-yyyy"
-                        model-type="format"
-                        placeholder="End Date"
-                        :teleport="true"
-                      />
-                    </v-col>
-                  </v-row>
-                </v-card-text>
-              </v-card>
-            </v-col>
           </v-row>
 
           <!-- Action Buttons -->
           <v-divider class="mt-4 mb-4" />
-
           <div class="d-flex justify-space-between align-center">
             <div class="text-caption text-grey">
               <v-icon class="mr-1" size="14">mdi-information</v-icon>
@@ -601,7 +433,7 @@
                     variant="text"
                   >
                     <v-badge
-                      v-if="item.status === 'pending'"
+                      v-if="!item.produced_at"
                       color="orange"
                       dot
                       location="top end"
@@ -618,7 +450,9 @@
                   <!-- Header with Status -->
                   <v-card-text
                     class="pa-4"
-                    :class="getStatusColor(item.status)"
+                    :class="
+                      getStatusColor(item.produced_at ? 'completed' : 'pending')
+                    "
                   >
                     <div class="d-flex align-center justify-space-between">
                       <div class="d-flex align-center">
@@ -640,7 +474,7 @@
                         </div>
                       </div>
                       <v-chip color="white" size="small" variant="flat">
-                        {{ item.status || "active" }}
+                        {{ item.produced_at ? "completed" : "pending" }}
                       </v-chip>
                     </div>
                   </v-card-text>
@@ -674,7 +508,7 @@
                     <!-- Add Actual Production -->
                     <v-list-item
                       class="rounded-lg mb-1 action-item"
-                      :disabled="item.status === 'completed'"
+                      :disabled="item.produced_at"
                       @click="edit(item, 'actual')"
                     >
                       <template #prepend>
@@ -833,11 +667,9 @@
               <v-row dense>
                 <v-col cols="12" md="4">
                   <div class="position-relative w-100">
-                    <!-- floating label that appears only when value exists -->
-                    <span v-if="form.planned_at" class="datepicker-label">
-                      Planned Production Date & Time
-                    </span>
-
+                    <span v-if="form.planned_at" class="datepicker-label"
+                      >Planned Production Date & Time</span
+                    >
                     <VueDatePicker
                       v-model="form.planned_at"
                       auto-apply
@@ -865,7 +697,6 @@
                     variant="outlined"
                   />
                 </v-col>
-
                 <v-col cols="12" md="5">
                   <v-autocomplete
                     v-model="form.product_id"
@@ -905,7 +736,7 @@
                     required
                     type="number"
                     variant="outlined"
-                    @input="recalc"
+                    @input="recalcIngredients"
                   />
                 </v-col>
                 <v-col cols="12" md="6">
@@ -916,7 +747,7 @@
               </v-row>
 
               <!-- By Ingredient -->
-              <template v-if="form.mode === 'by_ingredient'">
+              <template v-else-if="form.mode === 'by_ingredient'">
                 <v-row dense>
                   <v-col cols="12" md="6">
                     <v-autocomplete
@@ -931,7 +762,7 @@
                       label="Base Ingredient"
                       prepend-inner-icon="mdi-ingredient"
                       variant="outlined"
-                      @update:model-value="recalc"
+                      @update:model-value="recalcIngredients"
                     />
                   </v-col>
                   <v-col cols="12" md="6">
@@ -946,12 +777,14 @@
                       required
                       type="number"
                       variant="outlined"
-                      @input="recalc"
+                      @input="recalcIngredients"
                     />
                   </v-col>
                 </v-row>
               </template>
             </v-card>
+
+            <!-- Actual Output & Discrepancies -->
             <v-card
               v-if="isEditing"
               class="rounded-lg pa-4 mb-4"
@@ -1013,11 +846,9 @@
                 </v-col>
                 <v-col cols="6" md="6">
                   <div class="position-relative w-100">
-                    <!-- floating label that appears only when value exists -->
-                    <span v-if="form.produced_at" class="datepicker-label">
-                      Actual Production Date & Time
-                    </span>
-
+                    <span v-if="form.produced_at" class="datepicker-label"
+                      >Actual Production Date & Time</span
+                    >
                     <VueDatePicker
                       v-model="form.produced_at"
                       auto-apply
@@ -1250,12 +1081,35 @@
                 Some ingredients exceed available stock. Please adjust
                 quantities before saving.
               </v-alert>
+
               <v-data-table
                 class="elevation-1 rounded-lg"
                 density="comfortable"
                 :headers="ingredientHeaders"
-                :items="computedData.ingredients"
+                :items="computedIngredients"
               >
+                <template #item.item_name="{ item }">
+                  <div class="d-flex align-center">
+                    <v-icon
+                      v-if="item.from_group"
+                      class="mr-2"
+                      color="purple"
+                      size="16"
+                      >mdi-cog</v-icon
+                    >
+                    <span>{{ item.item_name }}</span>
+                    <v-chip
+                      v-if="item.group_name"
+                      class="ml-2"
+                      color="purple"
+                      size="x-small"
+                      variant="outlined"
+                    >
+                      {{ item.group_name }}
+                    </v-chip>
+                  </div>
+                </template>
+
                 <template #item.qty_required="{ item }">
                   <div class="d-flex align-center">
                     <v-text-field
@@ -1328,14 +1182,187 @@
 
                 <template #no-data>
                   <div class="text-center py-4 text-grey">
-                    Select a product to view required ingredients
+                    Select a product and configure quantities to view
+                    ingredients
                   </div>
                 </template>
               </v-data-table>
 
+              <v-card
+                v-if="productGroups.length > 0"
+                class="rounded-lg mb-4"
+                variant="outlined"
+              >
+                <v-card-text class="pa-4">
+                  <div class="d-flex align-center mb-4">
+                    <v-icon class="mr-2" color="purple">mdi-cog</v-icon>
+                    <h5 class="text-h6 font-weight-medium">
+                      Ingredient Groups
+                    </h5>
+                    <v-chip
+                      class="ml-2"
+                      color="purple"
+                      size="small"
+                      variant="flat"
+                    >
+                      {{ productGroups.length }} groups
+                    </v-chip>
+                  </div>
+
+                  <v-alert class="mb-4" type="info" variant="tonal">
+                    Select combinations for each ingredient group. Ingredients
+                    will update automatically.
+                  </v-alert>
+
+                  <v-expansion-panels v-model="expandedGroups" multiple>
+                    <v-expansion-panel
+                      v-for="(group, index) in productGroups"
+                      :key="group.id"
+                      class="mb-2"
+                    >
+                      <v-expansion-panel-title class="font-weight-medium">
+                        <div
+                          class="d-flex align-center justify-space-between w-100 pr-4"
+                        >
+                          <div class="d-flex align-center">
+                            <v-icon class="mr-2" color="purple">mdi-cog</v-icon>
+                            <span>{{ group.name }}</span>
+                            <v-chip
+                              v-if="group.is_mandatory"
+                              class="ml-2"
+                              color="red"
+                              size="x-small"
+                              variant="flat"
+                            >
+                              Required
+                            </v-chip>
+                            <v-chip
+                              v-else
+                              class="ml-2"
+                              color="grey"
+                              size="x-small"
+                              variant="outlined"
+                            >
+                              Optional
+                            </v-chip>
+                          </div>
+                          <div class="d-flex align-center">
+                            <v-chip
+                              class="mr-2"
+                              color="blue"
+                              size="x-small"
+                              variant="outlined"
+                            >
+                              {{ group.selection_mode }}
+                            </v-chip>
+                            <v-chip
+                              v-if="form.group_choices[group.id]"
+                              color="green"
+                              size="x-small"
+                              variant="flat"
+                            >
+                              Selected
+                            </v-chip>
+                            <v-chip
+                              v-else
+                              color="orange"
+                              size="x-small"
+                              variant="outlined"
+                            >
+                              Not Selected
+                            </v-chip>
+                          </div>
+                        </div>
+                      </v-expansion-panel-title>
+                      <v-expansion-panel-text>
+                        <div class="mb-3">
+                          <p class="text-caption text-grey mb-2">
+                            {{ group.description }}
+                          </p>
+
+                          <v-radio-group
+                            v-model="form.group_choices[group.id]"
+                            hide-details
+                            @update:model-value="recalcIngredients"
+                          >
+                            <v-row>
+                              <v-col
+                                v-for="combination in group.combinations"
+                                :key="combination.id"
+                                cols="12"
+                                md="6"
+                              >
+                                <v-card
+                                  :class="[
+                                    'combination-card',
+                                    {
+                                      selected:
+                                        form.group_choices[group.id] ===
+                                        combination.id,
+                                    },
+                                  ]"
+                                  variant="outlined"
+                                  @click="
+                                    form.group_choices[group.id] =
+                                      combination.id;
+                                    recalcIngredients();
+                                  "
+                                >
+                                  <v-card-text class="pa-3">
+                                    <div class="d-flex align-center">
+                                      <v-radio
+                                        hide-details
+                                        :value="combination.id"
+                                      />
+                                      <div class="ml-2 flex-grow-1">
+                                        <div class="font-weight-medium">
+                                          {{ combination.name }}
+                                        </div>
+                                        <div
+                                          v-if="combination.notes"
+                                          class="text-caption text-grey"
+                                        >
+                                          {{ combination.notes }}
+                                        </div>
+                                        <div class="mt-2">
+                                          <v-chip
+                                            v-for="option in combination.options"
+                                            :key="option.option_id"
+                                            class="mr-1 mb-1"
+                                            color="green"
+                                            size="x-small"
+                                            variant="outlined"
+                                          >
+                                            {{ option.item_name }}:
+                                            {{ option.quantity_per_unit }}
+                                            {{ option.unit }}
+                                          </v-chip>
+                                        </div>
+                                      </div>
+                                      <v-chip
+                                        v-if="combination.is_default"
+                                        color="orange"
+                                        size="x-small"
+                                        variant="flat"
+                                      >
+                                        Default
+                                      </v-chip>
+                                    </div>
+                                  </v-card-text>
+                                </v-card>
+                              </v-col>
+                            </v-row>
+                          </v-radio-group>
+                        </div>
+                      </v-expansion-panel-text>
+                    </v-expansion-panel>
+                  </v-expansion-panels>
+                </v-card-text>
+              </v-card>
+
               <!-- Summary -->
               <v-alert
-                v-if="computedData.ingredients.length"
+                v-if="computedIngredients.length"
                 border="start"
                 class="mt-4"
                 type="success"
@@ -1354,7 +1381,15 @@
                     </v-chip>
                   </div>
                   <div class="text-caption text-grey">
-                    {{ computedData.ingredients.length }} ingredients required
+                    {{ computedIngredients.length }} ingredients required
+                    <span v-if="productGroups.length > 0">
+                      •
+                      {{
+                        Object.keys(form.group_choices).filter(
+                          (k) => form.group_choices[k],
+                        ).length
+                      }}/{{ productGroups.length }} groups selected
+                    </span>
                   </div>
                 </div>
               </v-alert>
@@ -1400,7 +1435,12 @@
     </v-dialog>
 
     <!-- VIEW DIALOG -->
-    <v-dialog v-model="viewDialog" max-width="900">
+    <v-dialog
+      v-model="viewDialog"
+      max-width="900"
+      scrollable
+      transition="dialog-bottom-transition"
+    >
       <v-card class="rounded-xl" elevation="16">
         <v-toolbar class="rounded-t-xl" color="primary" density="comfortable">
           <v-avatar class="mr-3" color="white" size="36">
@@ -1577,6 +1617,41 @@
             </v-row>
           </v-card>
 
+          <!-- Group Choices in View Mode -->
+          <v-card
+            v-if="detail?.group_choices?.length"
+            class="rounded-lg pa-4 mb-4"
+            variant="outlined"
+          >
+            <div class="d-flex align-center mb-4">
+              <v-icon class="mr-2" color="purple">mdi-cog</v-icon>
+              <h4 class="text-h6 font-weight-medium">
+                Ingredient Group Choices
+              </h4>
+            </div>
+            <v-list lines="two">
+              <v-list-item
+                v-for="choice in detail.group_choices"
+                :key="choice.id"
+              >
+                <template #prepend>
+                  <v-avatar class="mr-3" color="purple-lighten-5" size="40">
+                    <v-icon color="purple">mdi-cog</v-icon>
+                  </v-avatar>
+                </template>
+                <v-list-item-title class="font-weight-medium">
+                  {{ choice.group_name }}
+                </v-list-item-title>
+                <v-list-item-subtitle>
+                  Selected: {{ choice.combination_name }}
+                  <span v-if="choice.chosen_by_name"
+                    >• Chosen by: {{ choice.chosen_by_name }}</span
+                  >
+                </v-list-item-subtitle>
+              </v-list-item>
+            </v-list>
+          </v-card>
+
           <!-- 🚨 Discrepancy Reasons -->
           <v-card
             v-if="detail?.discrepancies?.length"
@@ -1696,14 +1771,23 @@
                 >
                   <template #prepend>
                     <v-avatar class="mr-3" color="primary" size="36">
-                      <span class="text-white text-caption font-weight-bold">
-                        {{ index + 1 }}
-                      </span>
+                      <span class="text-white text-caption font-weight-bold">{{
+                        index + 1
+                      }}</span>
                     </v-avatar>
                   </template>
 
                   <v-list-item-title class="font-weight-medium">
                     {{ ingredient.item_name }}
+                    <v-chip
+                      v-if="ingredient.group_name"
+                      class="ml-2"
+                      color="purple"
+                      size="x-small"
+                      variant="outlined"
+                    >
+                      {{ ingredient.group_name }}
+                    </v-chip>
                   </v-list-item-title>
 
                   <v-list-item-subtitle class="mt-1">
@@ -1744,11 +1828,13 @@ const isEditing = ref(false);
 const isAddingActual = ref(false);
 const detail = ref(null);
 const search = ref("");
+const expandedGroups = ref([]); // Track which groups are expanded
 
 // Data collections
 const products = ref([]);
 const staffList = ref([]);
 const recipeItems = ref([]);
+const productGroups = ref([]);
 const baseUnit = ref("");
 const availableStock = ref([]);
 
@@ -1771,6 +1857,7 @@ const form = reactive({
   notes: "",
   staff: [],
   discrepancies: [],
+  group_choices: {}, // { groupId: combinationId }
 });
 
 const filters = reactive({
@@ -1789,8 +1876,9 @@ const filters = reactive({
 // Computed data for ingredients
 const computedData = reactive({
   qty_product: 0,
-  ingredients: [],
 });
+
+const computedIngredients = ref([]);
 
 function recomputeActual() {
   form.actual_qty =
@@ -1824,53 +1912,41 @@ const modes = [
   { label: "By Ingredient", value: "by_ingredient" },
 ];
 
+const statusItems = [
+  { title: "All Status", value: "all", icon: "mdi-view-grid" },
+  {
+    title: "Pending",
+    value: "pending",
+    icon: "mdi-clock-outline",
+    color: "orange",
+  },
+  {
+    title: "Completed",
+    value: "completed",
+    icon: "mdi-check-circle",
+    color: "green",
+  },
+];
+
+const dateOperators = [
+  { title: "On Date", value: "=" },
+  { title: "After", value: ">" },
+  { title: "Before", value: "<" },
+  { title: "On or After", value: ">=" },
+  { title: "On or Before", value: "<=" },
+  { title: "Between", value: "in" },
+];
+
 // Headers
 const productionHeaders = [
-  {
-    title: "Product",
-    key: "product_name",
-    sortable: true,
-    width: "250px",
-  },
-  {
-    title: "Quantity",
-    key: "qty_product",
-    sortable: true,
-    align: "center",
-  },
-  {
-    title: "Staffs",
-    key: "staff_count",
-    sortable: true,
-    align: "center",
-  },
-  {
-    title: "Mode",
-    key: "mode",
-    sortable: true,
-  },
-  {
-    title: "Status",
-    key: "status",
-    sortable: true,
-  },
-  {
-    title: "Planned At",
-    key: "planned_at",
-    sortable: true,
-    width: "150px",
-  },
-  {
-    title: "Produced At",
-    key: "produced_at",
-    sortable: true,
-    width: "150px",
-  },
-  {
-    title: "Team Leader",
-    key: "team_leader_name",
-    sortable: true,
-  },
+  { title: "Product", key: "product_name", sortable: true, width: "250px" },
+  { title: "Quantity", key: "qty_product", sortable: true, align: "center" },
+  { title: "Staffs", key: "staff_count", sortable: true, align: "center" },
+  { title: "Mode", key: "mode", sortable: true },
+  { title: "Status", key: "status", sortable: true },
+  { title: "Planned At", key: "planned_at", sortable: true, width: "150px" },
+  { title: "Produced At", key: "produced_at", sortable: true, width: "150px" },
+  { title: "Team Leader", key: "team_leader_name", sortable: true },
   {
     title: "Actions",
     key: "actions",
@@ -1884,6 +1960,7 @@ const ingredientHeaders = [
   { title: "Ingredient", key: "item_name" },
   { title: "Quantity Required", key: "qty_required" },
   { title: "Available", key: "available", align: "center" },
+  { title: "Unit", key: "unit", align: "center" },
 ];
 
 const staffHeaders = [
@@ -1906,7 +1983,6 @@ const getStatusColor = (status) => {
 const activeFilterCount = computed(() => {
   let count = 0;
   const filterKeys = Object.keys(filters);
-
   filterKeys.forEach((key) => {
     if (filters[key] && filters[key] !== "all") {
       if (Array.isArray(filters[key])) {
@@ -1916,19 +1992,18 @@ const activeFilterCount = computed(() => {
       }
     }
   });
-
   return count;
 });
+
 // Computed properties
 const hasInsufficientStock = computed(() => {
-  return computedData.ingredients.some((i) => i.exceeds);
+  return computedIngredients.value.some((i) => i.exceeds);
 });
+
 const availableStaff = computed(() => {
   const selectedIds = form.staff
     .map((s) => s.staff_id?.id)
     .filter((id) => !!id);
-
-  // Return only staff not yet selected
   return staffList.value.filter((staff) => !selectedIds.includes(staff.id));
 });
 
@@ -1954,7 +2029,7 @@ const totalLaborCost = computed(() => {
 
 const canSave = computed(() => {
   const hasValidStaff = form.staff.some((staff) => staff.staff_id);
-  const hasValidIngredients = computedData.ingredients.length > 0;
+  const hasValidIngredients = computedIngredients.value.length > 0;
   const hasValidQuantity = computedData.qty_product > 0;
   const hasValidProduct = form.product_id;
   let hasValidActual = true;
@@ -1966,12 +2041,18 @@ const canSave = computed(() => {
     hasProducedAt = false;
   }
 
+  // Check if mandatory groups have selections
+  const hasValidGroupChoices = productGroups.value.every(
+    (group) => !group.is_mandatory || form.group_choices[group.id],
+  );
+
   return (
     hasValidProduct &&
     hasValidIngredients &&
     hasValidQuantity &&
     hasValidStaff &&
     hasValidActual &&
+    hasValidGroupChoices &&
     !hasInsufficientStock.value &&
     form.planned_at &&
     hasProducedAt &&
@@ -1997,7 +2078,10 @@ async function loadDiscrepancyReasons() {
 function checkDiscrepancy() {
   const expectedQty = parseFloat(computedData.qty_product);
   const goodQty = parseFloat(form.good_qty);
-  showDiscrepancy.value = !!(goodQty && goodQty !== expectedQty);
+  showDiscrepancy.value = !!(
+    (goodQty && goodQty !== expectedQty) ||
+    form.good_qty == 0
+  );
   if (showDiscrepancy.value && !form.discrepancies.length) addDiscrepancy();
 }
 
@@ -2057,9 +2141,12 @@ function resetForm() {
     base_ingredient_qty: null,
     notes: "",
     staff: [],
+    group_choices: {},
   });
   computedData.qty_product = 0;
-  computedData.ingredients = [];
+  computedIngredients.value = [];
+  productGroups.value = [];
+  expandedGroups.value = [];
 }
 
 function resetFilters() {
@@ -2126,30 +2213,51 @@ async function loadStaff() {
 }
 
 async function onProductChange() {
-  computedData.ingredients = [];
+  computedIngredients.value = [];
   computedData.qty_product = 0;
   baseUnit.value = "";
+  productGroups.value = [];
+  expandedGroups.value = []; // Reset expanded groups
 
   if (!form.product_id) return;
 
   try {
-    const res = await fetch(`/products/${form.product_id}`);
+    // Load product details including groups
+    const res = await fetch(`/products/${form.product_id}/groups`);
     const data = await res.json();
-    const items = data.items || [];
-    recipeItems.value = items.map((i) => ({
-      item_id: i.item_id,
-      item_name: i.item_name || i.name,
-      quantity_per_unit: Number(i.quantity_per_unit),
-      unit_id: i.unit_id,
-      unit: i.unit || i.unit_short,
-    }));
+
+    productGroups.value = data.groups || [];
+    recipeItems.value = data.fixed_items || [];
+
+    // Set default choices for groups and expand all groups initially
+    if (!isEditing.value) {
+      productGroups.value.forEach((group, index) => {
+        const defaultCombination = group.combinations?.find(
+          (c) => c.is_default,
+        );
+        if (defaultCombination) {
+          form.group_choices[group.id] = defaultCombination.id;
+        }
+        // Expand all groups by default
+        expandedGroups.value.push(index);
+      });
+    } else {
+      productGroups.value.forEach((group, index) => {
+        expandedGroups.value.push(index);
+      });
+    }
+
+    if (!isEditing.value) {
+      recalcIngredients();
+    }
   } catch (error) {
     console.error("Failed to load product details:", error);
     recipeItems.value = [];
+    productGroups.value = [];
   }
 }
 
-function recalc() {
+function recalcIngredients() {
   if (!form.product_id || recipeItems.value.length === 0) return;
 
   let multiplier = 0;
@@ -2166,11 +2274,15 @@ function recalc() {
   }
 
   computedData.qty_product = multiplier;
-  computedData.ingredients = recipeItems.value.map((r) => {
+
+  const ingredients = [];
+
+  // Add fixed ingredients
+  recipeItems.value.forEach((r) => {
     const available =
       availableStock.value.find((s) => s.item_id === r.item_id)
         ?.available_qty || 0;
-    return {
+    ingredients.push({
       item_id: r.item_id,
       item_name: r.item_name,
       unit_id: r.unit_id,
@@ -2178,8 +2290,37 @@ function recalc() {
       qty_required: +(r.quantity_per_unit * multiplier).toFixed(3),
       available: +available,
       exceeds: r.quantity_per_unit * multiplier > available,
-    };
+      from_group: false,
+      group_name: null,
+    });
   });
+
+  // Add group-based ingredients
+  productGroups.value.forEach((group) => {
+    const combinationId = form.group_choices[group.id];
+    if (!combinationId) return;
+
+    const combination = group.combinations?.find((c) => c.id === combinationId);
+    if (!combination?.options) return;
+
+    combination.options.forEach((option) => {
+      const available =
+        availableStock.value.find((s) => s.item_id === option.item_id)
+          ?.available_qty || 0;
+      ingredients.push({
+        item_id: option.item_id,
+        item_name: option.item_name,
+        unit: option.unit,
+        qty_required: +(option.quantity_per_unit * multiplier).toFixed(3),
+        available: +available,
+        exceeds: option.quantity_per_unit * multiplier > available,
+        from_group: true,
+        group_name: group.name,
+      });
+    });
+  });
+
+  computedIngredients.value = ingredients;
 }
 
 function openAddDialog() {
@@ -2221,27 +2362,47 @@ async function edit(item, type) {
       staff:
         data.staff.map((row) => ({
           staff_id: {
-            id: row.id,
-            name: row.name,
+            id: row.staff_id,
+            name: row.staff_name,
           },
           role: row.role || "",
           notes: row.notes || "",
         })) || [],
       discrepancies: data.discrepancies,
     });
+
+    await onProductChange();
+
+    form.group_choices = {};
+    if (data.group_choices && data.group_choices.length > 0) {
+      data.group_choices.forEach((choice) => {
+        form.group_choices[choice.group_id] = choice.combination_id;
+      });
+    }
+
+    recalcIngredients();
     if (data.discrepancies.length) {
       checkDiscrepancy();
     }
-    onProductChange();
 
     computedData.qty_product = data.production.qty_product;
-    computedData.ingredients = data.items.map((i) => ({
-      item_id: i.item_id,
-      item_name: i.item_name,
-      unit_id: i.unit_id,
-      unit: i.unit,
-      qty_required: parseFloat(i.qty_required),
-    }));
+    // For editing, we preserve the original ingredient quantities
+    computedIngredients.value = data.items.map((i) => {
+      const available =
+        availableStock.value.find((s) => s.item_id === i.item_id)
+          ?.available_qty || 0;
+      return {
+        item_id: i.item_id,
+        item_name: i.item_name,
+        unit_id: i.unit_id,
+        unit: i.unit,
+        qty_required: parseFloat(i.qty_required),
+        available: +available,
+        exceeds: parseFloat(i.qty_required) > available,
+        from_group: !!i.group_id,
+        group_name: i.group_name,
+      };
+    });
   } catch (error) {
     console.error("Failed to load production for editing:", error);
   }
@@ -2250,6 +2411,14 @@ async function edit(item, type) {
 async function saveProduction() {
   saving.value = true;
   try {
+    // Prepare group choices for API
+    const group_choices = Object.entries(form.group_choices)
+      .filter(([groupId, combinationId]) => combinationId)
+      .map(([groupId, combinationId]) => ({
+        group_id: parseInt(groupId),
+        combination_id: combinationId,
+      }));
+
     const payload = {
       product_id: form.product_id,
       base_ingredient_id: form.base_ingredient_id,
@@ -2263,9 +2432,21 @@ async function saveProduction() {
       reject_qty: form.reject_qty || 0,
       actual_qty: form.actual_qty || 0,
       notes: form.notes,
-      ingredients: computedData.ingredients,
+      ingredients: computedIngredients.value.map((ing) => ({
+        item_id: ing.item_id,
+        qty_required: ing.qty_required,
+        group_id: ing.from_group
+          ? productGroups.value.find((g) => g.name === ing.group_name)?.id
+          : null,
+        combination_id: ing.from_group
+          ? form.group_choices[
+              productGroups.value.find((g) => g.name === ing.group_name)?.id
+            ]
+          : null,
+      })),
       staffs: form.staff.filter((staff) => staff.staff_id),
       discrepancies: form.discrepancies.filter((discr) => discr.reason_id),
+      group_choices,
     };
 
     const url = isEditing.value ? `/productions/${form.id}` : "/productions";
@@ -2352,25 +2533,19 @@ onMounted(async () => {
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
 }
 
-:deep(.v-data-table) {
-  border-radius: 8px;
+.combination-card {
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
 }
 
-:deep(.v-data-table .v-table__wrapper) {
-  border-radius: 8px;
+.combination-card.selected {
+  border-color: #1976d2;
+  background-color: #e3f2fd;
 }
 
-:deep(.v-btn) {
-  text-transform: none;
-  font-weight: 500;
-}
-
-:deep(.v-alert) {
-  border: none;
-}
-
-.gap-2 {
-  gap: 8px;
+.combination-card:hover:not(.selected) {
+  border-color: #90caf9;
+  background-color: #f5f5f5;
 }
 
 .position-relative {
@@ -2398,20 +2573,8 @@ onMounted(async () => {
   height: 100%;
 }
 
-:deep(.custom-date-picker .dp__input) {
-  border: none !important;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.42) !important;
-  border-radius: 0 !important;
-  padding-left: 0 !important;
-  font-size: 14px;
-}
-
-:deep(.custom-date-picker .dp__input:focus) {
-  border-bottom: 2px solid #1976d2 !important;
-}
-
-:deep(.custom-date-picker .dp__input::placeholder) {
-  color: rgba(0, 0, 0, 0.6);
+.gap-2 {
+  gap: 8px;
 }
 
 .action-menu-btn {

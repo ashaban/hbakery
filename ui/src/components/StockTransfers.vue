@@ -778,7 +778,12 @@
     </v-dialog>
 
     <!-- 👁️ ENHANCED VIEW TRANSFER DIALOG -->
-    <v-dialog v-model="showViewDialog" max-width="800">
+    <v-dialog
+      v-model="showViewDialog"
+      max-width="800"
+      scrollable
+      transition="dialog-bottom-transition"
+    >
       <v-card class="rounded-lg">
         <v-toolbar color="info" density="comfortable">
           <v-avatar class="mr-3" color="info" size="40">
