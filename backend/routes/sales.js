@@ -345,7 +345,6 @@ router.get("/:id", async (req, res) => {
   const client = await pool.connect();
   try {
     const detail = await getSaleDetail(client, req.params.id);
-    console.log(JSON.stringify(detail, 0, 2));
     if (!detail) return res.status(404).json({ error: "Not found" });
     res.json(detail);
   } catch (err) {

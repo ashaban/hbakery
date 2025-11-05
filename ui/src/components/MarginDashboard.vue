@@ -239,6 +239,29 @@
         </v-card>
       </v-col>
 
+      <!-- <v-col cols="12" md="3" sm="6">
+        <v-card border class="kpi-card" elevation="2" rounded="lg">
+          <v-card-text class="pa-4">
+            <div class="d-flex align-center">
+              <v-avatar class="mr-3" color="deep-purple-lighten-5" size="48">
+                <v-icon color="deep-purple" size="24"
+                  >mdi-archive-remove</v-icon
+                >
+              </v-avatar>
+              <div>
+                <div class="text-h5 font-weight-bold text-deep-purple">
+                  {{ formatCurrency(productLossData.total_out_value || 0) }}
+                </div>
+                <div class="text-caption text-grey">Product Loss</div>
+                <div class="text-caption text-deep-purple">
+                  {{ productLossData.total_out_qty || 0 }} Units
+                </div>
+              </div>
+            </div>
+          </v-card-text>
+        </v-card>
+      </v-col> -->
+
       <v-col cols="12" md="3" sm="6">
         <v-card border class="kpi-card" elevation="2" rounded="lg">
           <v-card-text class="pa-4">
@@ -367,6 +390,62 @@
             </div>
             <div v-else class="text-center py-8 text-grey">
               No sales data available
+            </div>
+          </v-card-text>
+        </v-card>
+      </v-col>
+    </v-row>
+
+    <v-row class="mb-6">
+      <!-- Product Loss by Value -->
+      <v-col cols="12" lg="6">
+        <v-card class="rounded-lg" elevation="2">
+          <v-card-text class="pa-4">
+            <div class="d-flex align-center mb-4">
+              <v-icon class="mr-2" color="deep-purple">mdi-chart-bar</v-icon>
+              <h4 class="text-h6 font-weight-medium">Product Loss by Value</h4>
+            </div>
+            <v-chart
+              v-if="!loading && hasLossData"
+              :option="productLossValueOption"
+              style="height: 400px; width: 100%"
+            />
+            <div v-else-if="loading" class="text-center py-8">
+              <v-progress-circular color="deep-purple" indeterminate />
+              <div class="mt-2 text-caption text-grey">
+                Loading chart data...
+              </div>
+            </div>
+            <div v-else class="text-center py-8 text-grey">
+              No product loss data available
+            </div>
+          </v-card-text>
+        </v-card>
+      </v-col>
+
+      <!-- Product Loss by Quantity -->
+      <v-col cols="12" lg="6">
+        <v-card class="rounded-lg" elevation="2">
+          <v-card-text class="pa-4">
+            <div class="d-flex align-center mb-4">
+              <v-icon class="mr-2" color="deep-purple">mdi-chart-pie</v-icon>
+              <h4 class="text-h6 font-weight-medium">
+                Product Loss by Quantity
+              </h4>
+            </div>
+            <v-chart
+              v-if="!loading && hasLossData"
+              :option="productLossQuantityOption"
+              style="height: 400px; width: 100%"
+            />
+            <div v-else-if="loading" class="text-center py-8">
+              <v-progress-circular color="deep-purple" indeterminate />
+              <div class="mt-2 text-caption text-grey">
+                Loading chart data...
+              </div>
+            </div>
+            <div v-else class="text-center py-8 text-grey">
+              No product loss data available
             </div>
           </v-card-text>
         </v-card>
@@ -559,6 +638,87 @@
         </v-data-table>
       </v-card-text>
     </v-card>
+
+    <v-card class="mb-6" elevation="2" rounded="lg">
+      <v-card-text class="pa-4">
+        <div class="d-flex align-center justify-space-between mb-4">
+          <div class="d-flex align-center">
+            <v-icon class="mr-2" color="deep-purple">mdi-archive-alert</v-icon>
+            <h4 class="text-h6 font-weight-medium">Product Loss Details</h4>
+          </div>
+          <div class="d-flex gap-2">
+            <v-chip color="deep-purple" size="small" variant="flat">
+              Total Value:
+              {{ formatCurrency(productLossData.total_out_value || 0) }}
+            </v-chip>
+            <v-chip color="deep-purple" size="small" variant="outlined">
+              {{ productLossData.total_out_qty || 0 }} Units
+            </v-chip>
+          </div>
+        </div>
+
+        <v-data-table
+          density="comfortable"
+          :headers="productLossHeaders"
+          hide-default-footer
+          :items="productLossData.data || []"
+          :loading="loading"
+        >
+          <template #loading>
+            <v-skeleton-loader type="table-row@5" />
+          </template>
+
+          <template #item.product_name="{ item }">
+            <div class="font-weight-medium">{{ item.product_name }}</div>
+          </template>
+
+          <template #item.total_qty="{ item }">
+            <v-chip color="deep-purple" size="small" variant="outlined">
+              {{ item.total_qty }}
+            </v-chip>
+          </template>
+
+          <template #item.total_cost_value="{ item }">
+            <div class="font-weight-medium text-deep-purple">
+              {{ formatCurrency(item.total_cost_value) }}
+            </div>
+          </template>
+
+          <template #item.out_events_count="{ item }">
+            <v-chip color="orange" size="small" variant="outlined">
+              {{ item.out_events_count }} events
+            </v-chip>
+          </template>
+
+          <template #item.avg_cost_per_unit="{ item }">
+            <div class="text-caption">
+              {{ formatCurrency(item.avg_cost_per_unit) }}
+            </div>
+          </template>
+
+          <template #item.percentage_of_total="{ item }">
+            <v-progress-linear
+              color="deep-purple"
+              height="8"
+              :model-value="item.percentage_of_total"
+              rounded
+            >
+              <template #default>
+                <span class="text-caption text-white"
+                  >{{ item.percentage_of_total.toFixed(1) }}%</span
+                >
+              </template>
+            </v-progress-linear>
+          </template>
+
+          <template #no-data>
+            <div class="text-center py-4 text-grey">
+              No product loss data available for the selected period
+            </div>
+          </template>
+        </v-data-table>
+      </v-card-text>
+    </v-card>
   </v-container>
 </template>
 
@@ -596,6 +756,7 @@ const outlets = ref([]);
 const salesData = ref({});
 const expenditureData = ref({});
 const productionData = ref({});
+const productLossData = ref({});
 
 // Filters
 const filters = ref({
@@ -646,6 +807,39 @@ const expenditureHeaders = [
   },
 ];
 
+const productLossHeaders = [
+  { title: "Product", key: "product_name", sortable: true },
+  { title: "Quantity Lost", key: "total_qty", sortable: true, align: "center" },
+  {
+    title: "Total Cost Value",
+    key: "total_cost_value",
+    sortable: true,
+    align: "end",
+  },
+  {
+    title: "Avg Cost/Unit",
+    key: "avg_cost_per_unit",
+    sortable: true,
+    align: "end",
+  },
+  {
+    title: "Events Count",
+    key: "out_events_count",
+    sortable: true,
+    align: "center",
+  },
+  {
+    title: "% of Total Loss",
+    key: "percentage_of_total",
+    sortable: true,
+    align: "center",
+    width: "200px",
+  },
+];
+
+const hasLossData = computed(() => {
+  return productLossData.value.data && productLossData.value.data.length > 0;
+});
 // Computed properties
 const profitMargin = computed(() => {
   const sales = salesData.value.total_sales_amount || 0;
@@ -677,6 +871,154 @@ const hasExpenditureData = computed(() => {
 });
 
 // Chart Options
+const productLossValueOption = computed(() => {
+  const sortedProducts =
+    productLossData.value.data
+      ?.slice()
+      .sort((a, b) => b.total_cost_value - a.total_cost_value) || [];
+
+  return {
+    title: {
+      text: "Product Loss by Cost Value",
+      left: "center",
+      textStyle: {
+        fontSize: 16,
+        fontWeight: "bold",
+      },
+    },
+    tooltip: {
+      trigger: "axis",
+      axisPointer: { type: "shadow" },
+      formatter: (params) => {
+        const param = params[0];
+        const product = sortedProducts[param.dataIndex];
+        return `
+          <b>${product.product_name}</b><br/>
+          Loss Value: ${formatCurrency(product.total_cost_value)}<br/>
+          Quantity: ${product.total_qty} units<br/>
+          Events: ${product.out_events_count}<br/>
+          Avg Cost: ${formatCurrency(product.avg_cost_per_unit)}/unit
+        `;
+      },
+    },
+    grid: {
+      left: "3%",
+      right: "4%",
+      bottom: "3%",
+      top: "15%",
+      containLabel: true,
+    },
+    xAxis: {
+      type: "value",
+      axisLabel: {
+        formatter: (value) => {
+          if (value >= 1000000) return (value / 1000000).toFixed(1) + "M";
+          if (value >= 1000) return (value / 1000).toFixed(0) + "K";
+          return value;
+        },
+      },
+    },
+    yAxis: {
+      type: "category",
+      data: sortedProducts.map((p) => p.product_name),
+      axisLabel: {
+        fontSize: 10,
+      },
+    },
+    series: [
+      {
+        name: "Loss Value",
+        type: "bar",
+        data: sortedProducts.map((p) => p.total_cost_value),
+        itemStyle: {
+          color: "#7E57C2",
+        },
+        label: {
+          show: true,
+          position: "right",
+          formatter: (params) => formatCurrency(params.value),
+        },
+      },
+    ],
+  };
+});
+const productLossQuantityOption = computed(() => {
+  const chartData =
+    productLossData.value.data?.map((item) => ({
+      name: item.product_name,
+      value: item.total_qty,
+    })) || [];
+
+  return {
+    title: {
+      text: "Product Loss by Quantity",
+      left: "center",
+      textStyle: {
+        fontSize: 16,
+        fontWeight: "bold",
+      },
+    },
+    tooltip: {
+      trigger: "item",
+      formatter: (params) => {
+        const product = productLossData.value.data?.find(
+          (d) => d.product_name === params.name,
+        );
+        return `
+          <b>${params.name}</b><br/>
+          Quantity: ${params.value} units<br/>
+          Value: ${formatCurrency(product?.total_cost_value || 0)}<br/>
+          ${params.percent}% of total loss
+        `;
+      },
+    },
+    legend: {
+      orient: "vertical",
+      right: 10,
+      top: "center",
+      formatter: (name) => {
+        const item = productLossData.value.data?.find(
+          (d) => d.product_name === name,
+        );
+        return item ? `${name}\n${item.total_qty} units` : name;
+      },
+      textStyle: {
+        fontSize: 10,
+      },
+    },
+    series: [
+      {
+        name: "Loss Quantity",
+        type: "pie",
+        radius: ["40%", "70%"],
+        center: ["40%", "50%"],
+        avoidLabelOverlap: false,
+        itemStyle: {
+          borderColor: "#fff",
+          borderWidth: 2,
+        },
+        label: {
+          show: false,
+          position: "center",
+        },
+        emphasis: {
+          label: {
+            show: true,
+            fontSize: "14",
+            fontWeight: "bold",
+            formatter: (params) => {
+              return `${params.name}\n${params.value} units\n${params.percent}%`;
+            },
+          },
+        },
+        labelLine: {
+          show: false,
+        },
+        data: chartData,
+      },
+    ],
+  };
+});
 const costRevenueOption = computed(() => {
   const salesAmount = salesData.value.total_sales_amount || 0;
   const expenditureAmount = expenditureData.value.totalExpenditure || 0;
@@ -1066,19 +1408,23 @@ async function loadDashboardData() {
     });
 
     // Load all data in parallel
-    const [salesRes, expenditureRes, productionRes] = await Promise.all([
-      fetch(`/reports/salesByProduct?${params}`),
-      fetch(`/reports/expenditureByType?${params}`),
-      fetch(`/reports/productionIngredientsCost?${params}`),
-    ]);
+    const [salesRes, expenditureRes, productionRes, productLossRes] =
+      await Promise.all([
+        fetch(`/reports/salesByProduct?${params}`),
+        fetch(`/reports/expenditureByType?${params}`),
+        fetch(`/reports/productionIngredientsCost?${params}`),
+        fetch(`/reports/giveOutByProduct?${params}`),
+      ]);
 
     if (!salesRes.ok) throw new Error("Sales API failed");
     if (!expenditureRes.ok) throw new Error("Expenditure API failed");
     if (!productionRes.ok) throw new Error("Production API failed");
+    if (!productLossRes.ok) throw new Error("Product Loss API failed");
 
     salesData.value = await salesRes.json();
     expenditureData.value = await expenditureRes.json();
     productionData.value = await productionRes.json();
+    productLossData.value = await productLossRes.json();
 
     // Calculate percentages for expenditure data
     if (expenditureData.value.data) {
@@ -1095,6 +1441,20 @@ async function loadDashboardData() {
           item.total_sales > 0
             ? Math.round((item.total_paid / item.total_sales) * 100)
             : 0;
+      });
+    }
+    if (productLossData.value.data) {
+      const totalValue = productLossData.value.total_out_value || 0;
+      const totalQty = productLossData.value.total_out_qty || 0;
+
+      productLossData.value.data.forEach((item) => {
+        // Calculate average cost per unit
+        item.avg_cost_per_unit =
+          item.total_qty > 0 ? item.total_cost_value / item.total_qty : 0;
+
+        // Calculate percentage of total loss value
+        item.percentage_of_total =
+          totalValue > 0 ? (item.total_cost_value / totalValue) * 100 : 0;
       });
     }
   } catch (error) {

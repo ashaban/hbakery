@@ -28,7 +28,11 @@
           <div v-else class="brand-content">
             <div class="logo-container">
               <v-avatar class="brand-logo" color="primary" size="40">
-                <v-icon color="white" icon="mdi-storefront" size="22" />
+                <v-icon
+                  color="white"
+                  icon="mdi-silverware-fork-knife"
+                  size="22"
+                />
               </v-avatar>
               <div class="brand-text">
                 <span class="text-h6 font-weight-bold text-primary"
@@ -84,9 +88,9 @@
               />
             </v-avatar>
           </template>
-          <v-list-item-title class="font-weight-medium menu-title"
-            >Purchases</v-list-item-title
-          >
+          <v-list-item-title class="font-weight-medium menu-title">
+            Purchases
+          </v-list-item-title>
         </v-list-item>
 
         <v-list-item
@@ -104,14 +108,14 @@
             >
               <v-icon
                 color="orange-darken-2"
-                icon="mdi-cash-multiple"
+                icon="mdi-credit-card-outline"
                 size="20"
               />
             </v-avatar>
           </template>
-          <v-list-item-title class="font-weight-medium menu-title"
-            >Expenditures</v-list-item-title
-          >
+          <v-list-item-title class="font-weight-medium menu-title">
+            Expenditures
+          </v-list-item-title>
         </v-list-item>
 
         <v-list-item
@@ -127,12 +131,16 @@
               rounded="lg"
               size="42"
             >
-              <v-icon color="green-darken-2" icon="mdi-factory" size="20" />
+              <v-icon
+                color="green-darken-2"
+                icon="mdi-cookie-outline"
+                size="20"
+              />
             </v-avatar>
           </template>
-          <v-list-item-title class="font-weight-medium menu-title"
-            >Productions</v-list-item-title
-          >
+          <v-list-item-title class="font-weight-medium menu-title">
+            Productions
+          </v-list-item-title>
         </v-list-item>
 
         <v-list-item
@@ -144,16 +152,45 @@
           <template #prepend>
             <v-avatar
               class="menu-avatar"
-              color="green-lighten-5"
+              color="teal-lighten-5"
               rounded="lg"
               size="42"
             >
-              <v-icon color="green-darken-2" icon="mdi-factory" size="20" />
+              <v-icon
+                color="teal-darken-2"
+                icon="mdi-point-of-sale"
+                size="20"
+              />
             </v-avatar>
           </template>
-          <v-list-item-title class="font-weight-medium menu-title"
-            >Sales</v-list-item-title
-          >
+          <v-list-item-title class="font-weight-medium menu-title">
+            Sales
+          </v-list-item-title>
+        </v-list-item>
+
+        <v-list-item
+          active-class="menu-item--active"
+          class="menu-item rounded-xl"
+          to="GiveOut"
+          value="GiveOut"
+        >
+          <template #prepend>
+            <v-avatar
+              class="menu-avatar"
+              color="deep-orange-lighten-5"
+              rounded="lg"
+              size="42"
+            >
+              <v-icon
+                color="deep-orange-darken-2"
+                icon="mdi-archive-arrow-up"
+                size="20"
+              />
+            </v-avatar>
+          </template>
+          <v-list-item-title class="font-weight-medium menu-title">
+            Give Out
+          </v-list-item-title>
         </v-list-item>
 
         <v-list-item
@@ -165,16 +202,20 @@
           <template #prepend>
             <v-avatar
               class="menu-avatar"
-              color="green-lighten-5"
+              color="deep-purple-lighten-5"
               rounded="lg"
               size="42"
             >
-              <v-icon color="green-darken-2" icon="mdi-factory" size="20" />
+              <v-icon
+                color="deep-purple-darken-2"
+                icon="mdi-package-variant"
+                size="20"
+              />
             </v-avatar>
           </template>
-          <v-list-item-title class="font-weight-medium menu-title"
-            >Stock Transfers</v-list-item-title
-          >
+          <v-list-item-title class="font-weight-medium menu-title">
+            Stock Transfers
+          </v-list-item-title>
         </v-list-item>
       </div>
 
@@ -196,20 +237,16 @@
           <template #prepend>
             <v-avatar
               class="menu-avatar"
-              color="purple-lighten-5"
+              color="amber-lighten-5"
               rounded="lg"
               size="42"
             >
-              <v-icon
-                color="purple-darken-2"
-                icon="mdi-trending-up"
-                size="20"
-              />
+              <v-icon color="amber-darken-2" icon="mdi-chart-line" size="20" />
             </v-avatar>
           </template>
-          <v-list-item-title class="font-weight-medium menu-title"
-            >Profit Projection</v-list-item-title
-          >
+          <v-list-item-title class="font-weight-medium menu-title">
+            Profit Projection
+          </v-list-item-title>
         </v-list-item>
 
         <v-list-item
@@ -225,16 +262,12 @@
               rounded="lg"
               size="42"
             >
-              <v-icon
-                color="purple-darken-2"
-                icon="mdi-trending-up"
-                size="20"
-              />
+              <v-icon color="purple-darken-2" icon="mdi-finance" size="20" />
             </v-avatar>
           </template>
-          <v-list-item-title class="font-weight-medium menu-title"
-            >Profit Dashboard</v-list-item-title
-          >
+          <v-list-item-title class="font-weight-medium menu-title">
+            Profit Dashboard
+          </v-list-item-title>
         </v-list-item>
 
         <v-list-item
@@ -250,20 +283,16 @@
               rounded="lg"
               size="42"
             >
-              <v-icon
-                color="indigo-darken-2"
-                icon="mdi-chart-areaspline"
-                size="20"
-              />
+              <v-icon color="indigo-darken-2" icon="mdi-chart-box" size="20" />
             </v-avatar>
           </template>
-          <v-list-item-title class="font-weight-medium menu-title"
-            >Reports</v-list-item-title
-          >
+          <v-list-item-title class="font-weight-medium menu-title">
+            Reports
+          </v-list-item-title>
           <template #append>
             <v-icon
               v-if="!mini"
-              color="indigo"
+              color="amber-darken-2"
               icon="mdi-star-circle"
               size="16"
             />
@@ -289,20 +318,16 @@
           <template #prepend>
             <v-avatar
               class="menu-avatar"
-              color="teal-lighten-5"
+              color="cyan-lighten-5"
               rounded="lg"
               size="42"
             >
-              <v-icon
-                color="teal-darken-2"
-                icon="mdi-account-multiple"
-                size="20"
-              />
+              <v-icon color="cyan-darken-2" icon="mdi-chef-hat" size="20" />
             </v-avatar>
           </template>
-          <v-list-item-title class="font-weight-medium menu-title"
-            >Staffs</v-list-item-title
-          >
+          <v-list-item-title class="font-weight-medium menu-title">
+            Staffs
+          </v-list-item-title>
         </v-list-item>
 
         <v-list-item
@@ -314,20 +339,20 @@
           <template #prepend>
             <v-avatar
               class="menu-avatar"
-              color="cyan-lighten-5"
+              color="light-blue-lighten-5"
               rounded="lg"
               size="42"
             >
               <v-icon
-                color="cyan-darken-2"
-                icon="mdi-account-group"
+                color="light-blue-darken-2"
+                icon="mdi-account-cog"
                 size="20"
               />
             </v-avatar>
           </template>
-          <v-list-item-title class="font-weight-medium menu-title"
-            >Users</v-list-item-title
-          >
+          <v-list-item-title class="font-weight-medium menu-title">
+            Users
+          </v-list-item-title>
         </v-list-item>
       </div>
 
@@ -347,12 +372,12 @@
               rounded="lg"
               size="42"
             >
-              <v-icon color="grey-darken-2" icon="mdi-cog" size="20" />
+              <v-icon color="grey-darken-2" icon="mdi-database-cog" size="20" />
             </v-avatar>
           </template>
-          <v-list-item-title class="font-weight-medium menu-title"
-            >Settings</v-list-item-title
-          >
+          <v-list-item-title class="font-weight-medium menu-title">
+            Settings
+          </v-list-item-title>
         </v-list-item>
 
         <!-- User Profile -->
@@ -649,15 +674,19 @@ export default {
 .menu-item:nth-child(1) {
   animation-delay: 0.05s;
 }
+
 .menu-item:nth-child(2) {
   animation-delay: 0.1s;
 }
+
 .menu-item:nth-child(3) {
   animation-delay: 0.15s;
 }
+
 .menu-item:nth-child(4) {
   animation-delay: 0.2s;
 }
+
 .menu-item:nth-child(5) {
   animation-delay: 0.25s;
 }

@@ -1213,7 +1213,6 @@ router.get("/productionIngredientsCost", async (req, res) => {
     }
 
     const whereSQL = where.length ? `WHERE ${where.join(" AND ")}` : "";
-
     // 🧾 Ingredient consumption and cost (from item_ledger)
     const ingredientsSQL = `
       SELECT 
@@ -1338,6 +1337,97 @@ router.get("/salesByProduct", async (req, res) => {
   } catch (err) {
     console.error("Error fetching grouped sales:", err);
     res.status(500).json({ error: "Failed to fetch grouped sales data" });
+  }
+});
+
+router.get("/giveOutByProduct", async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    let where = ["pl.movement_type = 'OUT'"];
+    let params = [];
+    let i = 0;
+
+    if (req.query.outlet_id) {
+      params.push(req.query.outlet_id);
+      i++;
+      where.push(`pl.outlet_id = $${i}`);
+    }
+
+    if (req.query.start_date) {
+      params.push(req.query.start_date);
+      i++;
+      where.push(`pl.movement_date >= $${i}`);
+    }
+
+    if (req.query.end_date) {
+      params.push(req.query.end_date);
+      i++;
+      where.push(`pl.movement_date <= $${i}`);
+    }
+
+    if (req.query.quality) {
+      params.push(req.query.quality.toUpperCase());
+      i++;
+      where.push(`pl.quality = $${i}`);
+    }
+
+    const whereSQL = where.join(" AND ");
+
+    // 1️⃣ Get grouped results per product
+    const dataQuery = `
+      SELECT
+        p.id AS product_id,
+        p.name AS product_name,
+        SUM(pl.quantity) AS total_qty,
+        SUM(pl.quantity * pl.unit_cost) AS total_cost_value,
+        COUNT(DISTINCT pl.product_out_id) AS out_events_count
+      FROM product_ledger pl
+      JOIN product p ON p.id = pl.product_id
+      WHERE ${whereSQL}
+      GROUP BY p.id, p.name
+      ORDER BY p.name ASC
+      LIMIT $${i + 1} OFFSET $${i + 2}
+    `;
+    const dataRes = await pool.query(dataQuery, [...params, limit, offset]);
+
+    // 2️⃣ Grand totals ignoring pagination
+    const totalQuery = `
+      SELECT
+        SUM(pl.quantity * pl.unit_cost) AS grand_total_cost,
+        SUM(pl.quantity) AS grand_total_qty
+      FROM product_ledger pl
+      WHERE ${whereSQL}
+    `;
+    const totalsRes = await pool.query(totalQuery, params);
+
+    // 3️⃣ Count distinct products for pagination
+    const countQuery = `
+      SELECT COUNT(DISTINCT p.id)
+      FROM product_ledger pl
+      JOIN product p ON p.id = pl.product_id
+      WHERE ${whereSQL}
+    `;
+    const countRes = await pool.query(countQuery, params);
+    const totalRecords = Number(countRes.rows[0].count) || 0;
+    const totalPages = Math.ceil(totalRecords / limit);
+
+    // 4️⃣ Respond
+    res.json({
+      data: dataRes.rows,
+      totalRecords,
+      totalPages,
+      currentPage: page,
+      totals: {
+        total_out_qty: parseFloat(totalsRes.rows[0].grand_total_qty || 0),
+        total_out_value: parseFloat(totalsRes.rows[0].grand_total_cost || 0),
+      },
+    });
+  } catch (err) {
+    console.error("❌ Error fetching giveOutByProduct:", err);
+    res.status(500).json({ error: "Failed to fetch Give-Out grouped data" });
   }
 });
 
