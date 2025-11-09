@@ -27,14 +27,11 @@
             />
             <v-autocomplete
               v-model="state.unit"
+              autocomplete="off"
+              autocorrect="off"
               bg-color="#BDBDBD"
               :error-messages="v$.unit.$errors.map((e) => e.$message)"
-              :input-attrs="{
-                autocomplete: 'off',
-                autocorrect: 'off',
-                autocapitalize: 'off',
-                spellcheck: 'false',
-              }"
+              inputmode="none"
               :item-title="
                 (item) =>
                   item
@@ -45,6 +42,7 @@
               :items="units"
               label="Unit"
               required
+              spellcheck="false"
               @blur="v$.unit.$touch"
               @change="v$.unit.$touch"
             />

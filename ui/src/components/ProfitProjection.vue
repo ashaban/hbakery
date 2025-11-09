@@ -177,13 +177,17 @@
               <v-col cols="12" md="3">
                 <v-autocomplete
                   v-model="filters.ingredients"
+                  autocomplete="off"
+                  autocorrect="off"
                   chips
                   clearable
                   closable-chips
                   density="comfortable"
+                  inputmode="none"
                   item-title="name"
                   item-value="id"
                   :items="ingredientOptions"
+                  spellcheck="false"
                   label="Ingredients"
                   multiple
                   prepend-inner-icon="mdi-food-apple"
@@ -195,13 +199,17 @@
               <v-col cols="12" md="3">
                 <v-autocomplete
                   v-model="filters.products"
+                  autocomplete="off"
+                  autocorrect="off"
                   chips
                   clearable
                   closable-chips
                   density="comfortable"
+                  inputmode="none"
                   item-title="name"
                   item-value="id"
                   :items="productOptions"
+                  spellcheck="false"
                   label="Products"
                   multiple
                   prepend-inner-icon="mdi-package-variant"
@@ -213,6 +221,8 @@
               <v-col cols="12" md="2">
                 <v-autocomplete
                   v-model="filters.team_leader"
+                  autocomplete="off"
+                  autocorrect="off"
                   clearable
                   density="comfortable"
                   :hint="
@@ -220,10 +230,12 @@
                       ? 'Filtering by selected leader'
                       : 'Leave empty to include all leaders'
                   "
+                  inputmode="none"
                   item-title="name"
                   item-value="id"
                   :items="leaderOptions"
                   label="Team Leader"
+                  spellcheck="false"
                   persistent-hint
                   prepend-inner-icon="mdi-account-tie"
                   variant="outlined"

@@ -77,14 +77,18 @@
           <v-col cols="12" md="4">
             <v-autocomplete
               v-model="filters.type_ids"
+              autocomplete="off"
+              autocorrect="off"
               chips
               clearable
               color="primary"
+              inputmode="none"
               item-title="name"
               item-value="id"
               :items="costTypes"
               label="Filter by Cost Types"
               multiple
+              spellcheck="false"
               variant="outlined"
             />
           </v-col>
@@ -274,13 +278,17 @@
           <v-form ref="formRef" @submit.prevent="saveExpenditure">
             <v-autocomplete
               v-model="form.type_id"
+              autocomplete="off"
+              autocorrect="off"
               color="primary"
               :error-messages="errors.type_id"
+              inputmode="none"
               item-title="name"
               item-value="id"
               :items="costTypes"
               label="Cost Type *"
               required
+              spellcheck="false"
               variant="outlined"
               @blur="validateField('type_id')"
               @input="clearError('type_id')"
@@ -357,11 +365,15 @@
 
             <v-text-field
               v-model.number="form.amount"
+              autocomplete="off"
+              autocorrect="off"
               color="primary"
               :error-messages="errors.amount"
+              inputmode="none"
               label="Amount *"
               prefix="$"
               required
+              spellcheck="false"
               type="number"
               variant="outlined"
               @blur="validateField('amount')"

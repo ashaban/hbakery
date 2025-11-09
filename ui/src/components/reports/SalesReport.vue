@@ -48,9 +48,13 @@
           <v-col cols="12" sm="3">
             <v-text-field
               v-model="filters.start_date"
+              autocomplete="off"
+              autocorrect="off"
               density="comfortable"
+              inputmode="none"
               label="Start Date"
               prepend-inner-icon="mdi-calendar"
+              spellcheck="false"
               type="date"
               variant="outlined"
             />
@@ -58,9 +62,13 @@
           <v-col cols="12" sm="3">
             <v-text-field
               v-model="filters.end_date"
+              autocomplete="off"
+              autocorrect="off"
               density="comfortable"
+              inputmode="none"
               label="End Date"
               prepend-inner-icon="mdi-calendar"
+              spellcheck="false"
               type="date"
               variant="outlined"
             />

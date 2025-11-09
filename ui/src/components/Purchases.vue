@@ -77,12 +77,16 @@
           <v-col cols="12" md="4">
             <v-autocomplete
               v-model="filters.item_id"
+              autocomplete="off"
+              autocorrect="off"
               clearable
               color="primary"
+              inputmode="none"
               item-title="name"
               item-value="id"
               :items="items"
               label="Filter by Item"
+              spellcheck="false"
               variant="outlined"
             />
           </v-col>
@@ -199,7 +203,7 @@
           </template>
 
           <template #item.date="{ item }">
-            {{ formatDate(item.date) }}
+            {{ item.date }}
           </template>
 
           <template #item.actions="{ item }">
@@ -268,13 +272,17 @@
           <v-form ref="addFormRef" @submit.prevent="createPurchase">
             <v-autocomplete
               v-model="form.item_id"
+              autocomplete="off"
+              autocorrect="off"
               color="primary"
               :error-messages="errors.item_id"
+              inputmode="none"
               item-title="name"
               item-value="id"
               :items="items"
               label="Item *"
               required
+              spellcheck="false"
               variant="outlined"
               @blur="validateField('item_id')"
               @input="clearError('item_id')"
@@ -286,10 +294,14 @@
 
             <v-text-field
               v-model.number="form.quantity"
+              autocomplete="off"
+              autocorrect="off"
               color="primary"
               :error-messages="errors.quantity"
+              inputmode="none"
               label="Quantity *"
               required
+              spellcheck="false"
               type="number"
               variant="outlined"
               @blur="validateField('quantity')"
@@ -305,11 +317,15 @@
 
             <v-text-field
               v-model.number="form.price"
+              autocomplete="off"
+              autocorrect="off"
               color="primary"
               :error-messages="errors.price"
+              inputmode="none"
               label="Unit Price *"
               prefix="$"
               required
+              spellcheck="false"
               type="number"
               variant="outlined"
               @blur="validateField('price')"
@@ -399,13 +415,17 @@
           <v-form ref="editFormRef" @submit.prevent="updatePurchase">
             <v-autocomplete
               v-model="form.item_id"
+              autocomplete="off"
+              autocorrect="off"
               color="primary"
               :error-messages="errors.item_id"
+              inputmode="none"
               item-title="name"
               item-value="id"
               :items="items"
               label="Item *"
               required
+              spellcheck="false"
               variant="outlined"
               @blur="validateField('item_id')"
               @input="clearError('item_id')"
@@ -417,10 +437,14 @@
 
             <v-text-field
               v-model.number="form.quantity"
+              autocomplete="off"
+              autocorrect="off"
               color="primary"
               :error-messages="errors.quantity"
+              inputmode="none"
               label="Quantity *"
               required
+              spellcheck="false"
               type="number"
               variant="outlined"
               @blur="validateField('quantity')"
@@ -436,11 +460,15 @@
 
             <v-text-field
               v-model.number="form.price"
+              autocomplete="off"
+              autocorrect="off"
               color="primary"
               :error-messages="errors.price"
+              inputmode="none"
               label="Unit Price *"
               prefix="$"
               required
+              spellcheck="false"
               type="number"
               variant="outlined"
               @blur="validateField('price')"
@@ -771,7 +799,7 @@ function openEditDialog(item) {
     item_id: item.item_id,
     quantity: item.quantity?.replace?.(/,/g, "") || item.quantity,
     price: item.price?.replace?.(/,/g, "") || item.price,
-    date: item.date ? moment(item.date, "YYYY-MM-DD").format("DD-MM-YYYY") : "",
+    date: item.date ? item.date : "",
   });
   Object.keys(errors).forEach((key) => (errors[key] = ""));
   editDialog.value = true;

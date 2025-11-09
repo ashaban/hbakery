@@ -9,11 +9,7 @@
       <!-- Left Side - Visual -->
       <div class="nature-visual-side">
         <div class="nature-illustration">
-          <v-img
-            class="nature-illustration-img"
-            contain
-            src="/mkate.jpeg"
-          />
+          <v-img class="nature-illustration-img" contain src="/mkate.jpeg" />
         </div>
       </div>
 
@@ -40,7 +36,7 @@
             v-model="state.username"
             class="nature-input"
             color="success"
-            :error-messages="v$.username.$errors.map(e => e.$message)"
+            :error-messages="v$.username.$errors.map((e) => e.$message)"
             label="Username"
             prepend-inner-icon="mdi-account-outline"
             variant="outlined"
@@ -53,7 +49,7 @@
             :append-inner-icon="password_show ? 'mdi-eye' : 'mdi-eye-off'"
             class="nature-input"
             color="success"
-            :error-messages="v$.password.$errors.map(e => e.$message)"
+            :error-messages="v$.password.$errors.map((e) => e.$message)"
             label="Password"
             prepend-inner-icon="mdi-lock-outline"
             :type="password_show ? 'text' : 'password'"
@@ -99,7 +95,9 @@
           Password Assistance
         </v-card-title>
         <v-card-text>
-          <p>Enter your email address to receive password reset instructions.</p>
+          <p>
+            Enter your email address to receive password reset instructions.
+          </p>
           <v-text-field
             class="nature-dialog-input"
             label="Email address"
@@ -123,95 +121,95 @@
 </template>
 
 <script>
-  import { reactive, ref } from 'vue'
-  import { useStore } from 'vuex'
-  import { useRouter } from 'vue-router'
-  import { useVuelidate } from '@vuelidate/core'
-  import { required } from '@vuelidate/validators'
-  import VueCookies from 'vue-cookies';
+import { reactive, ref } from "vue";
+import { useStore } from "vuex";
+import { useRouter } from "vue-router";
+import { useVuelidate } from "@vuelidate/core";
+import { required } from "@vuelidate/validators";
+import VueCookies from "vue-cookies";
 
-  export default {
-    setup () {
-      const store = useStore()
-      const router = useRouter()
-      const authStatus = ref(false)
-      const password_show = ref(false)
-      const loading = ref(false)
-      const rememberMe = ref(false)
-      const showForgotPassword = ref(false)
-      const appVersion = ref(process.env.VUE_APP_VERSION || '1.0.0')
+export default {
+  setup() {
+    const store = useStore();
+    const router = useRouter();
+    const authStatus = ref(false);
+    const password_show = ref(false);
+    const loading = ref(false);
+    const rememberMe = ref(false);
+    const showForgotPassword = ref(false);
+    const appVersion = ref(process.env.VUE_APP_VERSION || "1.0.0");
 
-      const state = reactive({
-        username: '',
-        password: '',
+    const state = reactive({
+      username: "",
+      password: "",
+    });
+
+    const rules = {
+      username: { required },
+      password: { required },
+    };
+
+    const v$ = useVuelidate(rules, state);
+
+    function authenticate() {
+      loading.value = true;
+
+      const formData = new FormData();
+      formData.append("username", state.username);
+      formData.append("password", state.password);
+
+      fetch("/login/authenticate", {
+        method: "POST",
+        body: formData,
       })
-
-      const rules = {
-        username: { required },
-        password: { required },
-      }
-
-      const v$ = useVuelidate(rules, state)
-
-      function authenticate () {
-        loading.value = true;
-
-        const formData = new FormData();
-        formData.append('username', state.username);
-        formData.append('password', state.password);
-
-        fetch('/login/authenticate', {
-          method: 'POST',
-          body: formData,
-        })
-          .then(response => response.json())
-          .then(authResp => {
-            if (!authResp.token) {
-              authStatus.value = true;
-              return;
-            }
-
-            // Update Vue store
-            store.state.auth.token = authResp.token;
-            store.state.auth.username = state.username;
-            store.state.auth.name = authResp.name;
-            store.state.auth.role = authResp.role;
-            store.state.auth.mda = authResp.mda;
-            store.state.auth.dev_partner = authResp.dev_partner;
-
-            // Save to localStorage
-            localStorage.setItem('token', authResp.token);
-            localStorage.setItem('username', state.username);
-            localStorage.setItem('name', authResp.name);
-            localStorage.setItem('role', authResp.role);
-            localStorage.setItem('mda', authResp.mda);
-            localStorage.setItem('dev_partner', authResp.dev_partner);
-
-            store.state.denyAccess = false;
-            router.push('/ReportsBase');
-          })
-          .catch(err => {
-            console.error(err);
+        .then((response) => response.json())
+        .then((authResp) => {
+          if (!authResp.token) {
             authStatus.value = true;
-          })
-          .finally(() => {
-            loading.value = false;
-          });
-      }
+            return;
+          }
 
-      return {
-        password_show,
-        authStatus,
-        loading,
-        rememberMe,
-        showForgotPassword,
-        appVersion,
-        state,
-        authenticate,
-        v$,
-      }
-    },
-  };
+          // Update Vue store
+          store.state.auth.token = authResp.token;
+          store.state.auth.username = state.username;
+          store.state.auth.name = authResp.name;
+          store.state.auth.role = authResp.role;
+          store.state.auth.mda = authResp.mda;
+          store.state.auth.dev_partner = authResp.dev_partner;
+
+          // Save to localStorage
+          localStorage.setItem("token", authResp.token);
+          localStorage.setItem("username", state.username);
+          localStorage.setItem("name", authResp.name);
+          localStorage.setItem("role", authResp.role);
+          localStorage.setItem("mda", authResp.mda);
+          localStorage.setItem("dev_partner", authResp.dev_partner);
+
+          store.state.denyAccess = false;
+          router.push("/ReportsBase");
+        })
+        .catch((err) => {
+          console.error(err);
+          authStatus.value = true;
+        })
+        .finally(() => {
+          loading.value = false;
+        });
+    }
+
+    return {
+      password_show,
+      authStatus,
+      loading,
+      rememberMe,
+      showForgotPassword,
+      appVersion,
+      state,
+      authenticate,
+      v$,
+    };
+  },
+};
 </script>
 
 <style scoped>
@@ -232,7 +230,11 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, rgba(24, 121, 79, 0.05) 0%, rgba(46, 139, 87, 0.1) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(24, 121, 79, 0.05) 0%,
+    rgba(46, 139, 87, 0.1) 100%
+  );
   z-index: 0;
 }
 
@@ -242,7 +244,7 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background-image: url('/agriculture-pattern.svg');
+  background-image: url("/agriculture-pattern.svg");
   background-size: 400px;
   opacity: 0.03;
   z-index: 0;

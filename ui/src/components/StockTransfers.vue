@@ -71,10 +71,14 @@
           <v-col cols="12" sm="3">
             <v-text-field
               v-model="filters.date"
+              autocomplete="off"
+              autocorrect="off"
               clearable
               density="comfortable"
+              inputmode="none"
               label="Transfer Date"
               prepend-inner-icon="mdi-calendar"
+              spellcheck="false"
               type="date"
               variant="outlined"
             />
@@ -336,9 +340,13 @@
                 <v-col cols="12" md="6">
                   <v-text-field
                     v-model="form.movement_date"
+                    autocomplete="off"
+                    autocorrect="off"
+                    inputmode="none"
                     label="Transfer Date"
                     prepend-inner-icon="mdi-calendar"
                     required
+                    spellcheck="false"
                     type="date"
                     variant="outlined"
                   />
@@ -494,12 +502,16 @@
                       <v-col cols="12" md="2">
                         <v-text-field
                           v-model="item.quantity"
+                          autocomplete="off"
+                          autocorrect="off"
                           density="comfortable"
                           :error="hasStockError(item)"
                           :hint="getQuantityHint(item)"
+                          inputmode="none"
                           label="Quantity"
                           persistent-hint
                           required
+                          spellcheck="false"
                           type="number"
                           variant="outlined"
                           @input="() => validateItemStock(item)"
@@ -541,9 +553,13 @@
                                 <v-text-field
                                   v-if="item.is_replacement"
                                   v-model="item.replacement_note"
+                                  autocomplete="off"
+                                  autocorrect="off"
                                   density="compact"
+                                  inputmode="none"
                                   label="Replacement Reason"
                                   placeholder="Explain why this is a replacement..."
+                                  spellcheck="false"
                                   variant="outlined"
                                 />
                               </v-col>
@@ -695,12 +711,16 @@
                 <v-col cols="12">
                   <v-text-field
                     v-model.number="adjust.quantity"
+                    autocomplete="off"
+                    autocorrect="off"
                     :error="hasAdjustStockError"
                     :hint="getAdjustStockHint"
+                    inputmode="none"
                     label="Quantity"
                     persistent-hint
                     prepend-inner-icon="mdi-scale"
                     required
+                    spellcheck="false"
                     type="number"
                     variant="outlined"
                   />

@@ -79,7 +79,6 @@ router.get("/:id", async (req, res) => {
  */
 router.post("/", async (req, res) => {
   const { name, type, location, is_main = false } = req.body;
-  console.log(JSON.stringify(req.body, 0, 2));
   // Validate required fields
   if (!name || !type) {
     return res.status(400).json({ error: "Name and type are required" });

@@ -7,8 +7,12 @@
           <v-text-field
             v-model="filters.search"
             append-inner-icon="mdi-close-circle"
+            autocomplete="off"
+            autocorrect="off"
             clearable
+            inputmode="none"
             label="Search Product Name"
+            spellcheck="false"
             @click:append-inner="filters.search = ''"
           />
         </v-col>
@@ -97,36 +101,52 @@
               <v-col cols="12" sm="6">
                 <v-text-field
                   v-model="state.name"
+                  autocomplete="off"
+                  autocorrect="off"
                   bg-color="#E0E0E0"
                   :error-messages="v$.name.$errors.map((e) => e.$message)"
+                  inputmode="none"
                   label="Product Name"
                   required
+                  spellcheck="false"
                 />
               </v-col>
               <v-col cols="12" sm="6">
                 <v-text-field
                   v-model="state.unit"
+                  autocomplete="off"
+                  autocorrect="off"
                   bg-color="#E0E0E0"
                   :error-messages="v$.unit.$errors.map((e) => e.$message)"
+                  inputmode="none"
                   label="Unit (e.g. Loaf, Pack)"
                   required
+                  spellcheck="false"
                 />
               </v-col>
               <v-col cols="12">
                 <v-text-field
                   v-model="state.description"
+                  autocomplete="off"
+                  autocorrect="off"
                   bg-color="#E0E0E0"
+                  inputmode="none"
                   label="Description"
+                  spellcheck="false"
                 />
               </v-col>
               <v-col cols="12" sm="4">
                 <v-text-field
                   v-model="state.price"
+                  autocomplete="off"
+                  autocorrect="off"
                   bg-color="#E0E0E0"
                   :error-messages="v$.price.$errors.map((e) => e.$message)"
+                  inputmode="none"
                   label="Price"
                   prefix="TSh "
                   required
+                  spellcheck="false"
                   type="number"
                 />
               </v-col>
@@ -156,16 +176,20 @@
               <v-col cols="12" sm="6">
                 <v-autocomplete
                   v-model="it.item_id"
+                  autocomplete="off"
+                  autocorrect="off"
                   clearable
                   dense
                   :error="v$.items.$dirty && !it.item_id"
                   :error-messages="
                     v$.items.$dirty && !it.item_id ? ['Item required'] : []
                   "
+                  inputmode="none"
                   item-title="name"
                   item-value="id"
                   :items="availableMandatoryItems(index)"
                   label="Item"
+                  spellcheck="false"
                   @update:model-value="onMandatoryItemChange(it)"
                 />
               </v-col>
@@ -173,6 +197,8 @@
               <v-col cols="12" sm="5">
                 <v-text-field
                   v-model="it.quantity_per_unit"
+                  autocomplete="off"
+                  autocorrect="off"
                   dense
                   :error="
                     v$.items.$dirty &&
@@ -184,7 +210,9 @@
                       ? ['Quantity > 0 required']
                       : []
                   "
+                  inputmode="none"
                   :label="`Quantity in ${it.unit || ''}`"
+                  spellcheck="false"
                   type="number"
                 />
               </v-col>
@@ -236,10 +264,14 @@
               <v-card-title class="d-flex align-center bg-grey-lighten-3">
                 <v-text-field
                   v-model="group.name"
+                  autocomplete="off"
+                  autocorrect="off"
                   class="mr-2"
                   density="compact"
                   hide-details
+                  inputmode="none"
                   label="Group Name"
+                  spellcheck="false"
                   @update:model-value="generateCombinations(groupIndex)"
                 />
                 <v-spacer />
@@ -258,8 +290,12 @@
                   <v-col cols="12" sm="6">
                     <v-text-field
                       v-model="group.description"
+                      autocomplete="off"
+                      autocorrect="off"
                       density="compact"
+                      inputmode="none"
                       label="Description"
+                      spellcheck="false"
                     />
                   </v-col>
                   <v-col cols="12" sm="3">
@@ -311,12 +347,16 @@
                   <v-col cols="12" sm="6">
                     <v-autocomplete
                       v-model="option.item_id"
+                      autocomplete="off"
+                      autocorrect="off"
                       clearable
                       density="compact"
+                      inputmode="none"
                       item-title="name"
                       item-value="id"
                       :items="availableGroupItems(groupIndex, optionIndex)"
                       label="Item"
+                      spellcheck="false"
                       @update:model-value="
                         onGroupItemChange(groupIndex, optionIndex)
                       "
@@ -325,10 +365,14 @@
                   <v-col cols="12" sm="5">
                     <v-text-field
                       v-model="option.position"
+                      autocomplete="off"
+                      autocorrect="off"
                       density="compact"
+                      inputmode="none"
                       label="Position"
                       :max="group.options.length"
                       min="1"
+                      spellcheck="false"
                       type="number"
                     />
                   </v-col>
@@ -459,16 +503,23 @@
                       >
                         <v-col cols="12" sm="4">
                           <v-text-field
+                            autocomplete="off"
+                            autocorrect="off"
                             density="compact"
+                            inputmode="none"
                             label="Item"
                             :model-value="getItemName(option.item_id)"
                             readonly
+                            spellcheck="false"
                             variant="outlined"
                           />
                         </v-col>
                         <v-col cols="12" sm="4">
                           <v-text-field
+                            autocomplete="off"
+                            autocorrect="off"
                             density="compact"
+                            inputmode="none"
                             :label="`Quantity (${option.unit || ''})`"
                             min="0"
                             :model-value="
@@ -478,6 +529,7 @@
                                 option.item_id,
                               )
                             "
+                            spellcheck="false"
                             step="0.001"
                             type="number"
                             @update:model-value="
@@ -508,9 +560,13 @@
 
                       <v-text-field
                         v-model="combination.notes"
+                        autocomplete="off"
+                        autocorrect="off"
                         class="mt-2"
                         density="compact"
+                        inputmode="none"
                         label="Notes (Optional)"
+                        spellcheck="false"
                       />
                     </v-card-text>
                   </v-card>

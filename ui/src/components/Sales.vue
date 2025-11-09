@@ -47,10 +47,14 @@
           <v-col cols="12" sm="3">
             <v-text-field
               v-model="filters.start_date"
+              autocomplete="off"
+              autocorrect="off"
               clearable
               density="comfortable"
+              inputmode="none"
               label="Start Date"
               prepend-inner-icon="mdi-calendar"
+              spellcheck="false"
               type="date"
               variant="outlined"
             />
@@ -58,10 +62,14 @@
           <v-col cols="12" sm="3">
             <v-text-field
               v-model="filters.end_date"
+              autocomplete="off"
+              autocorrect="off"
               clearable
               density="comfortable"
+              inputmode="none"
               label="End Date"
               prepend-inner-icon="mdi-calendar"
+              spellcheck="false"
               type="date"
               variant="outlined"
             />
@@ -321,9 +329,13 @@
                 <v-col cols="12" md="4">
                   <v-text-field
                     v-model="form.sale_date"
+                    autocomplete="off"
+                    autocorrect="off"
+                    inputmode="none"
                     label="Sale Date"
                     prepend-inner-icon="mdi-calendar"
                     required
+                    spellcheck="false"
                     type="date"
                     variant="outlined"
                   />
@@ -403,12 +415,16 @@
                       <v-col cols="12" md="3">
                         <v-autocomplete
                           v-model="it.product_id"
+                          autocomplete="off"
+                          autocorrect="off"
+                          inputmode="none"
                           item-title="name"
                           item-value="id"
                           :items="products"
                           label="Product"
                           prepend-inner-icon="mdi-cube-outline"
                           required
+                          spellcheck="false"
                           variant="outlined"
                           @update:model-value="() => onProductChange(it)"
                         />
@@ -432,11 +448,15 @@
                       <v-col cols="12" md="2">
                         <v-text-field
                           v-model="it.quantity"
+                          autocomplete="off"
+                          autocorrect="off"
                           density="comfortable"
                           :error="hasItemStockError(it)"
                           :hint="itemQuantityHint(it)"
+                          inputmode="none"
                           label="Quantity"
                           persistent-hint
+                          spellcheck="false"
                           type="number"
                           variant="outlined"
                           @input="() => validateForm()"
@@ -446,8 +466,12 @@
                       <v-col cols="12" md="2">
                         <v-text-field
                           v-model="it.unit_price"
+                          autocomplete="off"
+                          autocorrect="off"
                           density="comfortable"
+                          inputmode="none"
                           label="Unit Price"
+                          spellcheck="false"
                           type="number"
                           variant="outlined"
                           @blur="normalizePrice(it)"
@@ -575,11 +599,15 @@
                   <v-col cols="12" md="3">
                     <v-text-field
                       v-model="p.amount"
+                      autocomplete="off"
+                      autocorrect="off"
                       density="comfortable"
                       :error="!p.amount"
                       :hint="'Required'"
+                      inputmode="none"
                       label="Amount"
                       persistent-hint
+                      spellcheck="false"
                       type="number"
                       variant="outlined"
                       @input="
@@ -602,16 +630,24 @@
                   <v-col cols="12" md="3">
                     <v-text-field
                       v-model="p.reference"
+                      autocomplete="off"
+                      autocorrect="off"
                       density="comfortable"
+                      inputmode="none"
                       label="Reference"
+                      spellcheck="false"
                       variant="outlined"
                     />
                   </v-col>
                   <v-col cols="12" md="2">
                     <v-text-field
                       v-model="p.payment_date"
+                      autocomplete="off"
+                      autocorrect="off"
                       density="comfortable"
+                      inputmode="none"
                       label="Payment Date"
+                      spellcheck="false"
                       type="date"
                       variant="outlined"
                     />

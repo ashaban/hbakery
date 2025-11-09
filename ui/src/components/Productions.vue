@@ -157,14 +157,18 @@
                   </div>
                   <v-autocomplete
                     v-model="filters.product_id"
+                    autocomplete="off"
+                    autocorrect="off"
                     clearable
                     color="primary"
                     density="compact"
                     hide-details
+                    inputmode="none"
                     item-title="name"
                     item-value="id"
                     :items="products"
                     placeholder="All Products"
+                    spellcheck="false"
                     variant="underlined"
                   />
                 </v-card-text>
@@ -231,14 +235,18 @@
                   </div>
                   <v-autocomplete
                     v-model="filters.team_leader"
+                    autocomplete="off"
+                    autocorrect="off"
                     clearable
                     color="primary"
                     density="compact"
                     hide-details
+                    inputmode="none"
                     item-title="name"
                     item-value="id"
                     :items="staffList"
                     placeholder="All Leaders"
+                    spellcheck="false"
                     variant="underlined"
                   />
                 </v-card-text>
@@ -700,14 +708,18 @@
                 <v-col cols="12" md="5">
                   <v-autocomplete
                     v-model="form.product_id"
+                    autocomplete="off"
+                    autocorrect="off"
                     color="primary"
                     :disabled="isEditing"
+                    inputmode="none"
                     item-title="name"
                     item-value="id"
                     :items="products"
                     label="Select Product"
                     prepend-inner-icon="mdi-package-variant"
                     required
+                    spellcheck="false"
                     variant="outlined"
                     @update:model-value="onProductChange"
                   />
@@ -729,11 +741,15 @@
                 <v-col cols="12" md="6">
                   <v-text-field
                     v-model.number="form.qty_product"
+                    autocomplete="off"
+                    autocorrect="off"
                     color="primary"
                     :disabled="isEditing && !editEnabled"
+                    inputmode="none"
                     label="Quantity of Product"
                     prepend-inner-icon="mdi-numeric"
                     required
+                    spellcheck="false"
                     type="number"
                     variant="outlined"
                     @input="recalcIngredients"
@@ -752,15 +768,19 @@
                   <v-col cols="12" md="6">
                     <v-autocomplete
                       v-model="form.base_ingredient_id"
+                      autocomplete="off"
+                      autocorrect="off"
                       color="primary"
                       :disabled="
                         !recipeItems.length || (isEditing && !editEnabled)
                       "
+                      inputmode="none"
                       item-title="item_name"
                       item-value="item_id"
                       :items="recipeItems"
                       label="Base Ingredient"
                       prepend-inner-icon="mdi-ingredient"
+                      spellcheck="false"
                       variant="outlined"
                       @update:model-value="recalcIngredients"
                     />
@@ -768,13 +788,17 @@
                   <v-col cols="12" md="6">
                     <v-text-field
                       v-model.number="form.base_ingredient_qty"
+                      autocomplete="off"
+                      autocorrect="off"
                       color="primary"
                       :disabled="
                         !form.base_ingredient_id || (isEditing && !editEnabled)
                       "
+                      inputmode="none"
                       :label="`Ingredient Quantity (${baseUnit || 'units'})`"
                       prepend-inner-icon="mdi-weight"
                       required
+                      spellcheck="false"
                       type="number"
                       variant="outlined"
                       @input="recalcIngredients"
@@ -801,9 +825,13 @@
                 <v-col cols="12" md="4">
                   <v-text-field
                     v-model.number="form.good_qty"
+                    autocomplete="off"
+                    autocorrect="off"
                     color="green"
+                    inputmode="none"
                     label="Good Quantity"
                     prepend-inner-icon="mdi-check-decagram"
+                    spellcheck="false"
                     type="number"
                     variant="outlined"
                     @input="recomputeActual"
@@ -812,9 +840,13 @@
                 <v-col cols="12" md="4">
                   <v-text-field
                     v-model.number="form.damaged_qty"
+                    autocomplete="off"
+                    autocorrect="off"
                     color="orange"
+                    inputmode="none"
                     label="Damaged Quantity"
                     prepend-inner-icon="mdi-alert-circle-outline"
+                    spellcheck="false"
                     type="number"
                     variant="outlined"
                     @input="recomputeActual"
@@ -823,9 +855,13 @@
                 <v-col cols="12" md="4">
                   <v-text-field
                     v-model.number="form.reject_qty"
+                    autocomplete="off"
+                    autocorrect="off"
                     color="red"
+                    inputmode="none"
                     label="Reject Quantity"
                     prepend-inner-icon="mdi-close-octagon-outline"
+                    spellcheck="false"
                     type="number"
                     variant="outlined"
                     @input="recomputeActual"
@@ -834,12 +870,16 @@
                 <v-col cols="12" md="6">
                   <v-text-field
                     v-model.number="form.actual_qty"
+                    autocomplete="off"
+                    autocorrect="off"
                     color="primary"
                     :disabled="!isAddingActual && isEditing && !editEnabled"
+                    inputmode="none"
                     label="Total Actual Quantity Produced"
                     prepend-inner-icon="mdi-counter"
                     readonly
                     required
+                    spellcheck="false"
                     type="number"
                     variant="outlined"
                   />
@@ -898,9 +938,13 @@
                   <v-col cols="12" md="5">
                     <v-text-field
                       v-model="disc.notes"
+                      autocomplete="off"
+                      autocorrect="off"
                       color="primary"
                       hide-details
+                      inputmode="none"
                       label="Notes"
+                      spellcheck="false"
                       variant="outlined"
                     />
                   </v-col>
@@ -969,14 +1013,18 @@
                 <template #item.staff_id="{ item, index }">
                   <v-autocomplete
                     v-model="item.staff_id"
+                    autocomplete="off"
+                    autocorrect="off"
                     density="compact"
                     :disabled="!editEnabled"
                     hide-details
+                    inputmode="none"
                     item-title="name"
                     item-value="id"
                     :items="availableStaff"
                     placeholder="Select Staff"
                     return-object
+                    spellcheck="false"
                     variant="outlined"
                   />
                 </template>
@@ -998,9 +1046,13 @@
                 <template #item.notes="{ item }">
                   <v-text-field
                     v-model="item.notes"
+                    autocomplete="off"
+                    autocorrect="off"
                     density="compact"
                     :disabled="!editEnabled"
                     hide-details
+                    inputmode="none"
+                    spellcheck="false"
                     variant="outlined"
                   />
                 </template>
@@ -1114,12 +1166,16 @@
                   <div class="d-flex align-center">
                     <v-text-field
                       v-model.number="item.qty_required"
+                      autocomplete="off"
+                      autocorrect="off"
                       density="compact"
                       :error="item.exceeds"
                       :error-messages="
                         item.exceeds ? ['Exceeds available stock'] : []
                       "
                       hide-details
+                      inputmode="none"
+                      spellcheck="false"
                       style="max-width: 140px"
                       type="number"
                       variant="outlined"

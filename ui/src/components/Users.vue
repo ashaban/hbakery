@@ -49,13 +49,17 @@
           />
           <v-autocomplete
             v-model="state.role"
+            autocomplete="off"
+            autocorrect="off"
             bg-color="#BDBDBD"
             :error-messages="v$.role.$errors.map((e) => e.$message)"
+            inputmode="none"
             item-title="name"
             item-value="id"
             :items="roles"
             label="Role"
             required
+            spellcheck="false"
             @blur="v$.role.$touch"
             @change="v$.role.$touch"
           />
@@ -146,13 +150,17 @@
           />
           <v-autocomplete
             v-model="state.role"
+            autocomplete="off"
+            autocorrect="off"
             bg-color="#BDBDBD"
             :error-messages="v$.role.$errors.map((e) => e.$message)"
+            inputmode="none"
             item-title="name"
             item-value="id"
             :items="roles"
             label="Role"
             required
+            spellcheck="false"
             @blur="v$.role.$touch"
             @change="v$.role.$touch"
           />
