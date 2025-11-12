@@ -186,7 +186,7 @@ export default {
           localStorage.setItem("dev_partner", authResp.dev_partner);
 
           store.state.denyAccess = false;
-          router.push("/ReportsBase");
+          router.push("/Home");
         })
         .catch((err) => {
           console.error(err);

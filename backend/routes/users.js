@@ -19,6 +19,11 @@ router.post("/addUser", async (req, res) => {
 
       const { name, title, email, phone, role } = fields;
       const passwordHash = bcrypt.hashSync(fields.password, 8);
+      const outlets = Array.isArray(fields.outlets)
+        ? fields.outlets
+        : fields.outlets
+        ? [fields.outlets]
+        : [];
 
       // Check if user exists
       const existing = await pool.query(
@@ -29,21 +34,47 @@ router.post("/addUser", async (req, res) => {
         return res.status(400).json({ error: "User exists" });
       }
 
-      // Insert user
-      const insertSQL = `
-        INSERT INTO users (name, title, email, phone, role, password)
-        VALUES ($1, $2, $3, $4, $5, $6)
-      `;
-      await pool.query(insertSQL, [
-        name,
-        title,
-        email,
-        phone,
-        role,
-        passwordHash,
-      ]);
+      // Start transaction
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
 
-      res.json({ message: "User added successfully" });
+        // Insert user
+        const insertUserSQL = `
+          INSERT INTO users (name, title, email, phone, role, password)
+          VALUES ($1, $2, $3, $4, $5, $6)
+          RETURNING id
+        `;
+        const userResult = await client.query(insertUserSQL, [
+          name,
+          title,
+          email,
+          phone,
+          role,
+          passwordHash,
+        ]);
+
+        const userId = userResult.rows[0].id;
+
+        // Insert outlet associations
+        if (outlets.length > 0) {
+          const outletInsertSQL = `
+            INSERT INTO outlet_staff (user_id, outlet_id) 
+            VALUES ($1, $2)
+          `;
+          for (const outletId of outlets) {
+            await client.query(outletInsertSQL, [userId, outletId]);
+          }
+        }
+
+        await client.query("COMMIT");
+        res.json({ message: "User added successfully" });
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
     } catch (error) {
       logger.error(error);
       res.status(500).json({ error: "Internal server error" });
@@ -64,6 +95,8 @@ router.post(["/editUser", "/editUser/:id"], (req, res) => {
 
       const userId = req.params.id;
       const { name, title, email, phone, role, password } = fields;
+      //fields.outlets is a stringified array
+      const outlets = JSON.parse(fields.outlets);
 
       // Check duplicate email
       const duplicate = await pool.query(
@@ -74,27 +107,55 @@ router.post(["/editUser", "/editUser/:id"], (req, res) => {
         return res.status(400).json({ error: "User exists" });
       }
 
-      let sql, params;
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
 
-      if (password && password !== "unchangedpassword") {
-        const passwordHash = bcrypt.hashSync(password, 8);
-        sql = `
-          UPDATE users 
-          SET name = $1, title = $2, email = $3, phone = $4, role = $5, password = $6
-          WHERE id = $7
-        `;
-        params = [name, title, email, phone, role, passwordHash, userId];
-      } else {
-        sql = `
-          UPDATE users 
-          SET name = $1, title = $2, email = $3, phone = $4, role = $5
-          WHERE id = $6
-        `;
-        params = [name, title, email, phone, role, userId];
+        let userSql, userParams;
+
+        if (password && password !== "unchangedpassword") {
+          const passwordHash = bcrypt.hashSync(password, 8);
+          userSql = `
+            UPDATE users 
+            SET name = $1, title = $2, email = $3, phone = $4, role = $5, password = $6
+            WHERE id = $7
+          `;
+          userParams = [name, title, email, phone, role, passwordHash, userId];
+        } else {
+          userSql = `
+            UPDATE users 
+            SET name = $1, title = $2, email = $3, phone = $4, role = $5
+            WHERE id = $6
+          `;
+          userParams = [name, title, email, phone, role, userId];
+        }
+
+        await client.query(userSql, userParams);
+
+        // Update outlet associations
+        // First remove existing associations
+        await client.query("DELETE FROM outlet_staff WHERE user_id = $1", [
+          userId,
+        ]);
+        // Then add new associations
+        if (outlets.length > 0) {
+          const outletInsertSQL = `
+            INSERT INTO outlet_staff (user_id, outlet_id) 
+            VALUES ($1, $2)
+          `;
+          for (const outletId of outlets) {
+            await client.query(outletInsertSQL, [userId, outletId]);
+          }
+        }
+
+        await client.query("COMMIT");
+        res.json({ message: "User updated successfully" });
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
       }
-
-      await pool.query(sql, params);
-      res.json({ message: "User updated successfully" });
     } catch (error) {
       logger.error(error);
       res.status(500).json({ error: "Internal server error" });
@@ -104,6 +165,7 @@ router.post(["/editUser", "/editUser/:id"], (req, res) => {
 
 router.delete("/deleteUser/:id", async (req, res) => {
   try {
+    // outlet_staff records will be automatically deleted due to ON DELETE CASCADE
     await pool.query(`DELETE FROM users WHERE id = $1`, [req.params.id]);
     res.json({ message: "User deleted successfully" });
   } catch (error) {
@@ -123,10 +185,23 @@ router.get(["/getUsers", "/getUsers/:id"], async (req, res) => {
         u.email,
         u.phone,
         r.name AS role,
-        r.id AS roleid
+        r.id AS roleid,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id', o.id,
+              'name', o.name
+            ) 
+            ORDER BY o.name
+          ) FILTER (WHERE o.id IS NOT NULL),
+          '[]'
+        ) as outlets
       FROM users u
       INNER JOIN roles r ON r.id = u.role
+      LEFT JOIN outlet_staff os ON os.user_id = u.id
+      LEFT JOIN outlet o ON o.id = os.outlet_id
       ${id ? `WHERE u.id = $1` : ""}
+      GROUP BY u.id, u.name, u.title, u.email, u.phone, r.name, r.id
       ORDER BY u.id
     `;
     const result = await pool.query(sql, id ? [id] : []);

@@ -1,11 +1,11 @@
 <template>
   <v-app-bar app clipped-left clipped-right color="#18794f">
-    <v-app-bar-nav-icon class="ml-2">
+    <v-app-bar-nav-icon class="ml-2" to="Home">
       <img height="40" src="/mkate.jpeg" width="40" />
     </v-app-bar-nav-icon>
 
     <v-app-bar-title class="text-center text-yellow font-weight-bold">
-      <!-- Hanein Tanzania Investment | Bakery Management System -->
+      Hanein Tanzania Investment | Bakery Management System
     </v-app-bar-title>
 
     <v-spacer />

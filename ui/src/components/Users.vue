@@ -1,5 +1,6 @@
 <template>
   <v-container fluid>
+    <!-- Add User Dialog -->
     <v-dialog
       v-model="addDialog"
       transition="dialog-top-transition"
@@ -19,7 +20,7 @@
             v-model="state.name"
             bg-color="#BDBDBD"
             :error-messages="v$.name.$errors.map((e) => e.$message)"
-            :label="'fullName'"
+            label="Full Name"
             required
             @blur="v$.name.$touch"
             @input="v$.name.$touch"
@@ -63,6 +64,22 @@
             @blur="v$.role.$touch"
             @change="v$.role.$touch"
           />
+          <!-- Outlets Multi-select -->
+          <v-autocomplete
+            v-model="state.outlets"
+            autocomplete="off"
+            autocorrect="off"
+            bg-color="#BDBDBD"
+            chips
+            closable-chips
+            item-title="name"
+            item-value="id"
+            :items="availableOutlets"
+            label="Assigned Outlets"
+            multiple
+            spellcheck="false"
+            variant="outlined"
+          />
           <v-text-field
             v-model="state.password"
             :append-icon="password_show ? 'mdi-eye' : 'mdi-eye-off'"
@@ -93,12 +110,13 @@
       </v-card>
     </v-dialog>
 
+    <!-- Edit User Dialog -->
     <v-dialog
       v-model="editDialog"
       transition="dialog-top-transition"
       width="auto"
     >
-      <v-card class="rounded-xl pa-4" elevation="10">
+      <v-card class="rounded-xl pa-4" elevation="10" style="width: 600px">
         <v-toolbar class="rounded-lg flex-wrap px-4" color="primary" flat>
           <div class="d-flex align-center flex-wrap">
             <v-icon class="mr-2 text-white">mdi-account</v-icon>
@@ -164,11 +182,29 @@
             @blur="v$.role.$touch"
             @change="v$.role.$touch"
           />
+          <!-- Outlets Multi-select for Editing -->
+          <v-autocomplete
+            v-model="state.outlets"
+            autocomplete="off"
+            autocorrect="off"
+            bg-color="#BDBDBD"
+            chips
+            closable-chips
+            item-title="name"
+            item-value="id"
+            :items="availableOutlets"
+            label="Assigned Outlets"
+            multiple
+            spellcheck="false"
+            variant="outlined"
+          />
           <v-text-field
             v-model="state.password"
+            :append-icon="password_show ? 'mdi-eye' : 'mdi-eye-off'"
             bg-color="#BDBDBD"
             label="Password"
             :type="password_show ? 'text' : 'password'"
+            @click:append="password_show = !password_show"
           />
         </v-card-text>
         <div class="d-flex justify-end justify-space-between">
@@ -211,11 +247,13 @@
         </div>
       </v-card>
     </v-dialog>
+
+    <!-- Delete Confirmation Dialog -->
     <v-dialog v-model="confirmDeleteDialog" persistent width="auto">
       <v-card>
         <v-toolbar
           color="warning"
-          title="Confirm Deleting User: {{state.name }}"
+          :title="'Confirm Deleting User: ' + state.name"
         >
           <v-btn
             color="white"
@@ -232,6 +270,8 @@
         </div>
       </v-card>
     </v-dialog>
+
+    <!-- Main Content -->
     <v-toolbar class="rounded-lg mb-2 px-4" color="primary" flat height="60">
       <v-toolbar-title class="text-white font-weight-bold text-h6">
         <v-icon class="mr-2" color="white">mdi-account</v-icon>
@@ -261,6 +301,18 @@
           height="300"
           :items="values"
         >
+          <template #item.outlets="{ item }">
+            <v-chip
+              v-for="outlet in item.outlets"
+              :key="outlet.id"
+              class="ma-1"
+              color="primary"
+              size="small"
+              variant="outlined"
+            >
+              {{ outlet.name }}
+            </v-chip>
+          </template>
           <template #item.edit="{ item }">
             <v-icon color="#3F51B5" @click="activateEditDialog(item)"
               >mdi-square-edit-outline</v-icon
@@ -271,6 +323,7 @@
     </v-card>
   </v-container>
 </template>
+
 <script>
 import { onMounted, reactive, ref } from "vue";
 import { useStore } from "vuex";
@@ -285,6 +338,7 @@ export default {
     const password_show = ref(false);
     const values = ref([]);
     const roles = ref([]);
+    const availableOutlets = ref([]);
     const editingItem = ref({});
     const headers = ref([
       {
@@ -304,6 +358,10 @@ export default {
         key: "role",
       },
       {
+        title: "Outlets",
+        key: "outlets",
+      },
+      {
         title: "Edit",
         key: "edit",
       },
@@ -318,6 +376,7 @@ export default {
       phone: "",
       role: "",
       password: "",
+      outlets: [],
     });
     const rules = {
       name: { required },
@@ -327,6 +386,7 @@ export default {
       password: { required },
     };
     const v$ = useVuelidate(rules, state);
+
     function loadValues() {
       loadingValues.value = true;
       fetch("/users/getUsers")
@@ -365,6 +425,17 @@ export default {
         });
     }
 
+    function loadOutlets() {
+      fetch("/outlets")
+        .then((response) => response.json())
+        .then((results) => {
+          availableOutlets.value = results.data;
+        })
+        .catch((error) => {
+          console.error("Failed to load outlets", error);
+        });
+    }
+
     function activateAddDialog() {
       v$.value.name.$touch();
       addDialog.value = true;
@@ -373,6 +444,8 @@ export default {
       state.email = "";
       state.phone = "";
       state.role = "";
+      state.password = "";
+      state.outlets = [];
     }
 
     function activateEditDialog(item) {
@@ -384,6 +457,9 @@ export default {
       state.phone = item.phone;
       state.role = item.roleid;
       state.password = "unchangedpassword";
+      state.outlets = item.outlets
+        ? item.outlets.map((outlet) => outlet.id)
+        : [];
     }
 
     function create() {
@@ -395,6 +471,10 @@ export default {
       formData.append("phone", state.phone);
       formData.append("role", state.role);
       formData.append("password", state.password);
+      state.outlets.forEach((outletId) => {
+        formData.append("outlets", outletId);
+      });
+
       fetch("/users/addUser", {
         body: formData,
         method: "POST",
@@ -443,6 +523,8 @@ export default {
       formData.append("phone", state.phone);
       formData.append("role", state.role);
       formData.append("password", state.password);
+      formData.append("outlets", JSON.stringify(state.outlets));
+
       fetch("/users/editUser/" + editingItem.value.id, {
         body: formData,
         method: "POST",
@@ -506,7 +588,7 @@ export default {
               loadValues();
               store.commit("setMessage", {
                 type: "primary",
-                text: "User delete successfully!",
+                text: "User deleted successfully!",
                 timeout: 2000,
               });
             });
@@ -526,6 +608,7 @@ export default {
     onMounted(() => {
       loadValues();
       loadRoles();
+      loadOutlets();
     });
 
     return {
@@ -540,6 +623,7 @@ export default {
       editingItem,
       confirmDeleteDialog,
       roles,
+      availableOutlets,
       password_show,
       loadValues,
       activateAddDialog,

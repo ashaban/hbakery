@@ -538,7 +538,7 @@
                       class="mt-2"
                     >
                       <v-col cols="12">
-                        <v-card color="orange-lighten-5" variant="outlined">
+                        <v-card variant="outlined">
                           <v-card-text class="pa-3">
                             <v-row align="center">
                               <v-col cols="auto">
