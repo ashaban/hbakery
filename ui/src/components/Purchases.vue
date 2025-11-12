@@ -185,9 +185,18 @@
           </template>
 
           <template #item.quantity="{ item }">
-            <v-chip color="blue" variant="flat">
-              {{ parseFloat(item.quantity) }}
-            </v-chip>
+            <div class="d-flex flex-column align-end">
+              <v-chip color="blue" variant="flat">
+                {{ parseFloat(item.quantity) }} {{ item.unit }}
+              </v-chip>
+              <div
+                v-if="item.human_readable_quantity"
+                class="text-caption text-grey mt-1"
+              >
+                {{ item.human_readable_quantity }}
+                {{ item.human_readable_unit }}
+              </div>
+            </div>
           </template>
 
           <template #item.price="{ item }">
@@ -252,7 +261,7 @@
     </v-card>
 
     <!-- ADD PURCHASE DIALOG -->
-    <v-dialog v-model="addDialog" max-width="600px" persistent>
+    <v-dialog v-model="addDialog" max-width="700px" persistent>
       <v-card>
         <v-toolbar class="text-white" color="primary" density="comfortable">
           <v-toolbar-title>
@@ -285,35 +294,60 @@
               spellcheck="false"
               variant="outlined"
               @blur="validateField('item_id')"
-              @input="clearError('item_id')"
+              @input="onItemChange"
             >
               <template #label>
                 <span class="required-field">Item</span>
               </template>
             </v-autocomplete>
 
-            <v-text-field
-              v-model.number="form.quantity"
-              autocomplete="off"
-              autocorrect="off"
-              color="primary"
-              :error-messages="errors.quantity"
-              inputmode="none"
-              label="Quantity *"
-              required
-              spellcheck="false"
-              type="number"
-              variant="outlined"
-              @blur="validateField('quantity')"
-              @input="
-                clearError('quantity');
-                calculateTotal();
-              "
-            >
-              <template #label>
-                <span class="required-field">Quantity</span>
-              </template>
-            </v-text-field>
+            <!-- Quantity Input with Unit Display -->
+            <div class="mb-4">
+              <v-text-field
+                v-model.number="form.quantity"
+                autocomplete="off"
+                autocorrect="off"
+                color="primary"
+                :error-messages="errors.quantity"
+                inputmode="none"
+                :label="`Quantity in ${selectedItemUnit || 'units'} *`"
+                required
+                spellcheck="false"
+                type="number"
+                variant="outlined"
+                @blur="validateField('quantity')"
+                @input="
+                  clearError('quantity');
+                  calculateTotal();
+                  updateHumanReadableQuantity();
+                "
+              >
+                <template #label>
+                  <span class="required-field"
+                    >Quantity ({{ selectedItemUnit || "units" }})</span
+                  >
+                </template>
+              </v-text-field>
+
+              <!-- Human Readable Quantity Display -->
+              <v-card
+                v-if="form.quantity && selectedItemHasConversion"
+                class="pa-3"
+                color="blue-lighten-5"
+                variant="outlined"
+              >
+                <div class="d-flex justify-space-between align-center">
+                  <span class="font-weight-medium">Converted Quantity:</span>
+                  <span class="text-h6 font-weight-bold text-blue">
+                    {{ humanReadableQuantity }} {{ selectedItemHumanUnit }}
+                  </span>
+                </div>
+                <div class="text-caption text-grey mt-1">
+                  Conversion: 1 {{ selectedItemUnit }} =
+                  {{ selectedItemConversionFactor }} {{ selectedItemHumanUnit }}
+                </div>
+              </v-card>
+            </div>
 
             <v-text-field
               v-model.number="form.price"
@@ -323,7 +357,7 @@
               :error-messages="errors.price"
               inputmode="none"
               label="Unit Price *"
-              prefix="$"
+              prefix="TSh "
               required
               spellcheck="false"
               type="number"
@@ -395,7 +429,7 @@
     </v-dialog>
 
     <!-- EDIT PURCHASE DIALOG -->
-    <v-dialog v-model="editDialog" max-width="600px" persistent>
+    <v-dialog v-model="editDialog" max-width="700px" persistent>
       <v-card>
         <v-toolbar class="text-white" color="primary" density="comfortable">
           <v-toolbar-title>
@@ -428,35 +462,60 @@
               spellcheck="false"
               variant="outlined"
               @blur="validateField('item_id')"
-              @input="clearError('item_id')"
+              @input="onItemChange"
             >
               <template #label>
                 <span class="required-field">Item</span>
               </template>
             </v-autocomplete>
 
-            <v-text-field
-              v-model.number="form.quantity"
-              autocomplete="off"
-              autocorrect="off"
-              color="primary"
-              :error-messages="errors.quantity"
-              inputmode="none"
-              label="Quantity *"
-              required
-              spellcheck="false"
-              type="number"
-              variant="outlined"
-              @blur="validateField('quantity')"
-              @input="
-                clearError('quantity');
-                calculateTotal();
-              "
-            >
-              <template #label>
-                <span class="required-field">Quantity</span>
-              </template>
-            </v-text-field>
+            <!-- Quantity Input with Unit Display -->
+            <div class="mb-4">
+              <v-text-field
+                v-model.number="form.quantity"
+                autocomplete="off"
+                autocorrect="off"
+                color="primary"
+                :error-messages="errors.quantity"
+                inputmode="none"
+                :label="`Quantity in ${selectedItemUnit || 'units'} *`"
+                required
+                spellcheck="false"
+                type="number"
+                variant="outlined"
+                @blur="validateField('quantity')"
+                @input="
+                  clearError('quantity');
+                  calculateTotal();
+                  updateHumanReadableQuantity();
+                "
+              >
+                <template #label>
+                  <span class="required-field"
+                    >Quantity ({{ selectedItemUnit || "units" }})</span
+                  >
+                </template>
+              </v-text-field>
+
+              <!-- Human Readable Quantity Display -->
+              <v-card
+                v-if="form.quantity && selectedItemHasConversion"
+                class="pa-3"
+                color="blue-lighten-5"
+                variant="outlined"
+              >
+                <div class="d-flex justify-space-between align-center">
+                  <span class="font-weight-medium">Converted Quantity:</span>
+                  <span class="text-h6 font-weight-bold text-blue">
+                    {{ humanReadableQuantity }} {{ selectedItemHumanUnit }}
+                  </span>
+                </div>
+                <div class="text-caption text-grey mt-1">
+                  Conversion: 1 {{ selectedItemUnit }} =
+                  {{ selectedItemConversionFactor }} {{ selectedItemHumanUnit }}
+                </div>
+              </v-card>
+            </div>
 
             <v-text-field
               v-model.number="form.price"
@@ -466,7 +525,7 @@
               :error-messages="errors.price"
               inputmode="none"
               label="Unit Price *"
-              prefix="$"
+              prefix="TSh "
               required
               spellcheck="false"
               type="number"
@@ -611,10 +670,44 @@ const avgUnitPrice = computed(() => {
   return totals.total_amount / totals.total_quantity;
 });
 
+// Selected item properties
+const selectedItem = computed(() => {
+  return items.value.find((item) => item.id === form.item_id) || {};
+});
+
+const selectedItemUnit = computed(() => {
+  return selectedItem.value.unit || "";
+});
+
+const selectedItemHumanUnit = computed(() => {
+  return selectedItem.value.human_readable_unit || "";
+});
+
+const selectedItemConversionFactor = computed(() => {
+  return selectedItem.value.conversion_factor || 1;
+});
+
+const selectedItemHasConversion = computed(() => {
+  return (
+    selectedItem.value.human_readable_unit &&
+    selectedItem.value.conversion_factor
+  );
+});
+
+const humanReadableQuantity = computed(() => {
+  if (!form.quantity || !selectedItemHasConversion.value) return 0;
+  return (form.quantity * selectedItemConversionFactor.value).toFixed(6);
+});
+
 /* TABLE HEADERS */
 const headers = [
   { title: "Item", key: "item_name" },
-  { title: "Quantity", key: "quantity", align: "end" },
+  {
+    title: "Quantity",
+    key: "quantity",
+    align: "end",
+    sortable: false,
+  },
   { title: "Unit Price", key: "price", align: "end" },
   { title: "Total Amount", key: "total", align: "end" },
   { title: "Purchase Date", key: "date" },
@@ -649,8 +742,16 @@ function showSnackbar(message, color = "success") {
 }
 
 function calculateTotal() {
-  // This will be used to show real-time total calculation
   return form.quantity && form.price ? form.quantity * form.price : 0;
+}
+
+function updateHumanReadableQuantity() {
+  // This is handled by the computed property
+}
+
+function onItemChange() {
+  clearError("item_id");
+  // Reset human readable quantity display when item changes
 }
 
 /* VALIDATIONS */
@@ -662,8 +763,8 @@ function validateField(field) {
     case "quantity":
       if (!form.quantity && form.quantity !== 0) {
         errors.quantity = "Quantity is required";
-      } else if (!Number.isInteger(Number(form.quantity))) {
-        errors.quantity = "Quantity must be a whole number";
+      } else if (isNaN(form.quantity)) {
+        errors.quantity = "Quantity must be a valid number";
       } else if (form.quantity <= 0) {
         errors.quantity = "Quantity must be positive";
       } else {
@@ -704,7 +805,13 @@ function validateForm() {
 async function loadItems() {
   try {
     const res = await fetch("/items");
-    items.value = await res.json();
+    const data = await res.json();
+    // Ensure we have the conversion data
+    items.value = data.map((item) => ({
+      ...item,
+      human_readable_unit: item.human_readable_unit || "",
+      conversion_factor: item.conversion_factor || 1,
+    }));
   } catch (err) {
     console.error("Failed to load items:", err);
     showSnackbar("Failed to load items", "error");
@@ -745,7 +852,22 @@ async function loadValues() {
 
     const res = await fetch(`/purchases?${params}`);
     const data = await res.json();
-    values.value = data.data || [];
+
+    // Process data to include human readable quantities
+    values.value = (data.data || []).map((purchase) => {
+      const item = items.value.find((i) => i.id === purchase.item_id) || {};
+      const hasConversion = item.human_readable_unit && item.conversion_factor;
+
+      return {
+        ...purchase,
+        human_readable_quantity: hasConversion
+          ? (purchase.quantity * item.conversion_factor).toFixed(6)
+          : null,
+        human_readable_unit: item.human_readable_unit,
+        unit: item.unit || "",
+      };
+    });
+
     totalPages.value = data.totalPages || 1;
     totalRecords.value = data.totalRecords || 0;
     totals.total_quantity = data.total_quantity || 0;
@@ -822,7 +944,7 @@ async function createPurchase() {
       ...form,
       date: moment(form.date, "DD-MM-YYYY").format("YYYY-MM-DD"),
     };
-    console.log(JSON.stringify(payload, 0, 2));
+
     const res = await fetch("/purchases", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -919,5 +1041,8 @@ onMounted(async () => {
 }
 .text-error {
   color: #ff5252;
+}
+.flex-1 {
+  flex: 1;
 }
 </style>

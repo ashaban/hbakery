@@ -956,7 +956,7 @@ router.get("/stockStatus", async (req, res) => {
     const where = [];
     const params = [];
 
-    // Filter by ingredients (multiple)
+    // Filter by selected items
     if (items) {
       const arr = Array.isArray(items) ? items : [items];
       const placeholders = arr
@@ -968,43 +968,61 @@ router.get("/stockStatus", async (req, res) => {
 
     const whereSQL = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
-    // 🧾 Opening balance (before start date)
+    // 🧾 Opening balance
     const openingSQL = `
       SELECT 
         i.id AS item_id,
         i.name AS item_name,
-        COALESCE(SUM(il.quantity), 0) AS opening_balance
+        iu.name AS base_unit,
+        i.human_readable_unit,
+        i.conversion_factor,
+        COALESCE(SUM(il.quantity), 0) AS opening_balance,
+        COALESCE(SUM(il.quantity * il.unit_price), 0) AS total_price
       FROM item i
-      LEFT JOIN item_ledger il ON il.item_id = i.id
+      JOIN itemunit iu ON iu.id = i.unit_id
+      LEFT JOIN item_ledger il 
+        ON il.item_id = i.id
         AND il.movement_date < $1::date
-      ${whereSQL ? `${whereSQL.replace("i.id", "i.id")}` : ""}
-      GROUP BY i.id, i.name
+      ${whereSQL}
+      GROUP BY i.id, i.name, iu.name, i.human_readable_unit, i.conversion_factor
     `;
 
-    // 📥 Inward movements within the range
+    // 📥 Inwards
     const inwardSQL = `
       SELECT 
         i.id AS item_id,
-        COALESCE(SUM(il.quantity), 0) AS inwards
+        iu.name AS base_unit,
+        i.human_readable_unit,
+        i.conversion_factor,
+        COALESCE(SUM(il.quantity), 0) AS inwards,
+        COALESCE(SUM(il.quantity * il.unit_price), 0) AS total_price
       FROM item i
-      LEFT JOIN item_ledger il ON il.item_id = i.id
+      JOIN itemunit iu ON iu.id = i.unit_id
+      LEFT JOIN item_ledger il 
+        ON il.item_id = i.id
         AND il.type = 'IN'
         AND il.movement_date BETWEEN $1::date AND $2::date
-      ${whereSQL ? `${whereSQL.replace("i.id", "i.id")}` : ""}
-      GROUP BY i.id
+      ${whereSQL}
+      GROUP BY i.id, iu.name, i.human_readable_unit, i.conversion_factor
     `;
 
-    // 📤 Outward movements within the range
+    // 📤 Outwards
     const outwardSQL = `
       SELECT 
         i.id AS item_id,
-        COALESCE(SUM(ABS(il.quantity)), 0) AS outwards
+        iu.name AS base_unit,
+        i.human_readable_unit,
+        i.conversion_factor,
+        COALESCE(SUM(ABS(il.quantity)), 0) AS outwards,
+        COALESCE(SUM(ABS(il.quantity) * il.unit_price), 0) AS total_price
       FROM item i
-      LEFT JOIN item_ledger il ON il.item_id = i.id
+      JOIN itemunit iu ON iu.id = i.unit_id
+      LEFT JOIN item_ledger il 
+        ON il.item_id = i.id
         AND il.type = 'OUT'
         AND il.movement_date BETWEEN $1::date AND $2::date
-      ${whereSQL ? `${whereSQL.replace("i.id", "i.id")}` : ""}
-      GROUP BY i.id
+      ${whereSQL}
+      GROUP BY i.id, iu.name, i.human_readable_unit, i.conversion_factor
     `;
 
     const openingRes = await client.query(openingSQL, [
@@ -1022,34 +1040,59 @@ router.get("/stockStatus", async (req, res) => {
       ...(params.length ? params : []),
     ]);
 
-    // 🧮 Combine data
+    // 🧮 Combine results
     const result = new Map();
 
-    const addOrUpdate = (row, key, field) => {
+    function ensureItem(row) {
       if (!result.has(row.item_id)) {
         result.set(row.item_id, {
           item_id: row.item_id,
           item_name: row.item_name || "",
+          base_unit: row.base_unit || "",
+          human_readable_unit: row.human_readable_unit || "",
+          conversion_factor: Number(row.conversion_factor || 1),
           opening_balance: 0,
           inwards: 0,
           outwards: 0,
           closing_balance: 0,
+          total_price_opening: 0,
+          total_price_inwards: 0,
+          total_price_outwards: 0,
         });
       }
-      const obj = result.get(row.item_id);
-      obj[field] = Number(row[key] || 0);
-      result.set(row.item_id, obj);
-    };
+      return result.get(row.item_id);
+    }
 
-    openingRes.rows.forEach((r) =>
-      addOrUpdate(r, "opening_balance", "opening_balance")
-    );
-    inwardRes.rows.forEach((r) => addOrUpdate(r, "inwards", "inwards"));
-    outwardRes.rows.forEach((r) => addOrUpdate(r, "outwards", "outwards"));
+    // Merge all sets
+    for (const r of openingRes.rows) {
+      const it = ensureItem(r);
+      it.opening_balance = Number(r.opening_balance);
+      it.total_price_opening = Number(r.total_price);
+    }
+    for (const r of inwardRes.rows) {
+      const it = ensureItem(r);
+      it.inwards = Number(r.inwards);
+      it.total_price_inwards = Number(r.total_price);
+    }
+    for (const r of outwardRes.rows) {
+      const it = ensureItem(r);
+      it.outwards = Number(r.outwards);
+      it.total_price_outwards = Number(r.total_price);
+    }
 
-    // Calculate closing balance
-    for (const row of result.values()) {
-      row.closing_balance = row.opening_balance + row.inwards - row.outwards;
+    // Compute derived metrics
+    for (const it of result.values()) {
+      it.closing_balance = it.opening_balance + it.inwards - it.outwards;
+
+      // Human-readable quantities
+      const cf = it.conversion_factor || 1;
+      it.opening_balance_human = it.opening_balance * cf;
+      it.inwards_human = it.inwards * cf;
+      it.outwards_human = it.outwards * cf;
+      it.closing_balance_human = it.closing_balance * cf;
+
+      // Human-readable unit labels for display
+      it.unit_label = it.human_readable_unit || it.base_unit;
     }
 
     res.json({

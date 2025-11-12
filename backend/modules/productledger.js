@@ -237,6 +237,24 @@ async function deleteTransferLedger(client, transferId) {
   ]);
 }
 
+const convertIngredientQuantity = (quantity, item) => {
+  if (!item || !item.human_readable_unit || !item.conversion_factor) {
+    return {
+      base_value: quantity,
+      base_unit: item?.base_unit || item?.unit || "",
+      display_value: quantity,
+      display_unit: item?.base_unit || item?.unit || "",
+    };
+  }
+
+  return {
+    base_value: quantity,
+    base_unit: item.base_unit || item.unit,
+    display_value: quantity * item.conversion_factor,
+    display_unit: item.human_readable_unit,
+  };
+};
+
 module.exports = {
   recordProductLedger,
   deleteProductLedgerByProduction,
@@ -245,4 +263,5 @@ module.exports = {
   deleteTransferLedger,
   determineOriginDestination,
   validateTransferAvailability,
+  convertIngredientQuantity,
 };

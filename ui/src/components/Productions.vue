@@ -3571,9 +3571,9 @@ const addBatchActualProduction = async (batch) => {
       product_id: product.product_id,
       product_name: product.product_name,
       planned_qty: product.qty_product,
-      good_qty: product.good_qty || 0,
-      damaged_qty: product.damaged_qty || 0,
-      reject_qty: product.reject_qty || 0,
+      good_qty: product.good_qty || "",
+      damaged_qty: product.damaged_qty || "",
+      reject_qty: product.reject_qty || "",
       actual_qty:
         (product.good_qty || 0) +
         (product.damaged_qty || 0) +
