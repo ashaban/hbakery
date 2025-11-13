@@ -1396,16 +1396,16 @@
 
                 <template #item.produced="{ item }">
                   <v-chip
-                    :color="item.produced ? 'green' : 'orange'"
+                    :color="item.produced_at ? 'green' : 'orange'"
                     size="small"
                     variant="flat"
                   >
-                    {{ item.produced ? "Produced" : "Pending" }}
+                    {{ item.produced_at ? "Produced" : "Pending" }}
                   </v-chip>
                 </template>
 
                 <template #item.good_qty="{ item }">
-                  <div v-if="item.produced" class="d-flex flex-column">
+                  <div v-if="item.produced_at" class="d-flex flex-column">
                     <span class="font-weight-medium text-green"
                       >{{ item.good_qty || 0 }} good</span
                     >

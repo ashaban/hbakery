@@ -656,7 +656,7 @@ router.get("/batches", async (req, res) => {
         ) AS team_leader_name
       FROM production_batch pb
       LEFT JOIN product_production pp ON pb.id = pp.batch_id
-      LEFT JOIN users u ON u.id = pb.created_by
+      LEFT JOIN users u ON u.id = pp.produced_by
       ${whereSQL}
       GROUP BY pb.id, pb.batch_code, pb.created_at, u.name
       ORDER BY COALESCE(MAX(pp.produced_at), MAX(pp.planned_at), pb.created_at) DESC
@@ -724,6 +724,18 @@ router.get("/batches", async (req, res) => {
       totalPages,
       currentPage: page,
     });
+    console.log(
+      JSON.stringify(
+        {
+          data: batches,
+          totalRecords,
+          totalPages,
+          currentPage: page,
+        },
+        0,
+        2
+      )
+    );
   } catch (err) {
     console.error("❌ Failed to fetch batches:", err);
     res.status(500).json({ error: "Failed to fetch production batches" });
