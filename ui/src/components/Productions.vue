@@ -3605,7 +3605,11 @@ const updateProductDiscrepancy = (product) => {
     (Number(product.reject_qty) || 0);
 
   // Check for discrepancy
-  product.hasDiscrepancy = product.good_qty !== product.planned_qty;
+  product.hasDiscrepancy =
+    Number(product.good_qty) !== Number(product.planned_qty);
+  if (!product.hasDiscrepancy) {
+    product.discrepancies = [];
+  }
 
   // Add default discrepancy if needed
   if (
@@ -3660,15 +3664,15 @@ const canSaveBatchActual = computed(() => {
   );
 
   // Check if all discrepancies have reasons
-  const hasValidDiscrepancies = batchActualForm.products.every(
-    (product) =>
-      !product.hasDiscrepancy ||
-      (product.discrepancies &&
-        product.discrepancies.length > 0 &&
-        product.discrepancies.every((disc) => disc.reason_id)),
-  );
+  // const hasValidDiscrepancies = batchActualForm.products.every(
+  //   (product) =>
+  //     !product.hasDiscrepancy ||
+  //     (product.discrepancies &&
+  //       product.discrepancies.length > 0 &&
+  //       product.discrepancies.every((disc) => disc.reason_id)),
+  // );
 
-  return hasValidQuantities && hasValidDiscrepancies && !saving.value;
+  return hasValidQuantities && !saving.value;
 });
 
 const saveBatchActualProduction = async () => {

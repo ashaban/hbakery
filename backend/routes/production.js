@@ -160,6 +160,9 @@ router.post("/", async (req, res) => {
       // 7️⃣ Discrepancy reasons (if any)
       if (Array.isArray(discrepancies) && discrepancies.length > 0) {
         for (const descrepancy of discrepancies) {
+          if (!descrepancy.id) {
+            continue;
+          }
           await client.query(
             `INSERT INTO product_production_discrepancy (production_id, reason_id, notes)
              VALUES ($1,$2,$3)`,
@@ -367,6 +370,9 @@ router.put("/:batchId", async (req, res) => {
       );
       if (Array.isArray(discrepancies) && discrepancies.length > 0) {
         for (const descrepancy of discrepancies) {
+          if (!descrepancy.reason_id) {
+            continue;
+          }
           await client.query(
             `INSERT INTO product_production_discrepancy (production_id, reason_id, notes)
              VALUES ($1, $2, $3)`,
@@ -724,18 +730,6 @@ router.get("/batches", async (req, res) => {
       totalPages,
       currentPage: page,
     });
-    console.log(
-      JSON.stringify(
-        {
-          data: batches,
-          totalRecords,
-          totalPages,
-          currentPage: page,
-        },
-        0,
-        2
-      )
-    );
   } catch (err) {
     console.error("❌ Failed to fetch batches:", err);
     res.status(500).json({ error: "Failed to fetch production batches" });
