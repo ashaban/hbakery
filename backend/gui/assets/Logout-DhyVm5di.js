@@ -1,0 +1,1 @@
+import{_ as o,s as t,v as s}from"./index-hRTnDxYa.js";import{V as r}from"./VContainer-D8XANYCL.js";const e={mounted(){this.$store.dispatch("logout")}};function a(c,n,i,p,_,d){return s(),t(r,{"grid-list-xs":""})}const m=o(e,[["render",a]]);export{m as default};
