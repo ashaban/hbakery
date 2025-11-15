@@ -2,9 +2,10 @@ const formidable = require("formidable");
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
+const { authenticateToken, requireTask } = require("../middleware/auth");
 
 // Get all Purchases with Item info
-router.get("/", async (req, res) => {
+router.get("/", requireTask("can_see_ingredients_stock"), async (req, res) => {
   try {
     // Pagination
     const page = parseInt(req.query.page) || 1;
@@ -117,7 +118,7 @@ router.get("/", async (req, res) => {
 });
 
 // Create Purchase
-router.post("/", async (req, res) => {
+router.post("/", requireTask("can_purchase_ingredients"), async (req, res) => {
   try {
     const result = await pool.query(
       "INSERT INTO itempurchase (item_id, quantity, price, date) VALUES ($1, $2, $3, $4) RETURNING *",
@@ -143,107 +144,116 @@ router.post("/", async (req, res) => {
 });
 
 // Update Purchase
-router.put("/:id", async (req, res) => {
-  const { id } = req.params;
-  let quantity = req.body.quantity;
-  let item_id = req.body.item_id;
-  try {
-    const cur = await pool.query(
-      `SELECT item_id, quantity::numeric, price::numeric FROM itempurchase WHERE id = $1`,
-      [id]
-    );
-    if (cur.rows.length === 0) {
-      await pool.query("ROLLBACK");
-      return res.status(404).json({ error: "Not found" });
-    }
-    const old = cur.rows[0];
-    // consumed from this lot (sum of OUT ledger pointing to this purchase)
-    const used = await pool.query(
-      `SELECT COALESCE(SUM(quantity),0)::numeric AS used_qty
+router.put(
+  "/:id",
+  requireTask("can_edit_ingredients_purchase"),
+  async (req, res) => {
+    const { id } = req.params;
+    let quantity = req.body.quantity;
+    let item_id = req.body.item_id;
+    try {
+      const cur = await pool.query(
+        `SELECT item_id, quantity::numeric, price::numeric FROM itempurchase WHERE id = $1`,
+        [id]
+      );
+      if (cur.rows.length === 0) {
+        await pool.query("ROLLBACK");
+        return res.status(404).json({ error: "Not found" });
+      }
+      const old = cur.rows[0];
+      // consumed from this lot (sum of OUT ledger pointing to this purchase)
+      const used = await pool.query(
+        `SELECT COALESCE(SUM(quantity),0)::numeric AS used_qty
         FROM item_ledger WHERE purchase_id = $1 AND type = 'OUT'`,
-      [id]
-    );
-    const usedQty = Number(used.rows[0].used_qty);
-    // Prevent shrinking below used
-    const newQty = quantity != null ? Number(quantity) : Number(old.quantity);
-    if (newQty < usedQty) {
-      await pool.query("ROLLBACK");
-      return res.status(400).json({
-        error: "PURCHASE_QUANTITY_TOO_LOW",
-        message: `Cannot reduce below already consumed quantity (${usedQty}).`,
-      });
-    }
-    // Prevent changing item_id if any OUT exists
-    const newItemId = item_id || old.item_id;
-    if (Number(newItemId) !== Number(old.item_id) && usedQty > 0) {
-      await pool.query("ROLLBACK");
-      return res.status(400).json({
-        error: "ITEM_CHANGE_BLOCKED",
-        message:
-          "Cannot change item for a purchase that already has consumption.",
-      });
-    }
-    const result = await pool.query(
-      "UPDATE itempurchase SET item_id=$1, quantity=$2, price=$3, date=$4 WHERE id=$5 RETURNING *",
-      [req.body.item_id, quantity, req.body.price, req.body.date, id]
-    );
-    // Remove old IN ledger for this purchase (if any), then re-insert to reflect new qty/price
-    await pool.query(
-      `DELETE FROM item_ledger WHERE purchase_id = $1 AND type = 'IN'`,
-      [id]
-    );
-    await pool.query(
-      `INSERT INTO item_ledger (item_id, purchase_id, type, quantity, unit_price, movement_date)
+        [id]
+      );
+      const usedQty = Number(used.rows[0].used_qty);
+      // Prevent shrinking below used
+      const newQty = quantity != null ? Number(quantity) : Number(old.quantity);
+      if (newQty < usedQty) {
+        await pool.query("ROLLBACK");
+        return res.status(400).json({
+          error: "PURCHASE_QUANTITY_TOO_LOW",
+          message: `Cannot reduce below already consumed quantity (${usedQty}).`,
+        });
+      }
+      // Prevent changing item_id if any OUT exists
+      const newItemId = item_id || old.item_id;
+      if (Number(newItemId) !== Number(old.item_id) && usedQty > 0) {
+        await pool.query("ROLLBACK");
+        return res.status(400).json({
+          error: "ITEM_CHANGE_BLOCKED",
+          message:
+            "Cannot change item for a purchase that already has consumption.",
+        });
+      }
+      const result = await pool.query(
+        "UPDATE itempurchase SET item_id=$1, quantity=$2, price=$3, date=$4 WHERE id=$5 RETURNING *",
+        [req.body.item_id, quantity, req.body.price, req.body.date, id]
+      );
+      // Remove old IN ledger for this purchase (if any), then re-insert to reflect new qty/price
+      await pool.query(
+        `DELETE FROM item_ledger WHERE purchase_id = $1 AND type = 'IN'`,
+        [id]
+      );
+      await pool.query(
+        `INSERT INTO item_ledger (item_id, purchase_id, type, quantity, unit_price, movement_date)
         VALUES ($1, $2, 'IN', $3, $4, $5)`,
-      [newItemId, id, newQty, req.body.price ?? old.price, req.body.date]
-    );
+        [newItemId, id, newQty, req.body.price ?? old.price, req.body.date]
+      );
 
-    await pool.query("COMMIT");
-    res.json(result.rows[0]);
-  } catch (err) {
-    await pool.query("ROLLBACK");
-    console.error("Update purchase failed", err);
-    res.status(500).json({ error: "Failed to update purchase" });
+      await pool.query("COMMIT");
+      res.json(result.rows[0]);
+    } catch (err) {
+      await pool.query("ROLLBACK");
+      console.error("Update purchase failed", err);
+      res.status(500).json({ error: "Failed to update purchase" });
+    }
   }
-});
+);
 
 /** Delete purchase (only if no OUT consumption from this purchase) */
-router.delete("/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
+router.delete(
+  "/:id",
+  requireTask("can_delete_ingredients_purchases"),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
 
-    await pool.query("BEGIN");
+      await pool.query("BEGIN");
 
-    const used = await pool.query(
-      `SELECT COUNT(*)::int AS c
+      const used = await pool.query(
+        `SELECT COUNT(*)::int AS c
        FROM item_ledger
        WHERE purchase_id = $1 AND type = 'OUT'`,
-      [id]
-    );
-    if (used.rows[0].c > 0) {
+        [id]
+      );
+      if (used.rows[0].c > 0) {
+        await pool.query("ROLLBACK");
+        return res.status(400).json({
+          error: "PURCHASE_HAS_CONSUMPTION",
+          message:
+            "Cannot delete; stock from this purchase has already been consumed.",
+        });
+      }
+
+      await pool.query(`DELETE FROM item_ledger WHERE purchase_id = $1`, [id]); // delete IN
+      const del = await pool.query(`DELETE FROM itempurchase WHERE id = $1`, [
+        id,
+      ]);
+
+      await pool.query("COMMIT");
+      if (del.rowCount === 0)
+        return res.status(404).json({ error: "Not found" });
+      res.json({ id, message: "Purchase deleted" });
+    } catch (err) {
       await pool.query("ROLLBACK");
-      return res.status(400).json({
-        error: "PURCHASE_HAS_CONSUMPTION",
-        message:
-          "Cannot delete; stock from this purchase has already been consumed.",
-      });
+      console.error("Delete purchase failed", err);
+      res.status(500).json({ error: "Failed to delete purchase" });
+    } finally {
+      pool.release();
     }
-
-    await pool.query(`DELETE FROM item_ledger WHERE purchase_id = $1`, [id]); // delete IN
-    const del = await pool.query(`DELETE FROM itempurchase WHERE id = $1`, [
-      id,
-    ]);
-
-    await pool.query("COMMIT");
-    if (del.rowCount === 0) return res.status(404).json({ error: "Not found" });
-    res.json({ id, message: "Purchase deleted" });
-  } catch (err) {
-    await pool.query("ROLLBACK");
-    console.error("Delete purchase failed", err);
-    res.status(500).json({ error: "Failed to delete purchase" });
-  } finally {
-    pool.release();
   }
-});
+);
 
 module.exports = router;

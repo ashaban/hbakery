@@ -1,11 +1,12 @@
 const express = require("express");
 const pool = require("../db");
 const router = express.Router();
+const { requireTask } = require("../middleware/auth");
 
 /**
  * GET /outlets - Get all outlets with pagination and filtering
  */
-router.get("/", async (req, res) => {
+router.get("/", requireTask("can_see_settings"), async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const offset = (page - 1) * limit;
@@ -54,7 +55,7 @@ router.get("/", async (req, res) => {
 /**
  * GET /outlets/:id - Get single outlet by ID
  */
-router.get("/:id", async (req, res) => {
+router.get("/:id", requireTask("can_see_settings"), async (req, res) => {
   const { id } = req.params;
   try {
     const result = await pool.query(
@@ -77,7 +78,7 @@ router.get("/:id", async (req, res) => {
 /**
  * POST /outlets - Create new outlet
  */
-router.post("/", async (req, res) => {
+router.post("/", requireTask("can_add_settings"), async (req, res) => {
   const { name, type, location, is_main = false } = req.body;
   // Validate required fields
   if (!name || !type) {
@@ -131,7 +132,7 @@ router.post("/", async (req, res) => {
 /**
  * PUT /outlets/:id - Update outlet
  */
-router.put("/:id", async (req, res) => {
+router.put("/:id", requireTask("can_add_settings"), async (req, res) => {
   const { id } = req.params;
   const { name, type, location, is_active, is_main } = req.body;
 
@@ -194,7 +195,7 @@ router.put("/:id", async (req, res) => {
 /**
  * DELETE /outlets/:id - Soft delete outlet (set is_active = false)
  */
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requireTask("can_add_settings"), async (req, res) => {
   const { id } = req.params;
   const client = await pool.connect();
 
@@ -236,26 +237,30 @@ router.delete("/:id", async (req, res) => {
 /**
  * GET /outlets/types/count - Get count of outlets by type
  */
-router.get("/types/count", async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT type, COUNT(*) as count 
+router.get(
+  "/types/count",
+  requireTask("can_see_settings"),
+  async (req, res) => {
+    try {
+      const result = await pool.query(
+        `SELECT type, COUNT(*) as count 
        FROM outlet 
        WHERE is_active = true
        GROUP BY type
        ORDER BY type`
-    );
+      );
 
-    const counts = {
-      total: result.rows.reduce((sum, row) => sum + parseInt(row.count), 0),
-      byType: result.rows,
-    };
+      const counts = {
+        total: result.rows.reduce((sum, row) => sum + parseInt(row.count), 0),
+        byType: result.rows,
+      };
 
-    res.json(counts);
-  } catch (err) {
-    console.error("Error fetching outlet counts:", err);
-    res.status(500).json({ error: "Failed to fetch outlet counts" });
+      res.json(counts);
+    } catch (err) {
+      console.error("Error fetching outlet counts:", err);
+      res.status(500).json({ error: "Failed to fetch outlet counts" });
+    }
   }
-});
+);
 
 module.exports = router;

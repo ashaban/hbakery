@@ -136,6 +136,7 @@
           sm="6"
         >
           <v-card
+            v-if="$store.getters.hasTask(report.task)"
             class="report-card hoverable transition-smooth"
             elevation="4"
             @click="openReport(report)"
@@ -300,6 +301,7 @@ const reports = ref([
     component: defineAsyncComponent(
       () => import("@/components/reports/IngredientsStockReport.vue"),
     ),
+    task: "can_see_ingredients_stock_balances",
   },
   {
     title: "Products Stock Report",
@@ -313,6 +315,7 @@ const reports = ref([
     component: defineAsyncComponent(
       () => import("@/components/reports/StockReport.vue"),
     ),
+    task: "can_see_product_stock_balances",
   },
   {
     title: "Quality Adjustment Report",
@@ -325,18 +328,20 @@ const reports = ref([
     component: defineAsyncComponent(
       () => import("@/components/reports/QualityAdjustmentReport.vue"),
     ),
+    task: "can_see_quality_adjustment_report",
   },
   {
     title: "Sales Report",
     description: "Sales report.",
     icon: "mdi-database-eye",
-    category: "Inventory",
+    category: "Sales",
     frequency: "Daily",
     format: "PDF",
     favorite: false,
     component: defineAsyncComponent(
       () => import("@/components/reports/SalesReport.vue"),
     ),
+    task: "can_see_sales",
   },
 ]);
 

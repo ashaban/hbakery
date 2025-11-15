@@ -3,10 +3,14 @@ const express = require("express");
 const router = express.Router();
 const formidable = require("formidable");
 const pool = require("../db");
+const { requireTask } = require("../middleware/auth");
 
-router.get("/availableStock", async (req, res) => {
-  try {
-    const sql = `
+router.get(
+  "/availableStock",
+  requireTask("can_see_settings"),
+  async (req, res) => {
+    try {
+      const sql = `
       SELECT 
         i.id AS item_id,
         i.name AS item_name,
@@ -25,16 +29,17 @@ router.get("/availableStock", async (req, res) => {
       ORDER BY i.name;
     `;
 
-    const result = await pool.query(sql);
-    res.json(result.rows);
-  } catch (err) {
-    console.error("❌ Error fetching available stock:", err);
-    res.status(500).json({ error: "Failed to fetch available stock" });
+      const result = await pool.query(sql);
+      res.json(result.rows);
+    } catch (err) {
+      console.error("❌ Error fetching available stock:", err);
+      res.status(500).json({ error: "Failed to fetch available stock" });
+    }
   }
-});
+);
 
 // Create Item
-router.post("/", async (req, res) => {
+router.post("/", requireTask("can_add_settings"), async (req, res) => {
   const form = new formidable.IncomingForm();
   form.parse(req, async (err, fields, files) => {
     try {
@@ -55,7 +60,7 @@ router.post("/", async (req, res) => {
 });
 
 // Get all Items with Unit name and conversion data
-router.get("/", async (_, res) => {
+router.get("/", requireTask("can_see_settings"), async (_, res) => {
   try {
     const result = await pool.query(`
       SELECT 
@@ -76,7 +81,7 @@ router.get("/", async (_, res) => {
 });
 
 // Update Item
-router.put("/:id", async (req, res) => {
+router.put("/:id", requireTask("can_add_settings"), async (req, res) => {
   const { id } = req.params;
   const form = new formidable.IncomingForm();
   form.parse(req, async (err, fields, files) => {
@@ -99,7 +104,7 @@ router.put("/:id", async (req, res) => {
 });
 
 // Delete Item
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requireTask("can_add_settings"), async (req, res) => {
   try {
     await pool.query("DELETE FROM item WHERE id=$1", [req.params.id]);
     res.json({ message: "Item deleted" });

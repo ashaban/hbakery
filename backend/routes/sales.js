@@ -2,6 +2,7 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
+const { authenticateToken, requireTask } = require("../middleware/auth");
 
 const {
   validateSaleAvailability,
@@ -115,7 +116,7 @@ async function getSaleDetail(client, saleId) {
  * Create immediate POSTED sale
  * Deducts stock immediately
  */
-router.post("/", async (req, res) => {
+router.post("/", requireTask("can_add_sale"), async (req, res) => {
   const { outlet_id, sale_date, notes, items = [], payments = [] } = req.body;
 
   if (!outlet_id || !items.length) {
@@ -184,7 +185,7 @@ router.post("/", async (req, res) => {
  * PUT /sales/:id
  * Edit sale: Undo ledger, reapply new items
  */
-router.put("/:id", async (req, res) => {
+router.put("/:id", requireTask("can_edit_sale"), async (req, res) => {
   const { id } = req.params;
   const { outlet_id, sale_date, notes, items = [], payments = [] } = req.body;
 
@@ -266,7 +267,7 @@ router.put("/:id", async (req, res) => {
  * DELETE /sales/:id
  * CANCEL sale - reverse ledger safely (no deletion)
  */
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requireTask("can_delete_sale"), async (req, res) => {
   const { id } = req.params;
 
   const client = await pool.connect();
@@ -300,48 +301,52 @@ router.delete("/:id", async (req, res) => {
  * POST /sales/:id/payment
  * Add payment and return money summary
  */
-router.post("/:id/payment", async (req, res) => {
-  const { id } = req.params;
-  const { amount, method, reference } = req.body;
+router.post(
+  "/:id/payment",
+  requireTask("can_add_payment"),
+  async (req, res) => {
+    const { id } = req.params;
+    const { amount, method, reference } = req.body;
 
-  if (!amount) return res.status(400).json({ error: "Missing amount" });
+    if (!amount) return res.status(400).json({ error: "Missing amount" });
 
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
 
-    const saleQ = await client.query(
-      `SELECT id FROM sale WHERE id = $1 AND status != 'CANCELLED'`,
-      [id]
-    );
-    if (!saleQ.rows.length) {
-      await client.query("ROLLBACK");
-      return res.status(404).json({ error: "Sale not found or cancelled" });
-    }
+      const saleQ = await client.query(
+        `SELECT id FROM sale WHERE id = $1 AND status != 'CANCELLED'`,
+        [id]
+      );
+      if (!saleQ.rows.length) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ error: "Sale not found or cancelled" });
+      }
 
-    await client.query(
-      `INSERT INTO sale_payment (sale_id, amount, method, reference)
+      await client.query(
+        `INSERT INTO sale_payment (sale_id, amount, method, reference)
        VALUES ($1,$2,$3,$4)`,
-      [id, amount, method ?? null, reference ?? null]
-    );
+        [id, amount, method ?? null, reference ?? null]
+      );
 
-    await client.query("COMMIT");
+      await client.query("COMMIT");
 
-    const detail = await getSaleDetail(client, id);
-    res.json({ message: "Payment added", ...detail });
-  } catch (err) {
-    await client.query("ROLLBACK");
-    console.error("❌ Payment failed:", err);
-    res.status(500).json({ error: "Failed to add payment" });
-  } finally {
-    client.release();
+      const detail = await getSaleDetail(client, id);
+      res.json({ message: "Payment added", ...detail });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      console.error("❌ Payment failed:", err);
+      res.status(500).json({ error: "Failed to add payment" });
+    } finally {
+      client.release();
+    }
   }
-});
+);
 
 /**
  * GET /sales/:id - detail
  */
-router.get("/:id", async (req, res) => {
+router.get("/:id", requireTask("can_see_sales"), async (req, res) => {
   const client = await pool.connect();
   try {
     const detail = await getSaleDetail(client, req.params.id);
@@ -358,7 +363,7 @@ router.get("/:id", async (req, res) => {
 /**
  * GET /sales - listing with filters + pagination
  */
-router.get("/", async (req, res) => {
+router.get("/", requireTask("can_see_sales"), async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const offset = (page - 1) * limit;

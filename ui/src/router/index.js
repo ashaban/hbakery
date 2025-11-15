@@ -25,6 +25,7 @@ const router = createRouter({
       path: "/Purchases",
       name: "Purchases",
       component: () => import("../components/Purchases.vue"),
+      meta: { requiresAuth: true, task: "can_see_ingredients_stock" },
     },
     {
       path: "/Productions",
@@ -75,12 +76,6 @@ const router = createRouter({
       path: "/DatabaseSettings",
       name: "DatabaseSettings",
       component: () => import("../components/settings/DatabaseSettings.vue"),
-      beforeEnter: (to, from, next) => {
-        if (store.state.auth.role === "admin") {
-          return next();
-        }
-        next({ path: from.path });
-      },
     },
     {
       path: "/ReportsList",
@@ -117,6 +112,36 @@ router.onError((err, to) => {
 
 router.isReady().then(() => {
   localStorage.removeItem("vuetify:dynamic-reload");
+});
+
+router.beforeEach((to, from, next) => {
+  const token = store.state.auth.token;
+
+  // Public routes
+  if (!to.meta.requiresAuth) {
+    return next();
+  }
+
+  // Not logged in
+  if (!token) {
+    return next("/Login");
+  }
+
+  // Route requires a task
+  if (to.meta.task) {
+    const hasPermission = store.getters.hasTask(to.meta.task);
+
+    if (!hasPermission) {
+      store.commit("setMessage", {
+        type: "error",
+        text: "You don't have permission to access this section.",
+      });
+      return next("/Home");
+    }
+  }
+
+  // All good
+  next();
 });
 
 export default router;

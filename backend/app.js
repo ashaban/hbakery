@@ -3,7 +3,6 @@ const express = require("express");
 const app = express();
 const jwt = require("jsonwebtoken");
 const config = require("./config");
-const loginRoutes = require("./routes/login");
 const usersRoutes = require("./routes/users");
 const itemRoutes = require("./routes/item");
 const unitRoutes = require("./routes/itemunit");
@@ -18,9 +17,12 @@ const expenditureRoutes = require("./routes/expenditure");
 const staffRoutes = require("./routes/staffs");
 const customersRoutes = require("./routes/customers");
 const reportRoutes = require("./routes/reports");
+const authRoutes = require("./routes/auth");
+const roleRoutes = require("./routes/roles");
+const taskRoutes = require("./routes/tasks");
 
 const jwtValidator = function (req, res, next) {
-  let allowedPaths = ["/authenticate"];
+  let allowedPaths = ["/auth/login", "/auth/refreshToken"];
   let allowedStartsWith = [];
   if (
     allowedPaths.includes(req.path) ||
@@ -67,7 +69,6 @@ app.use(express.json());
 
 // Base routes
 app.use("/", express.static(`${__dirname}/gui`));
-app.use("/login/", loginRoutes);
 app.use(jwtValidator);
 app.use("/users", usersRoutes);
 app.use("/items", itemRoutes);
@@ -83,6 +84,9 @@ app.use("/expenditures", expenditureRoutes);
 app.use("/staffs", staffRoutes);
 app.use("/customers", customersRoutes);
 app.use("/reports", reportRoutes);
+app.use("/auth", authRoutes);
+app.use("/roles", roleRoutes);
+app.use("/tasks", taskRoutes);
 
 app.get("/", (req, res) => {
   res.send("PostgreSQL Item Management API");

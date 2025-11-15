@@ -12,6 +12,7 @@
           </p>
         </div>
         <v-btn
+          v-if="$store.getters.hasTask('can_purchase_ingredients')"
           color="primary"
           prepend-icon="mdi-cart-plus"
           @click="openAddDialog"
@@ -217,6 +218,7 @@
 
           <template #item.actions="{ item }">
             <v-btn
+              v-if="$store.getters.hasTask('can_edit_ingredients_purchase')"
               color="blue"
               icon
               size="small"
@@ -226,6 +228,7 @@
               <v-icon>mdi-pencil</v-icon>
             </v-btn>
             <v-btn
+              v-if="$store.getters.hasTask('can_delete_ingredients_purchases')"
               color="red"
               icon
               size="small"

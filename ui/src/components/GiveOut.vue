@@ -20,7 +20,12 @@
               </div>
             </div>
           </v-col>
-          <v-col class="text-right" cols="12" md="6">
+          <v-col
+            v-if="$store.getters.hasTask('can_release_products_for_free')"
+            class="text-right"
+            cols="12"
+            md="6"
+          >
             <v-btn color="primary" size="large" @click="openAddDialog">
               <v-icon start>mdi-plus</v-icon>
               New Giveaway
@@ -232,6 +237,7 @@
             <v-tooltip location="top">
               <template #activator="{ props }">
                 <v-btn
+                  v-if="$store.getters.hasTask('can_edit_free_release')"
                   v-bind="props"
                   color="primary"
                   :disabled="item.status === 'CANCELLED'"
@@ -249,6 +255,7 @@
             <v-tooltip location="top">
               <template #activator="{ props }">
                 <v-btn
+                  v-if="$store.getters.hasTask('can_delete_free_release')"
                   v-bind="props"
                   color="error"
                   :disabled="item.status === 'CANCELLED'"

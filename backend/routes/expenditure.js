@@ -1,49 +1,53 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
+const { authenticateToken, requireTask } = require("../middleware/auth");
 
 /* ------------------------------------------------------------------
    🧾 COST TYPES
 ------------------------------------------------------------------ */
 
-router.get("/summary", async (req, res) => {
-  try {
-    const {
-      type_id,
-      start_date_from,
-      start_date_to,
-      end_date_from,
-      end_date_to,
-    } = req.query;
-    const params = [];
-    const where = [];
+router.get(
+  "/summary",
+  requireTask("can_see_expenditures"),
+  async (req, res) => {
+    try {
+      const {
+        type_id,
+        start_date_from,
+        start_date_to,
+        end_date_from,
+        end_date_to,
+      } = req.query;
+      const params = [];
+      const where = [];
 
-    if (type_id) {
-      const typeIds = Array.isArray(type_id) ? type_id : [type_id];
-      const placeholders = typeIds
-        .map((_, i) => `$${params.length + i + 1}`)
-        .join(",");
-      where.push(`e.type_id IN (${placeholders})`);
-      params.push(...typeIds);
-    }
+      if (type_id) {
+        const typeIds = Array.isArray(type_id) ? type_id : [type_id];
+        const placeholders = typeIds
+          .map((_, i) => `$${params.length + i + 1}`)
+          .join(",");
+        where.push(`e.type_id IN (${placeholders})`);
+        params.push(...typeIds);
+      }
 
-    if (start_date_from && start_date_to) {
-      params.push(start_date_from, start_date_to);
-      where.push(
-        `e.start_date BETWEEN $${params.length - 1} AND $${params.length}`
-      );
-    }
+      if (start_date_from && start_date_to) {
+        params.push(start_date_from, start_date_to);
+        where.push(
+          `e.start_date BETWEEN $${params.length - 1} AND $${params.length}`
+        );
+      }
 
-    if (end_date_from && end_date_to) {
-      params.push(end_date_from, end_date_to);
-      where.push(
-        `e.end_date BETWEEN $${params.length - 1} AND $${params.length}`
-      );
-    }
+      if (end_date_from && end_date_to) {
+        params.push(end_date_from, end_date_to);
+        where.push(
+          `e.end_date BETWEEN $${params.length - 1} AND $${params.length}`
+        );
+      }
 
-    const whereSQL = where.length ? `WHERE ${where.join(" AND ")}` : "";
+      const whereSQL = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
-    const sql = `
+      const sql = `
       SELECT 
         SUM(e.amount)::numeric(14,2) AS total_expenditure,
         SUM(CASE WHEN c.category = 'Production Cost' THEN e.amount ELSE 0 END)::numeric(14,2) AS total_production_cost,
@@ -52,13 +56,14 @@ router.get("/summary", async (req, res) => {
       JOIN cost_type c ON c.id = e.type_id
       ${whereSQL};
     `;
-    const { rows } = await pool.query(sql, params);
-    res.json(rows[0] || {});
-  } catch (err) {
-    console.error("❌ Failed to fetch expenditure summary:", err);
-    res.status(500).json({ error: "Failed to fetch expenditure summary" });
+      const { rows } = await pool.query(sql, params);
+      res.json(rows[0] || {});
+    } catch (err) {
+      console.error("❌ Failed to fetch expenditure summary:", err);
+      res.status(500).json({ error: "Failed to fetch expenditure summary" });
+    }
   }
-});
+);
 
 // ➕ Add Cost Type
 router.post("/types", async (req, res) => {
@@ -94,11 +99,9 @@ router.put("/types/:id", async (req, res) => {
     const { name, category, affects_margin } = req.body;
 
     if (!name || !category || !affects_margin) {
-      return res
-        .status(400)
-        .json({
-          error: "Missing required fields: name, category, or affects_margin",
-        });
+      return res.status(400).json({
+        error: "Missing required fields: name, category, or affects_margin",
+      });
     }
 
     // Validate affects_margin value
@@ -311,7 +314,7 @@ router.get("/types-stats", async (req, res) => {
 ------------------------------------------------------------------ */
 
 // ➕ Add Expenditure
-router.post("/", async (req, res) => {
+router.post("/", requireTask("can_add_expenditure"), async (req, res) => {
   try {
     const { type_id, start_date, end_date, amount, description } = req.body;
     if (!type_id || !start_date || !end_date || !amount)
@@ -331,7 +334,7 @@ router.post("/", async (req, res) => {
 });
 
 // ✏️ Edit Expenditure
-router.put("/:id", async (req, res) => {
+router.put("/:id", requireTask("can_edit_expenditure"), async (req, res) => {
   try {
     const { id } = req.params;
     const { type_id, start_date, end_date, amount, description } = req.body;
@@ -360,19 +363,23 @@ router.put("/:id", async (req, res) => {
 });
 
 // ❌ Delete Expenditure
-router.delete("/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    await pool.query("DELETE FROM expenditure WHERE id = $1", [id]);
-    res.json({ message: "Expenditure deleted successfully" });
-  } catch (err) {
-    console.error("❌ Failed to delete expenditure:", err);
-    res.status(500).json({ error: "Failed to delete expenditure" });
+router.delete(
+  "/:id",
+  requireTask("can_delete_expenditure"),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      await pool.query("DELETE FROM expenditure WHERE id = $1", [id]);
+      res.json({ message: "Expenditure deleted successfully" });
+    } catch (err) {
+      console.error("❌ Failed to delete expenditure:", err);
+      res.status(500).json({ error: "Failed to delete expenditure" });
+    }
   }
-});
+);
 
 // 📋 Get All Expenditures (with pagination and join)
-router.get("/", async (req, res) => {
+router.get("/", requireTask("can_see_expenditures"), async (req, res) => {
   try {
     const page = Math.max(Number(req.query.page) || 1, 1);
     const limit = Math.max(Number(req.query.limit) || 20, 1);

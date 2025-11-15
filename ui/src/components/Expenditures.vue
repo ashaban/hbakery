@@ -12,6 +12,7 @@
           </p>
         </div>
         <v-btn
+          v-if="$store.getters.hasTask('can_add_expenditure')"
           color="primary"
           prepend-icon="mdi-plus-circle"
           @click="openDialog(false)"
@@ -204,6 +205,7 @@
               <v-tooltip location="top">
                 <template #activator="{ props }">
                   <v-btn
+                    v-if="$store.getters.hasTask('can_edit_expenditure')"
                     v-bind="props"
                     color="blue"
                     icon
@@ -219,6 +221,7 @@
               <v-tooltip location="top">
                 <template #activator="{ props }">
                   <v-btn
+                    v-if="$store.getters.hasTask('can_delete_expenditure')"
                     v-bind="props"
                     color="red"
                     icon

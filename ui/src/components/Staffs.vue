@@ -35,6 +35,7 @@
     <div class="d-flex justify-space-between mb-4">
       <h3>Staff Management</h3>
       <v-btn
+        v-if="$store.getters.hasTask('can_add_staffs')"
         class="text-white"
         color="primary"
         size="small"
@@ -66,7 +67,10 @@
         </v-chip>
       </template>
 
-      <template #item.edit="{ item }">
+      <template
+        v-if="$store.getters.hasTask('can_edit_staffs')"
+        #item.edit="{ item }"
+      >
         <v-icon color="primary" @click="activateEditDialog(item)">
           mdi-square-edit-outline
         </v-icon>

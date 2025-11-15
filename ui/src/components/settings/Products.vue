@@ -36,6 +36,7 @@
     <div class="d-flex justify-space-between mb-4">
       <h3>Products</h3>
       <v-btn
+        v-if="$store.getters.hasTask('can_add_settings')"
         class="text-white"
         color="primary"
         size="small"
@@ -57,7 +58,10 @@
       :items="values"
       :loading="loading"
     >
-      <template #item.actions="{ item }">
+      <template
+        v-if="$store.getters.hasTask('can_add_settings')"
+        #item.actions="{ item }"
+      >
         <v-icon class="mr-2" color="primary" @click="activateEditDialog(item)">
           mdi-square-edit-outline
         </v-icon>

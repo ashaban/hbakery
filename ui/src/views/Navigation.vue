@@ -69,6 +69,7 @@
         </v-list-subheader>
 
         <v-list-item
+          v-if="can('can_see_ingredients_stock')"
           active-class="menu-item--active"
           class="menu-item rounded-xl"
           to="Purchases"
@@ -94,6 +95,7 @@
         </v-list-item>
 
         <v-list-item
+          v-if="can('can_see_expenditures')"
           active-class="menu-item--active"
           class="menu-item rounded-xl"
           to="Expenditures"
@@ -119,6 +121,7 @@
         </v-list-item>
 
         <v-list-item
+          v-if="can('can_see_production')"
           active-class="menu-item--active"
           class="menu-item rounded-xl"
           to="Productions"
@@ -144,6 +147,7 @@
         </v-list-item>
 
         <v-list-item
+          v-if="can('can_see_sales')"
           active-class="menu-item--active"
           class="menu-item rounded-xl"
           to="Sales"
@@ -169,6 +173,7 @@
         </v-list-item>
 
         <v-list-item
+          v-if="can('can_see_free_releases')"
           active-class="menu-item--active"
           class="menu-item rounded-xl"
           to="GiveOut"
@@ -194,6 +199,7 @@
         </v-list-item>
 
         <v-list-item
+          v-if="can('can_see_stock_transfers')"
           active-class="menu-item--active"
           class="menu-item rounded-xl"
           to="StockTransfers"
@@ -229,6 +235,7 @@
         </v-list-subheader>
 
         <v-list-item
+          v-if="$store.getters.hasTask('can_see_profit_projection_report')"
           active-class="menu-item--active"
           class="menu-item rounded-xl"
           to="ProfitProjection"
@@ -250,6 +257,7 @@
         </v-list-item>
 
         <v-list-item
+          v-if="$store.getters.hasTask('can_see_profit_dashboard')"
           active-class="menu-item--active"
           class="menu-item rounded-xl"
           to="MarginDashboard"
@@ -310,6 +318,7 @@
         </v-list-subheader>
 
         <v-list-item
+          v-if="$store.getters.hasTask('can_see_staffs')"
           active-class="menu-item--active"
           class="menu-item rounded-xl"
           to="Staffs"
@@ -331,6 +340,7 @@
         </v-list-item>
 
         <v-list-item
+          v-if="$store.getters.hasTask('can_see_users')"
           active-class="menu-item--active"
           class="menu-item rounded-xl"
           to="Users"
@@ -359,7 +369,7 @@
       <!-- Settings at Bottom -->
       <div class="menu-bottom">
         <v-list-item
-          v-if="$store.state.auth.role === 'admin'"
+          v-if="$store.getters.hasTask('can_see_settings')"
           active-class="menu-item--active"
           class="menu-item rounded-xl settings-item"
           to="DatabaseSettings"
@@ -423,6 +433,9 @@ export default {
         .join("")
         .toUpperCase()
         .substring(0, 2);
+    },
+    can() {
+      return (task) => this.$store.getters.hasTask(task);
     },
   },
   methods: {

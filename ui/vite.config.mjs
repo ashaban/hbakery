@@ -110,11 +110,19 @@ export default defineConfig({
         target: "http://localhost:3007/",
         logLevel: "debug",
       },
-      "^/login": {
+      "^/auth": {
         target: "http://localhost:3007/",
         logLevel: "debug",
       },
       "^/isTokenActive": {
+        target: "http://localhost:3007/",
+        logLevel: "debug",
+      },
+      "^/roles": {
+        target: "http://localhost:3007/",
+        logLevel: "debug",
+      },
+      "^/tasks": {
         target: "http://localhost:3007/",
         logLevel: "debug",
       },

@@ -25,6 +25,7 @@
           </div>
           <div class="d-flex gap-2">
             <v-btn
+              v-if="$store.getters.hasTask('can_schedule_production')"
               class="px-6"
               color="primary"
               elevation="2"
@@ -533,6 +534,7 @@
 
                     <v-list class="pa-2" density="compact">
                       <v-list-item
+                        v-if="$store.getters.hasTask('can_see_production')"
                         class="rounded-lg mb-1 action-item"
                         @click="viewBatch(item)"
                       >
@@ -559,6 +561,14 @@
                       </v-list-item>
 
                       <v-list-item
+                        v-if="
+                          (item.produced_count > 0 &&
+                            $store.getters.hasTask(
+                              'can_edit_actual_production',
+                            )) ||
+                          (item.produced_count <= 0 &&
+                            $store.getters.hasTask('can_add_actual_production'))
+                        "
                         class="rounded-lg mb-1 action-item"
                         @click="addBatchActualProduction(item)"
                       >
@@ -597,6 +607,7 @@
                       </v-list-item>
 
                       <v-list-item
+                        v-if="$store.getters.hasTask('can_edit_production')"
                         class="rounded-lg mb-1 action-item"
                         @click="editBatch(item)"
                       >
@@ -651,6 +662,7 @@
                       <v-divider class="my-2" />
 
                       <v-list-item
+                        v-if="$store.getters.hasTask('can_delete_production')"
                         class="rounded-lg action-item text-error"
                         @click="deleteBatch(item)"
                       >

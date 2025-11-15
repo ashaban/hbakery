@@ -1,9 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
+const { requireTask } = require("../middleware/auth");
 
 // GET /customers?search=&page=&limit=&active=true|false
-router.get("/", async (req, res) => {
+router.get("/", requireTask("can_see_settings"), async (req, res) => {
   try {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 20;

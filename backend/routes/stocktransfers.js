@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
+const { requireTask } = require("../middleware/auth");
 const {
   getProductAvailableQty,
   deleteTransferLedger,
@@ -18,21 +19,24 @@ const {
 /**
  * GET /stock/available-all - Get available stock for all qualities at once
  */
-router.get("/availableByQuality", async (req, res) => {
-  const { outlet_id, product_id } = req.query;
+router.get(
+  "/availableByQuality",
+  requireTask("can_see_stock_transfers"),
+  async (req, res) => {
+    const { outlet_id, product_id } = req.query;
 
-  if (!outlet_id || !product_id) {
-    return res
-      .status(400)
-      .json({ error: "Outlet ID and Product ID are required" });
-  }
+    if (!outlet_id || !product_id) {
+      return res
+        .status(400)
+        .json({ error: "Outlet ID and Product ID are required" });
+    }
 
-  try {
-    const client = await pool.connect();
+    try {
+      const client = await pool.connect();
 
-    // Get stock for all qualities in one query
-    const result = await client.query(
-      `
+      // Get stock for all qualities in one query
+      const result = await client.query(
+        `
       SELECT 
         quality,
         COALESCE(SUM(
@@ -46,54 +50,59 @@ router.get("/availableByQuality", async (req, res) => {
       WHERE outlet_id = $1 AND product_id = $2
       GROUP BY quality
       `,
-      [outlet_id, product_id]
-    );
+        [outlet_id, product_id]
+      );
 
-    client.release();
+      client.release();
 
-    // Convert array to object { GOOD: X, DAMAGED: Y, REJECT: Z }
-    const stock = { GOOD: 0, DAMAGED: 0, REJECT: 0 };
-    result.rows.forEach((row) => {
-      stock[row.quality] = Number(row.available) || 0;
-    });
+      // Convert array to object { GOOD: X, DAMAGED: Y, REJECT: Z }
+      const stock = { GOOD: 0, DAMAGED: 0, REJECT: 0 };
+      result.rows.forEach((row) => {
+        stock[row.quality] = Number(row.available) || 0;
+      });
 
-    res.json({ stock });
-  } catch (err) {
-    console.error("Error fetching all quality stock:", err);
-    res.status(500).json({ error: "Failed to fetch stock data" });
+      res.json({ stock });
+    } catch (err) {
+      console.error("Error fetching all quality stock:", err);
+      res.status(500).json({ error: "Failed to fetch stock data" });
+    }
   }
-});
+);
 
 /**
  * GET /stock/available - Get available stock for a product in an outlet
  */
-router.get("/available", async (req, res) => {
-  const { outlet_id, product_id, quality = "GOOD" } = req.query;
+router.get(
+  "/available",
+  requireTask("can_see_stock_transfers"),
+  async (req, res) => {
+    const { outlet_id, product_id, quality = "GOOD" } = req.query;
 
-  if (!outlet_id || !product_id) {
-    return res
-      .status(400)
-      .json({ error: "Outlet ID and Product ID are required" });
-  }
+    if (!outlet_id || !product_id) {
+      return res
+        .status(400)
+        .json({ error: "Outlet ID and Product ID are required" });
+    }
 
-  try {
-    const available = await getProductAvailableQty(
-      pool,
-      outlet_id,
-      product_id,
-      quality
-    );
-    res.json({ available });
-  } catch (err) {
-    console.error("Error fetching available stock:", err);
-    res.status(500).json({ error: "Failed to fetch available stock" });
+    try {
+      const available = await getProductAvailableQty(
+        pool,
+        outlet_id,
+        product_id,
+        quality
+      );
+      res.json({ available });
+    } catch (err) {
+      console.error("Error fetching available stock:", err);
+      res.status(500).json({ error: "Failed to fetch available stock" });
+    }
   }
-});
+);
 
 /**
  * GET /stock-transfers - Get transfers with filtering
  */
-router.get("/", async (req, res) => {
+router.get("/", requireTask("can_see_stock_transfers"), async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const offset = (page - 1) * limit;
@@ -182,7 +191,7 @@ router.get("/", async (req, res) => {
 /**
  * GET /stock-transfers/:id - Get single transfer with items
  */
-router.get("/:id", async (req, res) => {
+router.get("/:id", requireTask("can_see_stock_transfers"), async (req, res) => {
   const { id } = req.params;
   try {
     // Get transfer header
@@ -220,69 +229,73 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-router.post("/adjust-quality", async (req, res) => {
-  const client = await pool.connect();
-  try {
-    const {
-      outlet_id,
-      product_id,
-      from_quality,
-      to_quality,
-      quantity,
-      remarks,
-      movement_date,
-    } = req.body;
+router.post(
+  "/adjust-quality",
+  requireTask("can_adjust_stock_quality"),
+  async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const {
+        outlet_id,
+        product_id,
+        from_quality,
+        to_quality,
+        quantity,
+        remarks,
+        movement_date,
+      } = req.body;
 
-    if (
-      !outlet_id ||
-      !product_id ||
-      !from_quality ||
-      !to_quality ||
-      !quantity
-    ) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
+      if (
+        !outlet_id ||
+        !product_id ||
+        !from_quality ||
+        !to_quality ||
+        !quantity
+      ) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
 
-    await client.query("BEGIN");
+      await client.query("BEGIN");
 
-    const result = await performQualityAdjustment(client, {
-      outlet_id,
-      product_id,
-      from_quality,
-      to_quality,
-      quantity,
-      remarks: remarks || "Direct quality adjustment",
-      movement_date: movement_date || new Date(),
-      created_by: req.user?.id || 1,
-    });
-
-    await client.query("COMMIT");
-
-    res.json({
-      adjustmentId: result.adjustmentId,
-      message: "Quality adjusted successfully",
-      summary: result.summary,
-    });
-  } catch (err) {
-    await client.query("ROLLBACK");
-    if (err.code === "INSUFFICIENT_STOCK") {
-      return res.status(400).json({
-        error: err.code,
-        message: err.message,
-        details: err.meta,
+      const result = await performQualityAdjustment(client, {
+        outlet_id,
+        product_id,
+        from_quality,
+        to_quality,
+        quantity,
+        remarks: remarks || "Direct quality adjustment",
+        movement_date: movement_date || new Date(),
+        created_by: req.user?.id || 1,
       });
+
+      await client.query("COMMIT");
+
+      res.json({
+        adjustmentId: result.adjustmentId,
+        message: "Quality adjusted successfully",
+        summary: result.summary,
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      if (err.code === "INSUFFICIENT_STOCK") {
+        return res.status(400).json({
+          error: err.code,
+          message: err.message,
+          details: err.meta,
+        });
+      }
+      console.error("❌ Quality adjustment failed:", err);
+      res.status(500).json({ error: "Failed to adjust quality" });
+    } finally {
+      client.release();
     }
-    console.error("❌ Quality adjustment failed:", err);
-    res.status(500).json({ error: "Failed to adjust quality" });
-  } finally {
-    client.release();
   }
-});
+);
 
 /**
  * POST / - Create transfer with quality adjustments
  */
-router.post("/", async (req, res) => {
+router.post("/", requireTask("can_transfer_stock"), async (req, res) => {
   const client = await pool.connect();
   try {
     const { from_outlet_id, to_outlet_id, remarks, items, movement_date } =
@@ -335,7 +348,7 @@ router.post("/", async (req, res) => {
 /**
  * PUT /:id - Update transfer with quality adjustment handling
  */
-router.put("/:id", async (req, res) => {
+router.put("/:id", requireTask("can_edit_stock_transfer"), async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
@@ -400,73 +413,82 @@ router.put("/:id", async (req, res) => {
 /**
  * DELETE /:id - Delete transfer with adjustment cleanup
  */
-router.delete("/:id", async (req, res) => {
-  const client = await pool.connect();
-  try {
-    const { id } = req.params;
+router.delete(
+  "/:id",
+  requireTask("can_delete_stock_transfer"),
+  async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const { id } = req.params;
 
-    await client.query("BEGIN");
+      await client.query("BEGIN");
 
-    // Undo all adjustments for this transfer
-    const undoResults = await undoTransferAdjustments(client, id);
+      // Undo all adjustments for this transfer
+      const undoResults = await undoTransferAdjustments(client, id);
 
-    // Delete transfer data
-    await deleteTransferLedger(client, id);
-    await client.query(
-      `DELETE FROM stock_transfer_item WHERE transfer_id = $1`,
-      [id]
-    );
-    const del = await client.query(`DELETE FROM stock_transfer WHERE id = $1`, [
-      id,
-    ]);
+      // Delete transfer data
+      await deleteTransferLedger(client, id);
+      await client.query(
+        `DELETE FROM stock_transfer_item WHERE transfer_id = $1`,
+        [id]
+      );
+      const del = await client.query(
+        `DELETE FROM stock_transfer WHERE id = $1`,
+        [id]
+      );
 
-    if (del.rowCount === 0) {
+      if (del.rowCount === 0) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ error: "Transfer not found" });
+      }
+
+      await client.query("COMMIT");
+
+      res.json({
+        id,
+        undoneAdjustments: undoResults.length,
+        message: "Transfer deleted successfully",
+      });
+    } catch (err) {
       await client.query("ROLLBACK");
-      return res.status(404).json({ error: "Transfer not found" });
+      console.error("❌ Delete transfer failed:", err);
+      res.status(500).json({ error: "Failed to delete transfer" });
+    } finally {
+      client.release();
     }
-
-    await client.query("COMMIT");
-
-    res.json({
-      id,
-      undoneAdjustments: undoResults.length,
-      message: "Transfer deleted successfully",
-    });
-  } catch (err) {
-    await client.query("ROLLBACK");
-    console.error("❌ Delete transfer failed:", err);
-    res.status(500).json({ error: "Failed to delete transfer" });
-  } finally {
-    client.release();
   }
-});
+);
 
 /**
  * GET /adjustments/:reference_type/:reference_id - Get adjustments by reference
  */
-router.get("/adjustments/:reference_type/:reference_id", async (req, res) => {
-  const client = await pool.connect();
-  try {
-    const { reference_type, reference_id } = req.params;
+router.get(
+  "/adjustments/:reference_type/:reference_id",
+  requireTask("can_see_stock_transfers"),
+  async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const { reference_type, reference_id } = req.params;
 
-    const adjustments = await getAdjustmentsByReference(
-      client,
-      reference_type,
-      reference_id
-    );
+      const adjustments = await getAdjustmentsByReference(
+        client,
+        reference_type,
+        reference_id
+      );
 
-    res.json({
-      reference_type,
-      reference_id,
-      adjustments,
-      count: adjustments.length,
-    });
-  } catch (err) {
-    console.error("❌ Fetch adjustments failed:", err);
-    res.status(500).json({ error: "Failed to fetch adjustments" });
-  } finally {
-    client.release();
+      res.json({
+        reference_type,
+        reference_id,
+        adjustments,
+        count: adjustments.length,
+      });
+    } catch (err) {
+      console.error("❌ Fetch adjustments failed:", err);
+      res.status(500).json({ error: "Failed to fetch adjustments" });
+    } finally {
+      client.release();
+    }
   }
-});
+);
 
 module.exports = router;

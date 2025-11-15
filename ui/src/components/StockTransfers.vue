@@ -21,6 +21,7 @@
           </v-col>
           <v-col class="text-right" cols="12" md="6">
             <v-btn
+              v-if="$store.getters.hasTask('can_adjust_stock_quality')"
               class="mr-3 text-white"
               color="secondary"
               size="large"
@@ -29,7 +30,12 @@
               <v-icon start>mdi-autorenew</v-icon>
               Adjust Quality
             </v-btn>
-            <v-btn color="primary" size="large" @click="openAddDialog">
+            <v-btn
+              v-if="$store.getters.hasTask('can_transfer_stock')"
+              color="primary"
+              size="large"
+              @click="openAddDialog"
+            >
               <v-icon start>mdi-plus</v-icon>
               New Transfer
             </v-btn>
@@ -219,6 +225,7 @@
             <v-tooltip location="top">
               <template #activator="{ props }">
                 <v-btn
+                  v-if="$store.getters.hasTask('can_edit_stock_transfer')"
                   v-bind="props"
                   color="primary"
                   icon
@@ -235,6 +242,7 @@
             <v-tooltip location="top">
               <template #activator="{ props }">
                 <v-btn
+                  v-if="$store.getters.hasTask('can_delete_stock_transfer')"
                   v-bind="props"
                   color="error"
                   icon

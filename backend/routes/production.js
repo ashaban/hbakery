@@ -2,6 +2,7 @@ const moment = require("moment");
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
+const { authenticateToken, requireTask } = require("../middleware/auth");
 
 const {
   getAvailableQty,
@@ -26,7 +27,7 @@ router.get("/discrepancyReasons", async (req, res) => {
   }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", requireTask("can_schedule_production"), async (req, res) => {
   const client = await pool.connect();
   try {
     const { notes, ingredients, staffs, products, planned_at, produced_at } =
@@ -214,73 +215,76 @@ router.post("/", async (req, res) => {
   }
 });
 
-router.put("/:batchId", async (req, res) => {
-  const client = await pool.connect();
-  try {
-    const { batchId } = req.params;
-    const { notes, ingredients, staffs, products, planned_at, produced_at } =
-      req.body;
+router.put(
+  "/:batchId",
+  requireTask("can_edit_production"),
+  async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const { batchId } = req.params;
+      const { notes, ingredients, staffs, products, planned_at, produced_at } =
+        req.body;
 
-    if (!batchId) {
-      return res.status(400).json({ error: "Missing production ID" });
-    }
-    // backward compatibility — if single product fields exist
-    let productList = products;
-    if (!Array.isArray(productList)) {
-      productList = [req.body];
-    }
-
-    if (!Array.isArray(productList) || productList.length === 0) {
-      return res.status(400).json({ error: "No products provided" });
-    }
-
-    await client.query("BEGIN");
-
-    // 2️⃣ Handle each product update (single product per PUT)
-    for (const prod of productList) {
-      const {
-        production_id,
-        product_id,
-        mode,
-        qty_product,
-        base_ingredient_id,
-        base_ingredient_qty,
-        notes,
-        ingredients,
-        discrepancies,
-        group_choices,
-        actual_qty,
-        good_qty,
-        damaged_qty,
-        reject_qty,
-      } = prod;
-
-      if (
-        !product_id ||
-        !qty_product ||
-        !Array.isArray(ingredients) ||
-        ingredients.length === 0
-      ) {
-        throw new Error(`Invalid data for product ${product_id}`);
+      if (!batchId) {
+        return res.status(400).json({ error: "Missing production ID" });
+      }
+      // backward compatibility — if single product fields exist
+      let productList = products;
+      if (!Array.isArray(productList)) {
+        productList = [req.body];
       }
 
-      // 3️⃣ Remove existing OUT and ledger records
-      await revertProductionOuts(client, production_id);
-      await deleteProductLedgerByProduction(client, production_id);
+      if (!Array.isArray(productList) || productList.length === 0) {
+        return res.status(400).json({ error: "No products provided" });
+      }
 
-      // 4️⃣ Stock validation
-      for (const ing of ingredients) {
-        const available = await getAvailableQty(client, ing.item_id);
-        if (Number(ing.qty_required) > available) {
-          throw new Error(
-            `INSUFFICIENT_STOCK:item=${ing.item_id}:available=${available}:required=${ing.qty_required}`
-          );
+      await client.query("BEGIN");
+
+      // 2️⃣ Handle each product update (single product per PUT)
+      for (const prod of productList) {
+        const {
+          production_id,
+          product_id,
+          mode,
+          qty_product,
+          base_ingredient_id,
+          base_ingredient_qty,
+          notes,
+          ingredients,
+          discrepancies,
+          group_choices,
+          actual_qty,
+          good_qty,
+          damaged_qty,
+          reject_qty,
+        } = prod;
+
+        if (
+          !product_id ||
+          !qty_product ||
+          !Array.isArray(ingredients) ||
+          ingredients.length === 0
+        ) {
+          throw new Error(`Invalid data for product ${product_id}`);
         }
-      }
 
-      // 5️⃣ Update header
-      await client.query(
-        `UPDATE product_production
+        // 3️⃣ Remove existing OUT and ledger records
+        await revertProductionOuts(client, production_id);
+        await deleteProductLedgerByProduction(client, production_id);
+
+        // 4️⃣ Stock validation
+        for (const ing of ingredients) {
+          const available = await getAvailableQty(client, ing.item_id);
+          if (Number(ing.qty_required) > available) {
+            throw new Error(
+              `INSUFFICIENT_STOCK:item=${ing.item_id}:available=${available}:required=${ing.qty_required}`
+            );
+          }
+        }
+
+        // 5️⃣ Update header
+        await client.query(
+          `UPDATE product_production
          SET product_id = $1,
              mode = $2,
              qty_product = $3,
@@ -296,232 +300,237 @@ router.put("/:batchId", async (req, res) => {
              updated_by = $13,
              updated_at = NOW()
          WHERE id = $14`,
-        [
-          product_id,
-          mode,
-          qty_product,
-          base_ingredient_id || null,
-          base_ingredient_qty || null,
-          notes || null,
-          planned_at || null,
-          produced_at || null,
-          actual_qty || null,
-          good_qty || null,
-          damaged_qty || null,
-          reject_qty || null,
-          req.user?.id || 1,
-          production_id,
-        ]
-      );
+          [
+            product_id,
+            mode,
+            qty_product,
+            base_ingredient_id || null,
+            base_ingredient_qty || null,
+            notes || null,
+            planned_at || null,
+            produced_at || null,
+            actual_qty || null,
+            good_qty || null,
+            damaged_qty || null,
+            reject_qty || null,
+            req.user?.id || 1,
+            production_id,
+          ]
+        );
 
-      // 6️⃣ Rebuild group choices
-      await client.query(
-        `DELETE FROM product_production_group_choice WHERE production_id = $1`,
-        [production_id]
-      );
-      if (Array.isArray(group_choices) && group_choices.length > 0) {
-        for (const gc of group_choices) {
-          await client.query(
-            `INSERT INTO product_production_group_choice (production_id, group_id, combination_id)
+        // 6️⃣ Rebuild group choices
+        await client.query(
+          `DELETE FROM product_production_group_choice WHERE production_id = $1`,
+          [production_id]
+        );
+        if (Array.isArray(group_choices) && group_choices.length > 0) {
+          for (const gc of group_choices) {
+            await client.query(
+              `INSERT INTO product_production_group_choice (production_id, group_id, combination_id)
              VALUES ($1, $2, $3)`,
-            [production_id, gc.group_id, gc.combination_id]
+              [production_id, gc.group_id, gc.combination_id]
+            );
+          }
+        }
+
+        // 7️⃣ Rebuild ingredients
+        await client.query(
+          `DELETE FROM product_production_item WHERE production_id = $1`,
+          [production_id]
+        );
+        for (const ing of ingredients) {
+          await client.query(
+            `INSERT INTO product_production_item (production_id, item_id, qty_required, group_id, combination_id)
+           VALUES ($1, $2, $3, $4, $5)`,
+            [
+              production_id,
+              ing.item_id,
+              ing.qty_required,
+              ing.group_id || null,
+              ing.combination_id || null,
+            ]
           );
         }
-      }
 
-      // 7️⃣ Rebuild ingredients
-      await client.query(
-        `DELETE FROM product_production_item WHERE production_id = $1`,
-        [production_id]
-      );
-      for (const ing of ingredients) {
+        // 8️⃣ Rebuild staff
         await client.query(
-          `INSERT INTO product_production_item (production_id, item_id, qty_required, group_id, combination_id)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [
+          `DELETE FROM product_production_staff WHERE production_id = $1`,
+          [production_id]
+        );
+        if (Array.isArray(staffs) && staffs.length > 0) {
+          for (const s of staffs) {
+            await client.query(
+              `INSERT INTO product_production_staff (production_id, staff_id, role, notes)
+             VALUES ($1,$2,$3,$4)`,
+              [production_id, s.staff_id, s.role || null, s.notes || null]
+            );
+          }
+        }
+
+        // 9️⃣ Rebuild discrepancies
+        await client.query(
+          `DELETE FROM product_production_discrepancy WHERE production_id = $1`,
+          [production_id]
+        );
+        if (Array.isArray(discrepancies) && discrepancies.length > 0) {
+          for (const descrepancy of discrepancies) {
+            if (!descrepancy.reason_id) {
+              continue;
+            }
+            await client.query(
+              `INSERT INTO product_production_discrepancy (production_id, reason_id, notes)
+             VALUES ($1, $2, $3)`,
+              [production_id, descrepancy.reason_id, descrepancy.notes || null]
+            );
+          }
+        }
+
+        // 🔟 FIFO OUT for ingredients
+        for (const ing of ingredients) {
+          await allocateFifoOut(
+            client,
             production_id,
             ing.item_id,
             ing.qty_required,
-            ing.group_id || null,
-            ing.combination_id || null,
-          ]
-        );
-      }
+            planned_at
+          );
+        }
 
-      // 8️⃣ Rebuild staff
-      await client.query(
-        `DELETE FROM product_production_staff WHERE production_id = $1`,
-        [production_id]
-      );
-      if (Array.isArray(staffs) && staffs.length > 0) {
-        for (const s of staffs) {
-          await client.query(
-            `INSERT INTO product_production_staff (production_id, staff_id, role, notes)
-             VALUES ($1,$2,$3,$4)`,
-            [production_id, s.staff_id, s.role || null, s.notes || null]
+        // 11️⃣ Ledger IN entries
+        if (actual_qty && produced_at) {
+          await recordProductLedger(
+            client,
+            production_id,
+            product_id,
+            { good_qty, damaged_qty, reject_qty },
+            produced_at
           );
         }
       }
 
-      // 9️⃣ Rebuild discrepancies
-      await client.query(
-        `DELETE FROM product_production_discrepancy WHERE production_id = $1`,
-        [production_id]
-      );
-      if (Array.isArray(discrepancies) && discrepancies.length > 0) {
-        for (const descrepancy of discrepancies) {
-          if (!descrepancy.reason_id) {
-            continue;
-          }
-          await client.query(
-            `INSERT INTO product_production_discrepancy (production_id, reason_id, notes)
-             VALUES ($1, $2, $3)`,
-            [production_id, descrepancy.reason_id, descrepancy.notes || null]
-          );
-        }
+      await client.query("COMMIT");
+      res.json({
+        batch_id: batchId,
+        message: "Production updated successfully",
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      console.error("❌ Failed to update production:", err);
+      if (String(err.message).startsWith("INSUFFICIENT_STOCK")) {
+        return res
+          .status(400)
+          .json({ error: "INSUFFICIENT_STOCK", message: err.message });
       }
-
-      // 🔟 FIFO OUT for ingredients
-      for (const ing of ingredients) {
-        await allocateFifoOut(
-          client,
-          production_id,
-          ing.item_id,
-          ing.qty_required,
-          planned_at
-        );
-      }
-
-      // 11️⃣ Ledger IN entries
-      if (actual_qty && produced_at) {
-        await recordProductLedger(
-          client,
-          production_id,
-          product_id,
-          { good_qty, damaged_qty, reject_qty },
-          produced_at
-        );
-      }
+      res.status(500).json({ error: "Failed to update production" });
+    } finally {
+      client.release();
     }
-
-    await client.query("COMMIT");
-    res.json({
-      batch_id: batchId,
-      message: "Production updated successfully",
-    });
-  } catch (err) {
-    await client.query("ROLLBACK");
-    console.error("❌ Failed to update production:", err);
-    if (String(err.message).startsWith("INSUFFICIENT_STOCK")) {
-      return res
-        .status(400)
-        .json({ error: "INSUFFICIENT_STOCK", message: err.message });
-    }
-    res.status(500).json({ error: "Failed to update production" });
-  } finally {
-    client.release();
   }
-});
+);
 
-router.post("/batches/:batch_id/actual", async (req, res) => {
-  const client = await pool.connect();
-  try {
-    const { batch_id } = req.params;
-    const { produced_at, notes, products } = req.body;
+router.post(
+  "/batches/:batch_id/actual",
+  requireTask("can_add_actual_production", "can_edit_actual_production"),
+  async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const { batch_id } = req.params;
+      const { produced_at, notes, products } = req.body;
 
-    if (!batch_id || !Array.isArray(products) || products.length === 0) {
-      return res.status(400).json({ error: "Invalid or missing payload" });
-    }
-
-    await client.query("BEGIN");
-
-    // 🧾 Fetch all productions in this batch
-    const batchRes = await client.query(
-      `SELECT id, product_id FROM product_production WHERE batch_id = $1`,
-      [batch_id]
-    );
-    const existingProductions = batchRes.rows;
-    if (existingProductions.length === 0) {
-      throw new Error(`No productions found for batch_id=${batch_id}`);
-    }
-
-    // 🕓 Update production header(s)
-    for (const prod of products) {
-      const {
-        production_id,
-        good_qty = 0,
-        damaged_qty = 0,
-        reject_qty = 0,
-        actual_qty = 0,
-        discrepancies = [],
-      } = prod;
-
-      // Ensure this production belongs to batch
-      if (!existingProductions.find((p) => p.id === production_id)) {
-        throw new Error(
-          `Production ${production_id} not part of batch ${batch_id}`
-        );
+      if (!batch_id || !Array.isArray(products) || products.length === 0) {
+        return res.status(400).json({ error: "Invalid or missing payload" });
       }
 
-      // 🧮 Update production quantities and timestamps
-      await client.query(
-        `UPDATE product_production
+      await client.query("BEGIN");
+
+      // 🧾 Fetch all productions in this batch
+      const batchRes = await client.query(
+        `SELECT id, product_id FROM product_production WHERE batch_id = $1`,
+        [batch_id]
+      );
+      const existingProductions = batchRes.rows;
+      if (existingProductions.length === 0) {
+        throw new Error(`No productions found for batch_id=${batch_id}`);
+      }
+
+      // 🕓 Update production header(s)
+      for (const prod of products) {
+        const {
+          production_id,
+          good_qty = 0,
+          damaged_qty = 0,
+          reject_qty = 0,
+          actual_qty = 0,
+          discrepancies = [],
+        } = prod;
+
+        // Ensure this production belongs to batch
+        if (!existingProductions.find((p) => p.id === production_id)) {
+          throw new Error(
+            `Production ${production_id} not part of batch ${batch_id}`
+          );
+        }
+
+        // 🧮 Update production quantities and timestamps
+        await client.query(
+          `UPDATE product_production
          SET good_qty=$1, damaged_qty=$2, reject_qty=$3,
              actual_qty=$4, produced_at=$5, notes=COALESCE($6, notes)
          WHERE id=$7`,
-        [
-          good_qty,
-          damaged_qty,
-          reject_qty,
-          actual_qty,
-          produced_at,
-          notes,
-          production_id,
-        ]
-      );
-
-      // 🔁 Remove old product ledger entries for this production
-      await deleteProductLedgerByProduction(client, production_id);
-
-      // ✅ Record new product ledger entries
-      await recordProductLedger(
-        client,
-        production_id,
-        existingProductions.find((p) => p.id === production_id).product_id,
-        { good_qty, damaged_qty, reject_qty },
-        produced_at
-      );
-
-      // ⚙️ Update discrepancies (replace existing ones)
-      await client.query(
-        `DELETE FROM product_production_discrepancy WHERE production_id=$1`,
-        [production_id]
-      );
-      for (const d of discrepancies) {
-        if (!d.reason_id) continue;
-        await client.query(
-          `INSERT INTO product_production_discrepancy (production_id, reason_id, notes)
-           VALUES ($1, $2, $3)`,
-          [production_id, d.reason_id, d.notes || null]
+          [
+            good_qty,
+            damaged_qty,
+            reject_qty,
+            actual_qty,
+            produced_at,
+            notes,
+            production_id,
+          ]
         );
+
+        // 🔁 Remove old product ledger entries for this production
+        await deleteProductLedgerByProduction(client, production_id);
+
+        // ✅ Record new product ledger entries
+        await recordProductLedger(
+          client,
+          production_id,
+          existingProductions.find((p) => p.id === production_id).product_id,
+          { good_qty, damaged_qty, reject_qty },
+          produced_at
+        );
+
+        // ⚙️ Update discrepancies (replace existing ones)
+        await client.query(
+          `DELETE FROM product_production_discrepancy WHERE production_id=$1`,
+          [production_id]
+        );
+        for (const d of discrepancies) {
+          if (!d.reason_id) continue;
+          await client.query(
+            `INSERT INTO product_production_discrepancy (production_id, reason_id, notes)
+           VALUES ($1, $2, $3)`,
+            [production_id, d.reason_id, d.notes || null]
+          );
+        }
       }
+
+      await client.query("COMMIT");
+      res.json({
+        batch_id,
+        message: "Actual production quantities saved successfully",
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      console.error("❌ Failed to record actual production:", err);
+      res.status(500).json({ error: "Failed to save actual production" });
+    } finally {
+      client.release();
     }
-
-    await client.query("COMMIT");
-    res.json({
-      batch_id,
-      message: "Actual production quantities saved successfully",
-    });
-  } catch (err) {
-    await client.query("ROLLBACK");
-    console.error("❌ Failed to record actual production:", err);
-    res.status(500).json({ error: "Failed to save actual production" });
-  } finally {
-    client.release();
   }
-});
+);
 
-router.get("/batches", async (req, res) => {
+router.get("/batches", requireTask("can_see_production"), async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.max(parseInt(req.query.limit) || 10, 1);
@@ -736,13 +745,16 @@ router.get("/batches", async (req, res) => {
   }
 });
 
-router.get("/batches/:id", async (req, res) => {
-  const { id } = req.params;
+router.get(
+  "/batches/:id",
+  requireTask("can_see_production"),
+  async (req, res) => {
+    const { id } = req.params;
 
-  try {
-    // 1️⃣ Batch header summary
-    const batchHdrRes = await pool.query(
-      `
+    try {
+      // 1️⃣ Batch header summary
+      const batchHdrRes = await pool.query(
+        `
       SELECT 
         pb.id,
         pb.batch_code,
@@ -784,20 +796,20 @@ router.get("/batches/:id", async (req, res) => {
       WHERE pb.id = $1
       GROUP BY pb.id, pb.batch_code, pb.created_at, u.name
       `,
-      [id]
-    );
+        [id]
+      );
 
-    if (batchHdrRes.rows.length === 0)
-      return res.status(404).json({ error: "Batch not found" });
+      if (batchHdrRes.rows.length === 0)
+        return res.status(404).json({ error: "Batch not found" });
 
-    const batch = batchHdrRes.rows[0];
+      const batch = batchHdrRes.rows[0];
 
-    // 🧮 Compute status
-    let status = "pending";
-    if (batch.produced_at) status = "completed";
-    // 2️⃣ Fetch all product productions in this batch
-    const productsRes = await pool.query(
-      `
+      // 🧮 Compute status
+      let status = "pending";
+      if (batch.produced_at) status = "completed";
+      // 2️⃣ Fetch all product productions in this batch
+      const productsRes = await pool.query(
+        `
       SELECT 
         pp.id AS production_id,
         pp.product_id,
@@ -815,16 +827,16 @@ router.get("/batches/:id", async (req, res) => {
       WHERE pp.batch_id = $1
       ORDER BY p.name
       `,
-      [id]
-    );
+        [id]
+      );
 
-    const products = [];
+      const products = [];
 
-    // 3️⃣ Attach each product’s ingredients, staff, and discrepancies
-    for (const prod of productsRes.rows) {
-      const [ingredientsRes, staffRes, discRes] = await Promise.all([
-        pool.query(
-          `
+      // 3️⃣ Attach each product’s ingredients, staff, and discrepancies
+      for (const prod of productsRes.rows) {
+        const [ingredientsRes, staffRes, discRes] = await Promise.all([
+          pool.query(
+            `
           SELECT 
             ppi.id,
             ppi.item_id,
@@ -843,10 +855,10 @@ router.get("/batches/:id", async (req, res) => {
           WHERE ppi.production_id = $1
           ORDER BY pig.name NULLS LAST, i.name
         `,
-          [prod.production_id]
-        ),
-        pool.query(
-          `
+            [prod.production_id]
+          ),
+          pool.query(
+            `
           SELECT 
             s.id AS staff_id, 
             s.name AS staff_name, 
@@ -857,10 +869,10 @@ router.get("/batches/:id", async (req, res) => {
           WHERE ps.production_id = $1
           ORDER BY s.name
         `,
-          [prod.production_id]
-        ),
-        pool.query(
-          `
+            [prod.production_id]
+          ),
+          pool.query(
+            `
           SELECT 
             d.id, 
             dr.name AS reason_name, 
@@ -871,116 +883,121 @@ router.get("/batches/:id", async (req, res) => {
           WHERE d.production_id = $1
           ORDER BY dr.name
         `,
-          [prod.production_id]
-        ),
-      ]);
+            [prod.production_id]
+          ),
+        ]);
 
-      products.push({
-        ...prod,
-        ingredients: ingredientsRes.rows,
-        staff: staffRes.rows,
-        discrepancies: discRes.rows,
+        products.push({
+          ...prod,
+          ingredients: ingredientsRes.rows,
+          staff: staffRes.rows,
+          discrepancies: discRes.rows,
+        });
+      }
+
+      // ✅ Response
+      res.json({
+        batch: {
+          ...batch,
+          status,
+        },
+        products,
       });
+    } catch (err) {
+      console.error("❌ Failed to fetch batch details:", err);
+      res.status(500).json({ error: "Failed to fetch batch details" });
     }
-
-    // ✅ Response
-    res.json({
-      batch: {
-        ...batch,
-        status,
-      },
-      products,
-    });
-  } catch (err) {
-    console.error("❌ Failed to fetch batch details:", err);
-    res.status(500).json({ error: "Failed to fetch batch details" });
   }
-});
+);
 
-router.delete("/batches/:id", async (req, res) => {
-  const client = await pool.connect();
-  try {
-    const { id } = req.params;
+router.delete(
+  "/batches/:id",
+  requireTask("can_delete_production"),
+  async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const { id } = req.params;
 
-    await client.query("BEGIN");
+      await client.query("BEGIN");
 
-    // 1️⃣ Get all productions under this batch
-    const { rows: productions } = await client.query(
-      `SELECT id FROM product_production WHERE batch_id = $1`,
-      [id]
-    );
+      // 1️⃣ Get all productions under this batch
+      const { rows: productions } = await client.query(
+        `SELECT id FROM product_production WHERE batch_id = $1`,
+        [id]
+      );
 
-    if (!productions.length) {
-      // No productions → safe to delete batch directly
+      if (!productions.length) {
+        // No productions → safe to delete batch directly
+        const delBatch = await client.query(
+          `DELETE FROM production_batch WHERE id = $1`,
+          [id]
+        );
+        await client.query("COMMIT");
+        if (delBatch.rowCount === 0)
+          return res.status(404).json({ error: "Batch not found" });
+        return res.json({ id, message: "Batch deleted successfully" });
+      }
+
+      // 2️⃣ Loop through each production to revert its movements and delete its data
+      for (const prod of productions) {
+        const productionId = prod.id;
+
+        // 2.1 Revert ingredient OUTs from item_ledger
+        await revertProductionOuts(client, productionId);
+
+        // 2.2 Revert product_ledger INs for this production
+        await deleteProductLedgerByProduction(client, productionId);
+
+        // 2.3 Delete subrecords
+        await client.query(
+          `DELETE FROM product_production_item WHERE production_id = $1`,
+          [productionId]
+        );
+        await client.query(
+          `DELETE FROM product_production_staff WHERE production_id = $1`,
+          [productionId]
+        );
+        await client.query(
+          `DELETE FROM product_production_group_choice WHERE production_id = $1`,
+          [productionId]
+        );
+        await client.query(
+          `DELETE FROM product_production_discrepancy WHERE production_id = $1`,
+          [productionId]
+        );
+
+        // 2.4 Delete the production header
+        await client.query(`DELETE FROM product_production WHERE id = $1`, [
+          productionId,
+        ]);
+      }
+
+      // 3️⃣ Finally delete the batch header itself
       const delBatch = await client.query(
         `DELETE FROM production_batch WHERE id = $1`,
         [id]
       );
+
       await client.query("COMMIT");
+
       if (delBatch.rowCount === 0)
         return res.status(404).json({ error: "Batch not found" });
-      return res.json({ id, message: "Batch deleted successfully" });
+
+      res.json({
+        id,
+        message: "Batch and related productions deleted successfully",
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      console.error("❌ Failed to delete batch:", err);
+      res.status(500).json({ error: "Failed to delete batch" });
+    } finally {
+      client.release();
     }
-
-    // 2️⃣ Loop through each production to revert its movements and delete its data
-    for (const prod of productions) {
-      const productionId = prod.id;
-
-      // 2.1 Revert ingredient OUTs from item_ledger
-      await revertProductionOuts(client, productionId);
-
-      // 2.2 Revert product_ledger INs for this production
-      await deleteProductLedgerByProduction(client, productionId);
-
-      // 2.3 Delete subrecords
-      await client.query(
-        `DELETE FROM product_production_item WHERE production_id = $1`,
-        [productionId]
-      );
-      await client.query(
-        `DELETE FROM product_production_staff WHERE production_id = $1`,
-        [productionId]
-      );
-      await client.query(
-        `DELETE FROM product_production_group_choice WHERE production_id = $1`,
-        [productionId]
-      );
-      await client.query(
-        `DELETE FROM product_production_discrepancy WHERE production_id = $1`,
-        [productionId]
-      );
-
-      // 2.4 Delete the production header
-      await client.query(`DELETE FROM product_production WHERE id = $1`, [
-        productionId,
-      ]);
-    }
-
-    // 3️⃣ Finally delete the batch header itself
-    const delBatch = await client.query(
-      `DELETE FROM production_batch WHERE id = $1`,
-      [id]
-    );
-
-    await client.query("COMMIT");
-
-    if (delBatch.rowCount === 0)
-      return res.status(404).json({ error: "Batch not found" });
-
-    res.json({
-      id,
-      message: "Batch and related productions deleted successfully",
-    });
-  } catch (err) {
-    await client.query("ROLLBACK");
-    console.error("❌ Failed to delete batch:", err);
-    res.status(500).json({ error: "Failed to delete batch" });
-  } finally {
-    client.release();
   }
-});
+);
 
-router.get("/", async (req, res) => {
+router.get("/", requireTask("can_see_production"), async (req, res) => {
   try {
     const page = Math.max(Number(req.query.page) || 1, 1);
     const limit = Math.max(Number(req.query.limit) || 10, 1);
@@ -1211,7 +1228,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.get("/:id", async (req, res) => {
+router.get("/:id", requireTask("can_see_production"), async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -1328,50 +1345,55 @@ router.get("/:id", async (req, res) => {
 });
 
 /** DELETE production */
-router.delete("/:id", async (req, res) => {
-  const client = await pool.connect();
-  try {
-    const { id } = req.params;
-    await client.query("BEGIN");
+router.delete(
+  "/:id",
+  requireTask("can_delete_production"),
+  async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const { id } = req.params;
+      await client.query("BEGIN");
 
-    // Remove ledger OUT movements for this production first
-    await revertProductionOuts(client, id);
+      // Remove ledger OUT movements for this production first
+      await revertProductionOuts(client, id);
 
-    await deleteProductLedgerByProduction(client, id);
+      await deleteProductLedgerByProduction(client, id);
 
-    // Then remove detail tables and header (ON DELETE CASCADE may already handle some)
-    await client.query(
-      `DELETE FROM product_production_discrepancy WHERE production_id = $1`,
-      [id]
-    );
-    await client.query(
-      `DELETE FROM product_production_staff WHERE production_id = $1`,
-      [id]
-    );
-    await client.query(
-      `DELETE FROM product_production_group_choice WHERE production_id=$1`,
-      [id]
-    );
-    await client.query(
-      `DELETE FROM product_production_item WHERE production_id = $1`,
-      [id]
-    );
+      // Then remove detail tables and header (ON DELETE CASCADE may already handle some)
+      await client.query(
+        `DELETE FROM product_production_discrepancy WHERE production_id = $1`,
+        [id]
+      );
+      await client.query(
+        `DELETE FROM product_production_staff WHERE production_id = $1`,
+        [id]
+      );
+      await client.query(
+        `DELETE FROM product_production_group_choice WHERE production_id=$1`,
+        [id]
+      );
+      await client.query(
+        `DELETE FROM product_production_item WHERE production_id = $1`,
+        [id]
+      );
 
-    const del = await client.query(
-      `DELETE FROM product_production WHERE id = $1`,
-      [id]
-    );
+      const del = await client.query(
+        `DELETE FROM product_production WHERE id = $1`,
+        [id]
+      );
 
-    await client.query("COMMIT");
-    if (del.rowCount === 0) return res.status(404).json({ error: "Not found" });
-    res.json({ id, message: "Production deleted" });
-  } catch (err) {
-    await client.query("ROLLBACK");
-    console.error("Delete production failed", err);
-    res.status(500).json({ error: "Failed to delete production" });
-  } finally {
-    client.release();
+      await client.query("COMMIT");
+      if (del.rowCount === 0)
+        return res.status(404).json({ error: "Not found" });
+      res.json({ id, message: "Production deleted" });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      console.error("Delete production failed", err);
+      res.status(500).json({ error: "Failed to delete production" });
+    } finally {
+      client.release();
+    }
   }
-});
+);
 
 module.exports = router;

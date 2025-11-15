@@ -18,7 +18,12 @@
             </div>
           </v-col>
           <v-col class="text-right" cols="12" md="6">
-            <v-btn color="primary" size="large" @click="openAddDialog">
+            <v-btn
+              v-if="$store.getters.hasTask('can_add_sale')"
+              color="primary"
+              size="large"
+              @click="openAddDialog"
+            >
               <v-icon start>mdi-plus</v-icon>
               New Sale
             </v-btn>
@@ -220,6 +225,7 @@
             <v-tooltip location="top">
               <template #activator="{ props }">
                 <v-btn
+                  v-if="$store.getters.hasTask('can_edit_sale')"
                   v-bind="props"
                   color="primary"
                   icon
@@ -236,6 +242,7 @@
             <v-tooltip location="top">
               <template #activator="{ props }">
                 <v-btn
+                  v-if="$store.getters.hasTask('can_delete_sale')"
                   v-bind="props"
                   color="error"
                   icon

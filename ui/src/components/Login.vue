@@ -154,13 +154,13 @@ export default {
     function authenticate() {
       loading.value = true;
 
-      const formData = new FormData();
-      formData.append("username", state.username);
-      formData.append("password", state.password);
-
-      fetch("/login/authenticate", {
+      fetch("/auth/login", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: state.username,
+          password: state.password,
+        }),
       })
         .then((response) => response.json())
         .then((authResp) => {
@@ -173,17 +173,15 @@ export default {
           store.state.auth.token = authResp.token;
           store.state.auth.username = state.username;
           store.state.auth.name = authResp.name;
-          store.state.auth.role = authResp.role;
-          store.state.auth.mda = authResp.mda;
-          store.state.auth.dev_partner = authResp.dev_partner;
+          store.state.auth.role =
+            authResp.roles?.map((r) => r.display).join(", ") || "";
+          store.state.auth.tasks = authResp.tasks || [];
 
           // Save to localStorage
           localStorage.setItem("token", authResp.token);
           localStorage.setItem("username", state.username);
           localStorage.setItem("name", authResp.name);
           localStorage.setItem("role", authResp.role);
-          localStorage.setItem("mda", authResp.mda);
-          localStorage.setItem("dev_partner", authResp.dev_partner);
 
           store.state.denyAccess = false;
           router.push("/Home");

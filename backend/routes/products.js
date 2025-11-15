@@ -2,6 +2,7 @@ const express = require("express");
 const formidable = require("formidable");
 const pool = require("../db"); // your configured PostgreSQL pool
 const router = express.Router();
+const { requireTask } = require("../middleware/auth");
 
 /**
  * ✅ GET /products (with pagination and optional name search)
@@ -12,7 +13,7 @@ const router = express.Router();
  * ✅ GET /products/:id/groups - Get product groups with combinations for production
  * Returns groups with their combinations and ingredient quantities
  */
-router.get("/:id/groups", async (req, res) => {
+router.get("/:id/groups", requireTask("can_see_settings"), async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -204,7 +205,7 @@ router.get("/:id/groups", async (req, res) => {
   }
 });
 
-router.get("/", async (req, res) => {
+router.get("/", requireTask("can_see_settings"), async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const offset = (page - 1) * limit;
@@ -243,7 +244,7 @@ router.get("/", async (req, res) => {
 /**
  * ✅ GET /products/:id (with its product_items)
  */
-router.get("/:id", async (req, res) => {
+router.get("/:id", requireTask("can_see_settings"), async (req, res) => {
   const { id } = req.params;
   try {
     // product
@@ -375,7 +376,7 @@ router.get("/:id", async (req, res) => {
 /**
  * ✅ POST /products — create product with its product_items
  */
-router.post("/", async (req, res) => {
+router.post("/", requireTask("can_add_settings"), async (req, res) => {
   const form = new formidable.IncomingForm();
   form.parse(req, async (err, fields) => {
     console.log(JSON.stringify(fields, 0, 2));
@@ -499,7 +500,7 @@ router.post("/", async (req, res) => {
 /**
  * ✅ PUT /products/:id — update product and its product_items
  */
-router.put("/:id", async (req, res) => {
+router.put("/:id", requireTask("can_add_settings"), async (req, res) => {
   const productId = req.params.id;
   const form = new formidable.IncomingForm();
 
@@ -647,7 +648,7 @@ router.put("/:id", async (req, res) => {
 /**
  * ✅ DELETE /products/:id — remove product (and cascades items)
  */
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requireTask("can_add_settings"), async (req, res) => {
   const { id } = req.params;
   const client = await pool.connect();
 

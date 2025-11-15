@@ -15,7 +15,12 @@
       <!-- Main Content -->
       <v-row class="h-100" no-gutters>
         <!-- Desktop Navigation -->
-        <v-col class="bg-grey-lighten-4" cols="12" md="3">
+        <v-col
+          v-if="$store.getters.hasTask('can_see_settings')"
+          class="bg-grey-lighten-4"
+          cols="12"
+          md="3"
+        >
           <v-list class="py-2" nav>
             <v-list-subheader class="text-h6 text-primary mt-2"
               >SETTINGS MENU</v-list-subheader
@@ -110,11 +115,24 @@ const selectedComponent = ref("ItemUnit");
 const settingComponent = ref(null);
 
 const menuItems = {
-  ItemUnit: { label: "Ingredients Units", icon: "mdi-domain" },
-  Item: { label: "Ingredients", icon: "mdi-domain" },
-  Products: { label: "Products", icon: "mdi-domain" },
-  CostTypes: { label: "Cost Types", icon: "mdi-domain" },
-  Outlets: { label: "Sales Points", icon: "mdi-domain" },
+  ItemUnit: {
+    label: "Ingredients Units",
+    icon: "mdi-domain",
+    task: "can_see_settings",
+  },
+  Item: { label: "Ingredients", icon: "mdi-domain", task: "can_see_settings" },
+  Products: { label: "Products", icon: "mdi-domain", task: "can_see_settings" },
+  CostTypes: {
+    label: "Cost Types",
+    icon: "mdi-domain",
+    task: "can_see_settings",
+  },
+  Outlets: {
+    label: "Sales Points",
+    icon: "mdi-domain",
+    task: "can_see_settings",
+  },
+  Roles: { label: "Roles", icon: "mdi-domain", task: "can_see_settings" },
 };
 
 const currentItem = computed(

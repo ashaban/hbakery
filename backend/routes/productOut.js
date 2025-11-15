@@ -2,6 +2,7 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
+const { requireTask } = require("../middleware/auth");
 
 const {
   validateOutAvailability,
@@ -62,73 +63,77 @@ async function getOutDetail(client, outId) {
 /** ---------------------------
  * POST /productOut (create)
  * --------------------------- */
-router.post("/", async (req, res) => {
-  const { outlet_id, out_date, reason, notes, items = [] } = req.body;
-  if (!outlet_id || !items.length) {
-    return res.status(400).json({ error: "Missing outlet or items" });
-  }
+router.post(
+  "/",
+  requireTask("can_release_products_for_free"),
+  async (req, res) => {
+    const { outlet_id, out_date, reason, notes, items = [] } = req.body;
+    if (!outlet_id || !items.length) {
+      return res.status(400).json({ error: "Missing outlet or items" });
+    }
 
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
 
-    // Validate availability (aggregated by product/quality)
-    await validateOutAvailability(client, outlet_id, items);
+      // Validate availability (aggregated by product/quality)
+      await validateOutAvailability(client, outlet_id, items);
 
-    // Header
-    const ins = await client.query(
-      `
+      // Header
+      const ins = await client.query(
+        `
       INSERT INTO product_out (outlet_id, out_date, reason, notes, status, created_by)
       VALUES ($1, $2, $3, $4, 'POSTED', $5)
       RETURNING id
       `,
-      [
-        outlet_id,
-        out_date ?? new Date(),
-        reason || "N/A",
-        notes || null,
-        req.user?.id || 1,
-      ]
-    );
-    const outId = ins.rows[0].id;
+        [
+          outlet_id,
+          out_date ?? new Date(),
+          reason || "N/A",
+          notes || null,
+          req.user?.id || 1,
+        ]
+      );
+      const outId = ins.rows[0].id;
 
-    // Items
-    for (const it of items) {
-      await client.query(
-        `
+      // Items
+      for (const it of items) {
+        await client.query(
+          `
         INSERT INTO product_out_item (out_id, product_id, quantity, quality, remarks)
         VALUES ($1,$2,$3,$4,$5)
         `,
-        [
-          outId,
-          it.product_id,
-          it.quantity,
-          (it.quality || "GOOD").toUpperCase(),
-          it.remarks || null,
-        ]
-      );
+          [
+            outId,
+            it.product_id,
+            it.quantity,
+            (it.quality || "GOOD").toUpperCase(),
+            it.remarks || null,
+          ]
+        );
+      }
+
+      // Ledger (FIFO per lot)
+      await recordOutLedger(client, outId, outlet_id, items, out_date, notes);
+
+      await client.query("COMMIT");
+      const detail = await getOutDetail(client, outId);
+      res.status(201).json({ message: "Product OUT recorded", ...detail });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      if (err.code === "INSUFFICIENT_STOCK") return res.status(400).json(err);
+      console.error("❌ Product OUT create failed:", err);
+      res.status(500).json({ error: "Failed to record OUT" });
+    } finally {
+      client.release();
     }
-
-    // Ledger (FIFO per lot)
-    await recordOutLedger(client, outId, outlet_id, items, out_date, notes);
-
-    await client.query("COMMIT");
-    const detail = await getOutDetail(client, outId);
-    res.status(201).json({ message: "Product OUT recorded", ...detail });
-  } catch (err) {
-    await client.query("ROLLBACK");
-    if (err.code === "INSUFFICIENT_STOCK") return res.status(400).json(err);
-    console.error("❌ Product OUT create failed:", err);
-    res.status(500).json({ error: "Failed to record OUT" });
-  } finally {
-    client.release();
   }
-});
+);
 
 /** ---------------------------
  * PUT /productOut/:id (edit)
  * --------------------------- */
-router.put("/:id", async (req, res) => {
+router.put("/:id", requireTask("can_edit_free_release"), async (req, res) => {
   const { id } = req.params;
   const { outlet_id, out_date, reason, notes, items = [] } = req.body;
 
@@ -197,46 +202,52 @@ router.put("/:id", async (req, res) => {
  * DELETE /productOut/:id (cancel/reverse)
  * Keeps header but marks CANCELLED and restores stock per lot.
  * --------------------------- */
-router.delete("/:id", async (req, res) => {
-  const { id } = req.params;
+router.delete(
+  "/:id",
+  requireTask("can_delete_free_release"),
+  async (req, res) => {
+    const { id } = req.params;
 
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
 
-    const exists = await client.query(
-      `SELECT id FROM product_out WHERE id=$1 AND status!='CANCELLED'`,
-      [id]
-    );
-    if (!exists.rows.length) {
+      const exists = await client.query(
+        `SELECT id FROM product_out WHERE id=$1 AND status!='CANCELLED'`,
+        [id]
+      );
+      if (!exists.rows.length) {
+        await client.query("ROLLBACK");
+        return res
+          .status(404)
+          .json({ error: "Not found or already cancelled" });
+      }
+
+      // Reverse per lot (insert negative OUT rows)
+      await reverseOutLedger(client, id, new Date(), "Reversal: OUT Cancelled");
+
+      // Mark cancelled (retain audit)
+      await client.query(
+        `UPDATE product_out SET status='CANCELLED' WHERE id=$1`,
+        [id]
+      );
+
+      await client.query("COMMIT");
+      res.json({ id, message: "Product OUT cancelled" });
+    } catch (err) {
       await client.query("ROLLBACK");
-      return res.status(404).json({ error: "Not found or already cancelled" });
+      console.error("❌ Product OUT cancel failed:", err);
+      res.status(500).json({ error: "Failed to cancel OUT" });
+    } finally {
+      client.release();
     }
-
-    // Reverse per lot (insert negative OUT rows)
-    await reverseOutLedger(client, id, new Date(), "Reversal: OUT Cancelled");
-
-    // Mark cancelled (retain audit)
-    await client.query(
-      `UPDATE product_out SET status='CANCELLED' WHERE id=$1`,
-      [id]
-    );
-
-    await client.query("COMMIT");
-    res.json({ id, message: "Product OUT cancelled" });
-  } catch (err) {
-    await client.query("ROLLBACK");
-    console.error("❌ Product OUT cancel failed:", err);
-    res.status(500).json({ error: "Failed to cancel OUT" });
-  } finally {
-    client.release();
   }
-});
+);
 
 /** ---------------------------
  * GET /productOut/:id (detail)
  * --------------------------- */
-router.get("/:id", async (req, res) => {
+router.get("/:id", requireTask("can_see_free_releases"), async (req, res) => {
   const client = await pool.connect();
   try {
     const detail = await getOutDetail(client, req.params.id);
@@ -254,7 +265,7 @@ router.get("/:id", async (req, res) => {
  * GET /productOut (listing + filters + pagination)
  * Filters: outlet_id, start_date, end_date, reason (ILIKE), status
  * --------------------------- */
-router.get("/", async (req, res) => {
+router.get("/", requireTask("can_see_free_releases"), async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const offset = (page - 1) * limit;

@@ -164,6 +164,7 @@
         <v-icon color="green" start>mdi-download</v-icon> Download
       </v-btn>
       <v-btn
+        v-if="$store.getters.hasTask('can_add_settings')"
         class="text-white justify-end"
         color="#1A237E"
         size="small"
@@ -180,7 +181,10 @@
       :items="values"
       :loading="loading"
     >
-      <template #item.edit="{ item }">
+      <template
+        v-if="$store.getters.hasTask('can_add_settings')"
+        #item.edit="{ item }"
+      >
         <v-icon color="#3F51B5" @click="activateEditDialog(item)"
           >mdi-square-edit-outline</v-icon
         >
