@@ -279,6 +279,9 @@
           <template #item.total_price_outwards="{ item }">
             {{ formatCurrency(item.total_price_outwards) }}
           </template>
+          <template #item.total_price_closing="{ item }">
+            {{ formatCurrency(item.total_price_closing) }}
+          </template>
 
           <template #bottom>
             <div class="px-4 py-3 d-flex justify-end flex-wrap gap-2">
@@ -348,6 +351,12 @@ const baseHeaders = [
     align: "end",
     sortable: true,
   },
+  {
+    title: "Closing Value",
+    key: "total_price_closing",
+    align: "end",
+    sortable: true,
+  },
 ];
 
 const computedHeaders = computed(() => {
@@ -397,6 +406,12 @@ const computedHeaders = computed(() => {
     {
       title: "Outwards Value",
       key: "total_price_outwards",
+      align: "end",
+      sortable: true,
+    },
+    {
+      title: "Closing Value",
+      key: "total_price_closing",
       align: "end",
       sortable: true,
     },
@@ -531,6 +546,7 @@ function exportCSV() {
     "Opening Value",
     "Inwards Value",
     "Outwards Value",
+    "Closing Value",
   ];
 
   const lines = [cols.join(",")];
@@ -552,6 +568,7 @@ function exportCSV() {
         r.total_price_opening ?? 0,
         r.total_price_inwards ?? 0,
         r.total_price_outwards ?? 0,
+        r.total_price_closing ?? 0,
       ].join(","),
     );
   }

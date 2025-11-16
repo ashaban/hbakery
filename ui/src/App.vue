@@ -66,7 +66,12 @@ export default {
         this.$store.state.auth.username = localStorage.getItem("username");
         this.$store.state.auth.name = localStorage.getItem("name");
         this.$store.state.auth.role = localStorage.getItem("role");
-        this.$store.state.auth.tasks = localStorage.getItem("tasks");
+        this.$store.state.auth.tasks = JSON.parse(
+          localStorage.getItem("tasks"),
+        );
+        this.$store.state.auth.outlets = JSON.parse(
+          localStorage.getItem("outlets"),
+        );
         this.$store.commit("updateActivity");
       }
 

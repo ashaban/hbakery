@@ -1,75 +1,88 @@
 <template>
   <v-app>
     <!-- Navigation Bar -->
-    <v-app-bar color="white" elevation="4" class="px-4" :class="{ 'scrolled': isScrolled }">
+    <v-app-bar
+      class="px-4"
+      :class="{ scrolled: isScrolled }"
+      color="white"
+      elevation="4"
+    >
       <v-container class="d-flex align-center">
-        <v-avatar size="48" color="amber-lighten-5" class="mr-3 logo-avatar">
+        <v-avatar class="mr-3 logo-avatar" color="amber-lighten-5" size="48">
           <v-icon color="amber-darken-3" size="28">mdi-food-croissant</v-icon>
         </v-avatar>
-        <span class="text-h5 font-weight-bold text-amber-darken-3 logo-text">Hanein Bakery</span>
-        
-        <v-spacer></v-spacer>
-        
+        <span class="text-h5 font-weight-bold text-amber-darken-3 logo-text"
+          >Hanein Bakery</span
+        >
+
+        <v-spacer />
+
         <div class="d-none d-md-flex">
-          <v-btn 
-            v-for="item in navItems" 
+          <v-btn
+            v-for="item in navItems"
             :key="item.text"
-            variant="text" 
-            :color="activeSection === item.section ? 'amber-darken-3' : 'grey-darken-2'"
-            @click="scrollToSection(item.section)"
             class="mx-1 font-weight-medium nav-btn"
+            :color="
+              activeSection === item.section
+                ? 'amber-darken-3'
+                : 'grey-darken-2'
+            "
+            variant="text"
+            @click="scrollToSection(item.section)"
           >
             {{ item.text }}
           </v-btn>
         </div>
-        
-        <v-spacer></v-spacer>
-        
-        <v-btn 
-          color="amber-darken-3" 
-          variant="flat" 
-          @click="goToLogin"
+
+        <v-spacer />
+
+        <v-btn
           class="font-weight-bold mr-2 login-btn"
+          color="amber-darken-3"
+          variant="flat"
+          @click="goToLogin"
         >
           <v-icon start>mdi-account</v-icon>
           Business Login
         </v-btn>
-        
-        <v-btn 
-          color="brown-darken-3" 
+
+        <v-btn
+          class="font-weight-bold order-btn"
+          color="brown-darken-3"
           variant="outlined"
           @click="scrollToSection('order')"
-          class="font-weight-bold order-btn"
         >
           <v-icon start>mdi-shopping</v-icon>
           Order Now
         </v-btn>
-        
-        <v-app-bar-nav-icon 
-          class="d-md-none" 
-          @click="drawer = !drawer"
-        ></v-app-bar-nav-icon>
+
+        <v-app-bar-nav-icon class="d-md-none" @click="drawer = !drawer" />
       </v-container>
     </v-app-bar>
 
     <!-- Mobile Navigation Drawer -->
-    <v-navigation-drawer v-model="drawer" temporary location="right" class="mobile-drawer">
+    <v-navigation-drawer
+      v-model="drawer"
+      class="mobile-drawer"
+      location="right"
+      temporary
+    >
       <v-list>
         <v-list-item
           v-for="item in navItems"
           :key="item.text"
-          @click="scrollToSection(item.section)"
           class="mobile-nav-item"
+          @click="scrollToSection(item.section)"
         >
           <v-list-item-title>{{ item.text }}</v-list-item-title>
         </v-list-item>
-        <v-list-item @click="goToLogin" class="mobile-nav-item">
+        <v-list-item class="mobile-nav-item" @click="goToLogin">
           <v-list-item-title class="text-amber-darken-3 font-weight-bold">
             <v-icon start>mdi-account</v-icon>
             Business Login
           </v-list-item-title>
         </v-list-item>
-        <v-list-item @click="scrollToSection('order')" class="mobile-nav-item">
+        <v-list-item class="mobile-nav-item" @click="scrollToSection('order')">
           <v-list-item-title class="text-brown-darken-3 font-weight-bold">
             <v-icon start>mdi-shopping</v-icon>
             Order Now
@@ -81,38 +94,46 @@
     <!-- Hero Section -->
     <section id="home" class="hero-section">
       <v-parallax
-        src="https://images.unsplash.com/photo-1509440159596-0249088772ff?ixlib=rb-4.0.3&auto=format&fit=crop&w=2072&q=80"
         height="700"
+        src="https://images.unsplash.com/photo-1509440159596-0249088772ff?ixlib=rb-4.0.3&auto=format&fit=crop&w=2072&q=80"
       >
-        <div class="d-flex flex-column fill-height justify-center align-center text-white">
+        <div
+          class="d-flex flex-column fill-height justify-center align-center text-white"
+        >
           <div class="text-center hero-content">
-            <v-icon size="80" color="amber-lighten-3" class="mb-4 hero-icon">mdi-cake-variant</v-icon>
+            <v-icon class="mb-4 hero-icon" color="amber-lighten-3" size="80"
+              >mdi-cake-variant</v-icon
+            >
             <h1 class="text-h2 text-white font-weight-bold mb-4 hero-title">
               Hanein Bakery
             </h1>
             <p class="text-h4 text-amber-lighten-3 mb-6 hero-subtitle">
               Freshly Baked with Love Since 2010
             </p>
-            <p class="text-h6 text-amber-lighten-4 mb-8 max-width-600 hero-description">
-              Discover the finest artisan breads, decadent cakes, and delicious pastries made daily with premium ingredients and traditional recipes.
+            <p
+              class="text-h6 text-amber-lighten-4 mb-8 max-width-600 hero-description"
+            >
+              Discover the finest artisan breads, decadent cakes, and delicious
+              pastries made daily with premium ingredients and traditional
+              recipes.
             </p>
             <div class="d-flex gap-4 justify-center flex-wrap hero-buttons">
-              <v-btn 
-                color="amber-darken-3" 
-                size="x-large" 
+              <v-btn
+                class="font-weight-bold hero-btn"
+                color="amber-darken-3"
+                size="x-large"
                 variant="flat"
                 @click="scrollToSection('products')"
-                class="font-weight-bold hero-btn"
               >
                 <v-icon start>mdi-store</v-icon>
                 View Products
               </v-btn>
-              <v-btn 
-                color="white" 
-                size="x-large" 
+              <v-btn
+                class="font-weight-bold hero-btn"
+                color="white"
+                size="x-large"
                 variant="outlined"
                 @click="scrollToSection('order')"
-                class="font-weight-bold hero-btn"
               >
                 <v-icon start>mdi-shopping</v-icon>
                 Order Online
@@ -120,20 +141,26 @@
             </div>
           </div>
         </div>
-        
+
         <!-- Scroll indicator -->
         <div class="scroll-indicator" @click="scrollToSection('products')">
-          <div class="scroll-arrow"></div>
+          <div class="scroll-arrow" />
         </div>
       </v-parallax>
     </section>
 
     <!-- Featured Products -->
-    <section id="products" class="py-12 products-section" style="background: #faf7f2;">
+    <section
+      id="products"
+      class="py-12 products-section"
+      style="background: #faf7f2"
+    >
       <v-container>
         <v-row>
-          <v-col cols="12" class="text-center mb-8">
-            <h2 class="text-h3 font-weight-bold text-brown-darken-3 mb-4 section-title">
+          <v-col class="text-center mb-8" cols="12">
+            <h2
+              class="text-h3 font-weight-bold text-brown-darken-3 mb-4 section-title"
+            >
               Our Fresh Products
             </h2>
             <p class="text-h6 text-grey-darken-1 section-subtitle">
@@ -146,61 +173,78 @@
         <v-row class="mb-8">
           <v-col cols="12">
             <div class="d-flex align-center mb-6">
-              <v-divider class="flex-grow-1"></v-divider>
-              <h3 class="text-h4 font-weight-bold text-amber-darken-3 mx-4 category-title">
-                <v-icon large color="amber-darken-3" class="mr-2">mdi-bread-slice</v-icon>
+              <v-divider class="flex-grow-1" />
+              <h3
+                class="text-h4 font-weight-bold text-amber-darken-3 mx-4 category-title"
+              >
+                <v-icon class="mr-2" color="amber-darken-3" large
+                  >mdi-bread-slice</v-icon
+                >
                 Artisan Breads
               </h3>
-              <v-divider class="flex-grow-1"></v-divider>
+              <v-divider class="flex-grow-1" />
             </div>
           </v-col>
           <v-col
             v-for="(product, index) in breadProducts"
             :key="product.id"
             cols="12"
-            sm="6"
-            md="4"
             lg="3"
+            md="4"
+            sm="6"
           >
-            <v-card 
-              class="product-card" 
-              elevation="6" 
-              hover
+            <v-card
+              class="product-card"
               :data-aos="index % 2 === 0 ? 'fade-up' : 'fade-down'"
               :data-aos-delay="(index % 4) * 100"
+              elevation="6"
+              hover
             >
               <v-img
-                :src="product.image"
-                height="200"
-                cover
                 class="product-image"
+                cover
+                height="200"
+                :src="product.image"
               >
-                <template v-slot:placeholder>
-                  <v-row class="fill-height ma-0" align="center" justify="center">
-                    <v-progress-circular indeterminate color="amber-lighten-3"></v-progress-circular>
+                <template #placeholder>
+                  <v-row
+                    align="center"
+                    class="fill-height ma-0"
+                    justify="center"
+                  >
+                    <v-progress-circular
+                      color="amber-lighten-3"
+                      indeterminate
+                    />
                   </v-row>
                 </template>
               </v-img>
-              
-              <v-card-title class="text-h6 font-weight-bold text-brown-darken-3">
+
+              <v-card-title
+                class="text-h6 font-weight-bold text-brown-darken-3"
+              >
                 {{ product.name }}
               </v-card-title>
-              
+
               <v-card-text class="text-body-2 text-grey-darken-2">
                 {{ product.description }}
               </v-card-text>
-              
+
               <v-card-actions class="px-4 pb-4">
-                <v-chip color="amber-lighten-5" variant="flat" class="text-amber-darken-3 font-weight-bold price-chip">
+                <v-chip
+                  class="text-amber-darken-3 font-weight-bold price-chip"
+                  color="amber-lighten-5"
+                  variant="flat"
+                >
                   ${{ product.price }}
                 </v-chip>
-                <v-spacer></v-spacer>
+                <v-spacer />
                 <v-btn
-                  color="amber-darken-3"
-                  variant="tonal"
-                  size="small"
-                  @click="addToCart(product)"
                   class="add-to-cart-btn"
+                  color="amber-darken-3"
+                  size="small"
+                  variant="tonal"
+                  @click="addToCart(product)"
                 >
                   <v-icon start>mdi-cart-plus</v-icon>
                   Add to Cart
@@ -214,61 +258,75 @@
         <v-row class="mb-8">
           <v-col cols="12">
             <div class="d-flex align-center mb-6">
-              <v-divider class="flex-grow-1"></v-divider>
-              <h3 class="text-h4 font-weight-bold text-pink-darken-2 mx-4 category-title">
-                <v-icon large color="pink-darken-2" class="mr-2">mdi-cake</v-icon>
+              <v-divider class="flex-grow-1" />
+              <h3
+                class="text-h4 font-weight-bold text-pink-darken-2 mx-4 category-title"
+              >
+                <v-icon class="mr-2" color="pink-darken-2" large
+                  >mdi-cake</v-icon
+                >
                 Decadent Cakes
               </h3>
-              <v-divider class="flex-grow-1"></v-divider>
+              <v-divider class="flex-grow-1" />
             </div>
           </v-col>
           <v-col
             v-for="(product, index) in cakeProducts"
             :key="product.id"
             cols="12"
-            sm="6"
-            md="4"
             lg="3"
+            md="4"
+            sm="6"
           >
-            <v-card 
-              class="product-card" 
-              elevation="6" 
-              hover
+            <v-card
+              class="product-card"
               :data-aos="index % 2 === 0 ? 'fade-up' : 'fade-down'"
               :data-aos-delay="(index % 4) * 100"
+              elevation="6"
+              hover
             >
               <v-img
-                :src="product.image"
-                height="200"
-                cover
                 class="product-image"
+                cover
+                height="200"
+                :src="product.image"
               >
-                <template v-slot:placeholder>
-                  <v-row class="fill-height ma-0" align="center" justify="center">
-                    <v-progress-circular indeterminate color="pink-lighten-3"></v-progress-circular>
+                <template #placeholder>
+                  <v-row
+                    align="center"
+                    class="fill-height ma-0"
+                    justify="center"
+                  >
+                    <v-progress-circular color="pink-lighten-3" indeterminate />
                   </v-row>
                 </template>
               </v-img>
-              
-              <v-card-title class="text-h6 font-weight-bold text-brown-darken-3">
+
+              <v-card-title
+                class="text-h6 font-weight-bold text-brown-darken-3"
+              >
                 {{ product.name }}
               </v-card-title>
-              
+
               <v-card-text class="text-body-2 text-grey-darken-2">
                 {{ product.description }}
               </v-card-text>
-              
+
               <v-card-actions class="px-4 pb-4">
-                <v-chip color="pink-lighten-5" variant="flat" class="text-pink-darken-2 font-weight-bold price-chip">
+                <v-chip
+                  class="text-pink-darken-2 font-weight-bold price-chip"
+                  color="pink-lighten-5"
+                  variant="flat"
+                >
                   ${{ product.price }}
                 </v-chip>
-                <v-spacer></v-spacer>
+                <v-spacer />
                 <v-btn
-                  color="pink-darken-2"
-                  variant="tonal"
-                  size="small"
-                  @click="addToCart(product)"
                   class="add-to-cart-btn"
+                  color="pink-darken-2"
+                  size="small"
+                  variant="tonal"
+                  @click="addToCart(product)"
                 >
                   <v-icon start>mdi-cart-plus</v-icon>
                   Add to Cart
@@ -282,61 +340,78 @@
         <v-row>
           <v-col cols="12">
             <div class="d-flex align-center mb-6">
-              <v-divider class="flex-grow-1"></v-divider>
-              <h3 class="text-h4 font-weight-bold text-deep-orange-darken-2 mx-4 category-title">
-                <v-icon large color="deep-orange-darken-2" class="mr-2">mdi-croissant</v-icon>
+              <v-divider class="flex-grow-1" />
+              <h3
+                class="text-h4 font-weight-bold text-deep-orange-darken-2 mx-4 category-title"
+              >
+                <v-icon class="mr-2" color="deep-orange-darken-2" large
+                  >mdi-croissant</v-icon
+                >
                 Fresh Pastries
               </h3>
-              <v-divider class="flex-grow-1"></v-divider>
+              <v-divider class="flex-grow-1" />
             </div>
           </v-col>
           <v-col
             v-for="(product, index) in pastryProducts"
             :key="product.id"
             cols="12"
-            sm="6"
-            md="4"
             lg="3"
+            md="4"
+            sm="6"
           >
-            <v-card 
-              class="product-card" 
-              elevation="6" 
-              hover
+            <v-card
+              class="product-card"
               :data-aos="index % 2 === 0 ? 'fade-up' : 'fade-down'"
               :data-aos-delay="(index % 4) * 100"
+              elevation="6"
+              hover
             >
               <v-img
-                :src="product.image"
-                height="200"
-                cover
                 class="product-image"
+                cover
+                height="200"
+                :src="product.image"
               >
-                <template v-slot:placeholder>
-                  <v-row class="fill-height ma-0" align="center" justify="center">
-                    <v-progress-circular indeterminate color="deep-orange-lighten-3"></v-progress-circular>
+                <template #placeholder>
+                  <v-row
+                    align="center"
+                    class="fill-height ma-0"
+                    justify="center"
+                  >
+                    <v-progress-circular
+                      color="deep-orange-lighten-3"
+                      indeterminate
+                    />
                   </v-row>
                 </template>
               </v-img>
-              
-              <v-card-title class="text-h6 font-weight-bold text-brown-darken-3">
+
+              <v-card-title
+                class="text-h6 font-weight-bold text-brown-darken-3"
+              >
                 {{ product.name }}
               </v-card-title>
-              
+
               <v-card-text class="text-body-2 text-grey-darken-2">
                 {{ product.description }}
               </v-card-text>
-              
+
               <v-card-actions class="px-4 pb-4">
-                <v-chip color="deep-orange-lighten-5" variant="flat" class="text-deep-orange-darken-2 font-weight-bold price-chip">
+                <v-chip
+                  class="text-deep-orange-darken-2 font-weight-bold price-chip"
+                  color="deep-orange-lighten-5"
+                  variant="flat"
+                >
                   ${{ product.price }}
                 </v-chip>
-                <v-spacer></v-spacer>
+                <v-spacer />
                 <v-btn
-                  color="deep-orange-darken-2"
-                  variant="tonal"
-                  size="small"
-                  @click="addToCart(product)"
                   class="add-to-cart-btn"
+                  color="deep-orange-darken-2"
+                  size="small"
+                  variant="tonal"
+                  @click="addToCart(product)"
                 >
                   <v-icon start>mdi-cart-plus</v-icon>
                   Add to Cart
@@ -352,27 +427,30 @@
     <section id="about" class="py-12 about-section">
       <v-container>
         <v-row align="center">
-          <v-col cols="12" md="6" data-aos="fade-right">
+          <v-col cols="12" data-aos="fade-right" md="6">
             <v-img
-              src="https://images.unsplash.com/photo-1558961363-fa8fdf82db35?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80"
-              height="400"
-              cover
               class="rounded-lg about-image"
+              cover
               elevation="6"
-            ></v-img>
+              height="400"
+              src="https://images.unsplash.com/photo-1558961363-fa8fdf82db35?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80"
+            />
           </v-col>
-          
-          <v-col cols="12" md="6" data-aos="fade-left">
+
+          <v-col cols="12" data-aos="fade-left" md="6">
             <div class="pl-md-6">
-              <h2 class="text-h3 font-weight-bold text-brown-darken-3 mb-4 section-title">
+              <h2
+                class="text-h3 font-weight-bold text-brown-darken-3 mb-4 section-title"
+              >
                 Our Story
               </h2>
               <p class="text-body-1 text-grey-darken-2 mb-4">
-                Since 2010, Hanein Bakery has been serving the community with the finest baked goods. 
-                Our master bakers combine traditional techniques with the highest quality ingredients 
-                to create products that bring joy to every table.
+                Since 2010, Hanein Bakery has been serving the community with
+                the finest baked goods. Our master bakers combine traditional
+                techniques with the highest quality ingredients to create
+                products that bring joy to every table.
               </p>
-              
+
               <v-list class="transparent">
                 <v-list-item
                   v-for="(item, index) in aboutFeatures"
@@ -380,12 +458,18 @@
                   :data-aos="'fade-up'"
                   :data-aos-delay="index * 100"
                 >
-                  <template v-slot:prepend>
-                    <v-avatar color="amber-lighten-5" size="40" class="feature-icon">
+                  <template #prepend>
+                    <v-avatar
+                      class="feature-icon"
+                      color="amber-lighten-5"
+                      size="40"
+                    >
                       <v-icon color="amber-darken-3">{{ item.icon }}</v-icon>
                     </v-avatar>
                   </template>
-                  <v-list-item-title class="text-h6 font-weight-medium text-brown-darken-3">
+                  <v-list-item-title
+                    class="text-h6 font-weight-medium text-brown-darken-3"
+                  >
                     {{ item.text }}
                   </v-list-item-title>
                 </v-list-item>
@@ -397,19 +481,26 @@
     </section>
 
     <!-- Production Excellence Section -->
-    <section id="production" class="py-12 production-section" style="background: #fff8e1;">
+    <section
+      id="production"
+      class="py-12 production-section"
+      style="background: #fff8e1"
+    >
       <v-container>
         <v-row>
-          <v-col cols="12" class="text-center mb-8">
-            <h2 class="text-h3 font-weight-bold text-brown-darken-3 mb-4 section-title">
+          <v-col class="text-center mb-8" cols="12">
+            <h2
+              class="text-h3 font-weight-bold text-brown-darken-3 mb-4 section-title"
+            >
               Our Production Excellence
             </h2>
             <p class="text-h6 text-grey-darken-1 section-subtitle">
-              Behind every delicious product is our commitment to quality and precision
+              Behind every delicious product is our commitment to quality and
+              precision
             </p>
           </v-col>
         </v-row>
-        
+
         <v-row>
           <v-col
             v-for="(feature, index) in productionFeatures"
@@ -417,15 +508,21 @@
             cols="12"
             md="4"
           >
-            <v-card 
-              class="feature-card text-center pa-6" 
-              elevation="4" 
-              hover
+            <v-card
+              class="feature-card text-center pa-6"
               :data-aos="'zoom-in'"
               :data-aos-delay="index * 200"
+              elevation="4"
+              hover
             >
-              <v-avatar size="80" color="amber-lighten-5" class="mb-4 feature-avatar">
-                <v-icon size="40" color="amber-darken-3">{{ feature.icon }}</v-icon>
+              <v-avatar
+                class="mb-4 feature-avatar"
+                color="amber-lighten-5"
+                size="80"
+              >
+                <v-icon color="amber-darken-3" size="40">{{
+                  feature.icon
+                }}</v-icon>
               </v-avatar>
               <h3 class="text-h5 font-weight-bold text-brown-darken-3 mb-3">
                 {{ feature.title }}
@@ -438,14 +535,14 @@
         </v-row>
 
         <v-row class="mt-8">
-          <v-col cols="12" class="text-center">
-            <v-btn 
-              color="amber-darken-3" 
-              variant="flat" 
-              size="large"
-              @click="goToLogin"
+          <v-col class="text-center" cols="12">
+            <v-btn
               class="font-weight-bold dashboard-btn"
+              color="amber-darken-3"
               data-aos="fade-up"
+              size="large"
+              variant="flat"
+              @click="goToLogin"
             >
               <v-icon start>mdi-chart-box</v-icon>
               View Production Dashboard
@@ -456,15 +553,19 @@
     </section>
 
     <!-- Order Section -->
-    <section id="order" class="py-12 order-section" style="background: linear-gradient(135deg, #5d4037 0%, #3e2723 100%);">
+    <section
+      id="order"
+      class="py-12 order-section"
+      style="background: linear-gradient(135deg, #5d4037 0%, #3e2723 100%)"
+    >
       <v-container>
         <v-row>
-          <v-col cols="12" md="8" class="mx-auto">
-            <v-card 
-              class="pa-8 text-center order-card" 
-              color="rgba(255,255,255,0.95)" 
-              elevation="12"
+          <v-col class="mx-auto" cols="12" md="8">
+            <v-card
+              class="pa-8 text-center order-card"
+              color="rgba(255,255,255,0.95)"
               data-aos="zoom-in"
+              elevation="12"
             >
               <h2 class="text-h3 font-weight-bold text-brown-darken-3 mb-4">
                 Ready to Order?
@@ -472,42 +573,84 @@
               <p class="text-h6 text-grey-darken-2 mb-6">
                 Fresh from our oven to your table
               </p>
-              
+
               <v-row class="mb-6">
-                <v-col cols="12" sm="6" data-aos="fade-right" data-aos-delay="200">
-                  <v-card variant="outlined" class="pa-4 contact-card" hover>
-                    <v-icon size="48" color="amber-darken-3" class="mb-3">mdi-phone</v-icon>
-                    <h3 class="text-h5 font-weight-bold text-brown-darken-3 mb-2">Call Us</h3>
-                    <p class="text-body-1 text-grey-darken-2 mb-3">Speak directly with our team</p>
-                    <v-btn color="amber-darken-3" variant="flat" block class="contact-btn">
+                <v-col
+                  cols="12"
+                  data-aos="fade-right"
+                  data-aos-delay="200"
+                  sm="6"
+                >
+                  <v-card class="pa-4 contact-card" hover variant="outlined">
+                    <v-icon class="mb-3" color="amber-darken-3" size="48"
+                      >mdi-phone</v-icon
+                    >
+                    <h3
+                      class="text-h5 font-weight-bold text-brown-darken-3 mb-2"
+                    >
+                      Call Us
+                    </h3>
+                    <p class="text-body-1 text-grey-darken-2 mb-3">
+                      Speak directly with our team
+                    </p>
+                    <v-btn
+                      block
+                      class="contact-btn"
+                      color="amber-darken-3"
+                      variant="flat"
+                    >
                       +255 655 011 555-HANEIN
                     </v-btn>
                   </v-card>
                 </v-col>
-                <v-col cols="12" sm="6" data-aos="fade-left" data-aos-delay="200">
-                  <v-card variant="outlined" class="pa-4 contact-card" hover>
-                    <v-icon size="48" color="amber-darken-3" class="mb-3">mdi-storefront</v-icon>
-                    <h3 class="text-h5 font-weight-bold text-brown-darken-3 mb-2">Visit Us</h3>
-                    <p class="text-body-1 text-grey-darken-2 mb-3">Come see our fresh selection</p>
-                    <v-btn color="amber-darken-3" variant="flat" block class="contact-btn">
+                <v-col
+                  cols="12"
+                  data-aos="fade-left"
+                  data-aos-delay="200"
+                  sm="6"
+                >
+                  <v-card class="pa-4 contact-card" hover variant="outlined">
+                    <v-icon class="mb-3" color="amber-darken-3" size="48"
+                      >mdi-storefront</v-icon
+                    >
+                    <h3
+                      class="text-h5 font-weight-bold text-brown-darken-3 mb-2"
+                    >
+                      Visit Us
+                    </h3>
+                    <p class="text-body-1 text-grey-darken-2 mb-3">
+                      Come see our fresh selection
+                    </p>
+                    <v-btn
+                      block
+                      class="contact-btn"
+                      color="amber-darken-3"
+                      variant="flat"
+                    >
                       Pongwe, Tanga, Tanzania
                     </v-btn>
                   </v-card>
                 </v-col>
               </v-row>
-              
-              <v-alert type="info" variant="tonal" class="mb-4 business-alert" data-aos="fade-up">
-                <strong>Business Owners:</strong> Login to access production tracking and management tools
+
+              <v-alert
+                class="mb-4 business-alert"
+                data-aos="fade-up"
+                type="info"
+                variant="tonal"
+              >
+                <strong>Business Owners:</strong> Login to access production
+                tracking and management tools
               </v-alert>
-              
-              <v-btn 
-                color="amber-darken-3" 
-                size="x-large" 
-                variant="flat"
-                @click="goToLogin"
+
+              <v-btn
                 class="font-weight-bold portal-btn"
+                color="amber-darken-3"
                 data-aos="fade-up"
                 data-aos-delay="300"
+                size="x-large"
+                variant="flat"
+                @click="goToLogin"
               >
                 <v-icon start>mdi-account</v-icon>
                 Business Portal Login
@@ -519,51 +662,62 @@
     </section>
 
     <!-- Footer -->
-    <v-footer color="brown-darken-4" class="text-white footer">
+    <v-footer class="text-white footer" color="brown-darken-4">
       <v-container>
         <v-row>
-          <v-col cols="12" md="4" data-aos="fade-up">
+          <v-col cols="12" data-aos="fade-up" md="4">
             <div class="d-flex align-center mb-4">
-              <v-avatar size="40" color="amber-lighten-5" class="mr-3 footer-logo">
+              <v-avatar
+                class="mr-3 footer-logo"
+                color="amber-lighten-5"
+                size="40"
+              >
                 <v-icon color="amber-darken-3">mdi-croissant</v-icon>
               </v-avatar>
-              <span class="text-h5 font-weight-bold text-amber-lighten-3">Hanein Bakery</span>
+              <span class="text-h5 font-weight-bold text-amber-lighten-3"
+                >Hanein Bakery</span
+              >
             </div>
             <p class="text-body-2 text-amber-lighten-4">
-              Freshly baked with passion since 2010. Quality ingredients, traditional recipes, modern production tracking.
+              Freshly baked with passion since 2010. Quality ingredients,
+              traditional recipes, modern production tracking.
             </p>
           </v-col>
-          
-          <v-col cols="12" md="4" data-aos="fade-up" data-aos-delay="100">
-            <h3 class="text-h6 font-weight-bold text-amber-lighten-3 mb-4">Visit Us</h3>
+
+          <v-col cols="12" data-aos="fade-up" data-aos-delay="100" md="4">
+            <h3 class="text-h6 font-weight-bold text-amber-lighten-3 mb-4">
+              Visit Us
+            </h3>
             <div class="text-body-2 text-amber-lighten-4">
               <p class="d-flex align-center mb-2">
-                <v-icon small class="mr-2">mdi-map-marker</v-icon>
+                <v-icon class="mr-2" small>mdi-map-marker</v-icon>
                 Pongwe, Tanga, Tanzania
               </p>
               <p class="d-flex align-center mb-2">
-                <v-icon small class="mr-2">mdi-phone</v-icon>
+                <v-icon class="mr-2" small>mdi-phone</v-icon>
                 +255 655 011 555-HANEIN
               </p>
               <p class="d-flex align-center mb-2">
-                <v-icon small class="mr-2">mdi-email</v-icon>
+                <v-icon class="mr-2" small>mdi-email</v-icon>
                 orders@hanein.co.tz
               </p>
               <p class="d-flex align-center">
-                <v-icon small class="mr-2">mdi-clock</v-icon>
+                <v-icon class="mr-2" small>mdi-clock</v-icon>
                 Thursday-Sunday: 6AM-8PM, Friday: 7AM-12PM
               </p>
             </div>
           </v-col>
-          
-          <v-col cols="12" md="4" data-aos="fade-up" data-aos-delay="200">
-            <h3 class="text-h6 font-weight-bold text-amber-lighten-3 mb-4">Quick Links</h3>
-            <v-list color="transparent" class="py-0">
+
+          <v-col cols="12" data-aos="fade-up" data-aos-delay="200" md="4">
+            <h3 class="text-h6 font-weight-bold text-amber-lighten-3 mb-4">
+              Quick Links
+            </h3>
+            <v-list class="py-0" color="transparent">
               <v-list-item
                 v-for="link in footerLinks"
                 :key="link.text"
-                @click="scrollToSection(link.section)"
                 class="px-0 footer-link"
+                @click="scrollToSection(link.section)"
               >
                 <v-list-item-title class="text-body-2 text-blue cursor-pointer">
                   {{ link.text }}
@@ -572,40 +726,44 @@
             </v-list>
           </v-col>
         </v-row>
-        
-        <v-divider class="my-4" color="amber-lighten-3"></v-divider>
-        
-        <div class="text-center text-body-2 text-amber-lighten-4" data-aos="fade-up">
-          &copy; 2024 Hanein Bakery. All rights reserved. | 
-          <span class="cursor-pointer footer-link" @click="goToLogin">Production Management System</span>
+
+        <v-divider class="my-4" color="amber-lighten-3" />
+
+        <div
+          class="text-center text-body-2 text-amber-lighten-4"
+          data-aos="fade-up"
+        >
+          &copy; 2024 Hanein Bakery. All rights reserved. |
+          <span class="cursor-pointer footer-link" @click="goToLogin"
+            >Production Management System</span
+          >
         </div>
       </v-container>
     </v-footer>
 
     <!-- Shopping Cart Snackbar -->
-    <v-snackbar v-model="showCartAlert" color="amber-darken-3" timeout="3000" location="bottom right">
+    <v-snackbar
+      v-model="showCartAlert"
+      color="amber-darken-3"
+      location="bottom right"
+      timeout="3000"
+    >
       <div class="d-flex align-center">
         <v-icon class="mr-2">mdi-cart-check</v-icon>
         {{ cartMessage }}
       </div>
-      <template v-slot:actions>
-        <v-btn variant="text" @click="showCartAlert = false">
-          Close
-        </v-btn>
+      <template #actions>
+        <v-btn variant="text" @click="showCartAlert = false"> Close </v-btn>
       </template>
     </v-snackbar>
 
     <!-- Loading Overlay -->
     <v-overlay
-      :model-value="isLoading"
       class="align-center justify-center"
+      :model-value="isLoading"
       persistent
     >
-      <v-progress-circular
-        color="amber-darken-3"
-        size="64"
-        indeterminate
-      ></v-progress-circular>
+      <v-progress-circular color="amber-darken-3" indeterminate size="64" />
       <p class="mt-4 text-white">Loading fresh delights...</p>
     </v-overlay>
 
@@ -613,16 +771,16 @@
     <v-fab-transition>
       <v-btn
         v-show="showBackToTop"
+        bottom
+        class="back-to-top-btn"
         color="amber-darken-3"
         dark
-        fab
-        small
-        fixed
-        bottom
-        right
-        @click="scrollToTop"
-        class="back-to-top-btn"
         data-aos="zoom-in"
+        fab
+        fixed
+        right
+        small
+        @click="scrollToTop"
       >
         <v-icon>mdi-chevron-up</v-icon>
       </v-btn>
@@ -631,226 +789,241 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
-import AOS from 'aos'
-import 'aos/dist/aos.css'
+import { onMounted, onUnmounted, ref } from "vue";
+import { useRouter } from "vue-router";
+import AOS from "aos";
+import "aos/dist/aos.css";
 
-const router = useRouter()
+const router = useRouter();
 
 // Reactive data
-const drawer = ref(false)
-const activeSection = ref('home')
-const showCartAlert = ref(false)
-const cartMessage = ref('')
-const isScrolled = ref(false)
-const showBackToTop = ref(false)
-const isLoading = ref(true)
+const drawer = ref(false);
+const activeSection = ref("home");
+const showCartAlert = ref(false);
+const cartMessage = ref("");
+const isScrolled = ref(false);
+const showBackToTop = ref(false);
+const isLoading = ref(true);
 
 // Navigation items
 const navItems = [
-  { text: 'Home', section: 'home' },
-  { text: 'Products', section: 'products' },
-  { text: 'About', section: 'about' },
-  { text: 'Production', section: 'production' },
-  { text: 'Order', section: 'order' },
-]
+  { text: "Home", section: "home" },
+  { text: "Products", section: "products" },
+  { text: "About", section: "about" },
+  { text: "Production", section: "production" },
+  { text: "Order", section: "order" },
+];
 
 // Products data organized by category
 const breadProducts = [
   {
     id: 1,
-    name: 'Sourdough Loaf',
-    description: 'Traditional slow-fermented sourdough with crispy crust',
-    price: '6.99',
-    image: 'https://images.unsplash.com/photo-1549931319-a545dcf3bc73?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80',
-    category: 'bread'
+    name: "Sourdough Loaf",
+    description: "Traditional slow-fermented sourdough with crispy crust",
+    price: "6.99",
+    image:
+      "https://images.unsplash.com/photo-1549931319-a545dcf3bc73?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
+    category: "bread",
   },
   {
     id: 2,
-    name: 'Whole Wheat Bread',
-    description: 'Nutritious whole wheat bread packed with fiber',
-    price: '5.50',
-    image: 'https://images.unsplash.com/photo-1598373182133-52452f7691ef?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80',
-    category: 'bread'
+    name: "Whole Wheat Bread",
+    description: "Nutritious whole wheat bread packed with fiber",
+    price: "5.50",
+    image:
+      "https://images.unsplash.com/photo-1598373182133-52452f7691ef?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
+    category: "bread",
   },
   {
     id: 3,
-    name: 'Bingo Medium',
-    description: 'Classic product with golden crispy crust',
-    price: '3.99',
-    image: 'https://images.unsplash.com/photo-1549931319-a545dcf3bc73?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80',
-    category: 'bread'
+    name: "Bingo Medium",
+    description: "Classic product with golden crispy crust",
+    price: "3.99",
+    image:
+      "https://images.unsplash.com/photo-1549931319-a545dcf3bc73?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
+    category: "bread",
   },
   {
     id: 4,
-    name: 'Multigrain Loaf',
-    description: 'Hearty multigrain bread with seeds and grains',
-    price: '7.25',
-    image: 'https://images.unsplash.com/photo-1586444248902-2f64eddc13df?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80',
-    category: 'bread'
-  }
-]
+    name: "Multigrain Loaf",
+    description: "Hearty multigrain bread with seeds and grains",
+    price: "7.25",
+    image:
+      "https://images.unsplash.com/photo-1586444248902-2f64eddc13df?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
+    category: "bread",
+  },
+];
 
 const cakeProducts = [
   {
     id: 5,
-    name: 'Chocolate Fudge Cake',
-    description: 'Rich chocolate cake with fudge frosting',
-    price: '32.99',
-    image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80',
-    category: 'cake'
+    name: "Chocolate Fudge Cake",
+    description: "Rich chocolate cake with fudge frosting",
+    price: "32.99",
+    image:
+      "https://images.unsplash.com/photo-1578985545062-69928b1d9587?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
+    category: "cake",
   },
   {
     id: 6,
-    name: 'Red Velvet Cake',
-    description: 'Classic red velvet with cream cheese frosting',
-    price: '35.50',
-    image: 'https://images.unsplash.com/photo-1588195538326-c5b1e9f80a1b?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80',
-    category: 'cake'
+    name: "Red Velvet Cake",
+    description: "Classic red velvet with cream cheese frosting",
+    price: "35.50",
+    image:
+      "https://images.unsplash.com/photo-1588195538326-c5b1e9f80a1b?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
+    category: "cake",
   },
   {
     id: 7,
-    name: 'Carrot Cake',
-    description: 'Moist carrot cake with walnuts and cream cheese',
-    price: '28.75',
-    image: 'https://images.unsplash.com/photo-1596223575327-99a5be4faf1e?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80',
-    category: 'cake'
+    name: "Carrot Cake",
+    description: "Moist carrot cake with walnuts and cream cheese",
+    price: "28.75",
+    image:
+      "https://images.unsplash.com/photo-1596223575327-99a5be4faf1e?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
+    category: "cake",
   },
   {
     id: 8,
-    name: 'Cheesecake',
-    description: 'New York style cheesecake with berry compote',
-    price: '26.99',
-    image: 'https://images.unsplash.com/photo-1567306301408-9b74779a11af?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80',
-    category: 'cake'
-  }
-]
+    name: "Cheesecake",
+    description: "New York style cheesecake with berry compote",
+    price: "26.99",
+    image:
+      "https://images.unsplash.com/photo-1567306301408-9b74779a11af?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
+    category: "cake",
+  },
+];
 
 const pastryProducts = [
   {
     id: 9,
-    name: 'Croissants',
-    description: 'Buttery French croissants, flaky and golden',
-    price: '3.25',
-    image: 'https://images.unsplash.com/photo-1555507032-6f60b2b8a891?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80',
-    category: 'pastry'
+    name: "Croissants",
+    description: "Buttery French croissants, flaky and golden",
+    price: "3.25",
+    image:
+      "https://images.unsplash.com/photo-1555507032-6f60b2b8a891?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
+    category: "pastry",
   },
   {
     id: 10,
-    name: 'Danish Pastries',
-    description: 'Assorted fruit and cream cheese danishes',
-    price: '4.50',
-    image: 'https://images.unsplash.com/photo-1558318122-37e0f6a8a2f9?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80',
-    category: 'pastry'
+    name: "Danish Pastries",
+    description: "Assorted fruit and cream cheese danishes",
+    price: "4.50",
+    image:
+      "https://images.unsplash.com/photo-1558318122-37e0f6a8a2f9?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
+    category: "pastry",
   },
   {
     id: 11,
-    name: 'Cinnamon Rolls',
-    description: 'Fresh cinnamon rolls with cream cheese glaze',
-    price: '4.25',
-    image: 'https://images.unsplash.com/photo-1590080875515-6a3dab13739e?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80',
-    category: 'pastry'
+    name: "Cinnamon Rolls",
+    description: "Fresh cinnamon rolls with cream cheese glaze",
+    price: "4.25",
+    image:
+      "https://images.unsplash.com/photo-1590080875515-6a3dab13739e?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
+    category: "pastry",
   },
   {
     id: 12,
-    name: 'Fruit Tarts',
-    description: 'Seasonal fruit tarts with pastry cream',
-    price: '5.75',
-    image: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80',
-    category: 'pastry'
-  }
-]
+    name: "Fruit Tarts",
+    description: "Seasonal fruit tarts with pastry cream",
+    price: "5.75",
+    image:
+      "https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
+    category: "pastry",
+  },
+];
 
 // About features
 const aboutFeatures = [
-  { icon: 'mdi-heart', text: 'Family Owned Since 2010' },
-  { icon: 'mdi-leaf', text: 'Premium Quality Ingredients' },
-  { icon: 'mdi-chef-hat', text: 'Master Artisan Bakers' },
-  { icon: 'mdi-truck-delivery', text: 'Fresh Daily Delivery' }
-]
+  { icon: "mdi-heart", text: "Family Owned Since 2010" },
+  { icon: "mdi-leaf", text: "Premium Quality Ingredients" },
+  { icon: "mdi-chef-hat", text: "Master Artisan Bakers" },
+  { icon: "mdi-truck-delivery", text: "Fresh Daily Delivery" },
+];
 
 // Production features
 const productionFeatures = [
   {
-    icon: 'mdi-scale',
-    title: 'Precision Tracking',
-    description: 'Every ingredient measured and tracked for consistent quality and cost control.'
+    icon: "mdi-scale",
+    title: "Precision Tracking",
+    description:
+      "Every ingredient measured and tracked for consistent quality and cost control.",
   },
   {
-    icon: 'mdi-chart-timeline',
-    title: 'Production Analytics',
-    description: 'Real-time insights into baking schedules, yield rates, and efficiency metrics.'
+    icon: "mdi-chart-timeline",
+    title: "Production Analytics",
+    description:
+      "Real-time insights into baking schedules, yield rates, and efficiency metrics.",
   },
   {
-    icon: 'mdi-quality-high',
-    title: 'Quality Assurance',
-    description: 'Comprehensive quality checks and batch tracking for every product we bake.'
-  }
-]
+    icon: "mdi-quality-high",
+    title: "Quality Assurance",
+    description:
+      "Comprehensive quality checks and batch tracking for every product we bake.",
+  },
+];
 
 // Footer links
 const footerLinks = [
-  { text: 'Our Products', section: 'products' },
-  { text: 'Our Story', section: 'about' },
-  { text: 'Production Excellence', section: 'production' },
-  { text: 'Place Order', section: 'order' },
-  { text: 'Business Login', section: 'login' }
-]
+  { text: "Our Products", section: "products" },
+  { text: "Our Story", section: "about" },
+  { text: "Production Excellence", section: "production" },
+  { text: "Place Order", section: "order" },
+  { text: "Business Login", section: "login" },
+];
 
 // Methods
 function scrollToSection(sectionId) {
-  drawer.value = false
-  if (sectionId === 'login') {
-    goToLogin()
-    return
+  drawer.value = false;
+  if (sectionId === "login") {
+    goToLogin();
+    return;
   }
-  const element = document.getElementById(sectionId)
+  const element = document.getElementById(sectionId);
   if (element) {
-    element.scrollIntoView({ behavior: 'smooth' })
-    activeSection.value = sectionId
+    element.scrollIntoView({ behavior: "smooth" });
+    activeSection.value = sectionId;
   }
 }
 
 function goToLogin() {
-  router.push('/login')
+  router.push("/login");
 }
 
 function addToCart(product) {
-  cartMessage.value = `${product.name} added to cart!`
-  showCartAlert.value = true
+  cartMessage.value = `${product.name} added to cart!`;
+  showCartAlert.value = true;
   // In a real app, you would add to a cart store
-  console.log('Added to cart:', product)
+  console.log("Added to cart:", product);
 }
 
 function scrollToTop() {
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 // Scroll spy for active section and other scroll effects
 function handleScroll() {
-  const sections = ['home', 'products', 'about', 'production', 'order']
-  const scrollY = window.pageYOffset
+  const sections = ["home", "products", "about", "production", "order"];
+  const scrollY = window.pageYOffset;
 
   // Update active section
   for (const section of sections) {
-    const element = document.getElementById(section)
+    const element = document.getElementById(section);
     if (element) {
-      const offsetTop = element.offsetTop - 100
-      const offsetBottom = offsetTop + element.offsetHeight
+      const offsetTop = element.offsetTop - 100;
+      const offsetBottom = offsetTop + element.offsetHeight;
 
       if (scrollY >= offsetTop && scrollY < offsetBottom) {
-        activeSection.value = section
-        break
+        activeSection.value = section;
+        break;
       }
     }
   }
 
   // Update navbar background
-  isScrolled.value = scrollY > 50
+  isScrolled.value = scrollY > 50;
 
   // Show/hide back to top button
-  showBackToTop.value = scrollY > 500
+  showBackToTop.value = scrollY > 500;
 }
 
 // Lifecycle hooks
@@ -858,23 +1031,23 @@ onMounted(() => {
   // Initialize AOS
   AOS.init({
     duration: 800,
-    easing: 'ease-in-out',
+    easing: "ease-in-out",
     once: true,
-    offset: 100
-  })
+    offset: 100,
+  });
 
   // Add scroll event listener
-  window.addEventListener('scroll', handleScroll)
+  window.addEventListener("scroll", handleScroll);
 
   // Simulate loading
   setTimeout(() => {
-    isLoading.value = false
-  }, 1500)
-})
+    isLoading.value = false;
+  }, 1500);
+});
 
 onUnmounted(() => {
-  window.removeEventListener('scroll', handleScroll)
-})
+  window.removeEventListener("scroll", handleScroll);
+});
 </script>
 
 <style scoped>
@@ -902,7 +1075,11 @@ onUnmounted(() => {
 }
 
 @keyframes bounce {
-  0%, 20%, 50%, 80%, 100% {
+  0%,
+  20%,
+  50%,
+  80%,
+  100% {
     transform: translateY(0);
   }
   40% {
@@ -973,7 +1150,7 @@ onUnmounted(() => {
 }
 
 .nav-btn::after {
-  content: '';
+  content: "";
   position: absolute;
   bottom: 0;
   left: 50%;
@@ -988,12 +1165,14 @@ onUnmounted(() => {
   width: 80%;
 }
 
-.login-btn, .order-btn {
+.login-btn,
+.order-btn {
   transition: all 0.3s ease;
   transform: translateY(0);
 }
 
-.login-btn:hover, .order-btn:hover {
+.login-btn:hover,
+.order-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
@@ -1280,27 +1459,27 @@ onUnmounted(() => {
   .hero-content {
     padding: 0 16px;
   }
-  
+
   .text-h2 {
     font-size: 2rem !important;
   }
-  
+
   .text-h3 {
     font-size: 1.75rem !important;
   }
-  
+
   .text-h4 {
     font-size: 1.5rem !important;
   }
-  
+
   .gap-4 {
     gap: 12px;
   }
-  
+
   .d-flex.flex-wrap {
     justify-content: center;
   }
-  
+
   .product-card:hover {
     transform: translateY(-5px) scale(1.01);
   }

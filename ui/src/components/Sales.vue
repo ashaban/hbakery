@@ -1463,7 +1463,11 @@ async function loadInitialData() {
       fetch("/customers?limit=1000"),
     ]);
 
-    outlets.value = (await outRes.json()).data || [];
+    const outlets1 = (await outRes.json()).data || [];
+
+    outlets.value = outlets1.filter((o) =>
+      store.state.auth?.outlets?.find((outlet) => outlet.outlet_id === o.id),
+    );
     products.value = (await prodRes.json()).data || [];
     customers.value = (await custRes.json()).data || [];
   } catch (e) {

@@ -176,12 +176,15 @@ export default {
           store.state.auth.role =
             authResp.roles?.map((r) => r.display).join(", ") || "";
           store.state.auth.tasks = authResp.tasks || [];
+          store.state.auth.outlets = authResp.outlets || [];
 
           // Save to localStorage
           localStorage.setItem("token", authResp.token);
           localStorage.setItem("username", state.username);
           localStorage.setItem("name", authResp.name);
           localStorage.setItem("role", authResp.role);
+          localStorage.setItem("tasks", JSON.stringify(authResp.tasks));
+          localStorage.setItem("outlets", JSON.stringify(authResp.outlets));
 
           store.state.denyAccess = false;
           router.push("/Home");

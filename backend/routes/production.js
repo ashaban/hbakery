@@ -2,7 +2,7 @@ const moment = require("moment");
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
-const { authenticateToken, requireTask } = require("../middleware/auth");
+const { decodeToken, requireTask } = require("../middleware/auth");
 
 const {
   getAvailableQty,
@@ -28,6 +28,7 @@ router.get("/discrepancyReasons", async (req, res) => {
 });
 
 router.post("/", requireTask("can_schedule_production"), async (req, res) => {
+  const user = await decodeToken(req);
   const client = await pool.connect();
   try {
     const { notes, ingredients, staffs, products, planned_at, produced_at } =
@@ -115,7 +116,7 @@ router.post("/", requireTask("can_schedule_production"), async (req, res) => {
           good_qty || null,
           damaged_qty || null,
           reject_qty || null,
-          req.user?.id || 1,
+          user?.id,
         ]
       );
       const productionId = hdr.rows[0].id;
@@ -149,11 +150,11 @@ router.post("/", requireTask("can_schedule_production"), async (req, res) => {
       // 6️⃣ Assign staff (if provided)
       if (Array.isArray(staffs) && staffs.length > 0) {
         for (const s of staffs) {
-          if (!s.staff_id?.id) continue;
+          if (!s.staff_id) continue;
           await client.query(
             `INSERT INTO product_production_staff (production_id, staff_id, role, notes)
              VALUES ($1,$2,$3,$4)`,
-            [productionId, s.staff_id.id, s.role || null, s.notes || null]
+            [productionId, s.staff_id, s.role || null, s.notes || null]
           );
         }
       }
@@ -219,6 +220,7 @@ router.put(
   "/:batchId",
   requireTask("can_edit_production"),
   async (req, res) => {
+    const user = await decodeToken(req);
     const client = await pool.connect();
     try {
       const { batchId } = req.params;
@@ -313,7 +315,7 @@ router.put(
             good_qty || null,
             damaged_qty || null,
             reject_qty || null,
-            req.user?.id || 1,
+            user.id,
             production_id,
           ]
         );

@@ -1083,6 +1083,7 @@ router.get(
             total_price_opening: 0,
             total_price_inwards: 0,
             total_price_outwards: 0,
+            total_price_closing: 0,
           });
         }
         return result.get(row.item_id);
@@ -1108,6 +1109,10 @@ router.get(
       // Compute derived metrics
       for (const it of result.values()) {
         it.closing_balance = it.opening_balance + it.inwards - it.outwards;
+        it.total_price_closing =
+          it.total_price_opening +
+          it.total_price_inwards -
+          it.total_price_outwards;
 
         // Human-readable quantities
         const cf = it.conversion_factor || 1;

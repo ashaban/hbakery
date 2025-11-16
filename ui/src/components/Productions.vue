@@ -457,13 +457,13 @@
 
             <template #item.planned_at="{ item }">
               <div class="text-no-wrap">
-                {{ item.planned_at }}
+                {{ formatDate(item.planned_at) }}
               </div>
             </template>
 
             <template #item.produced_at="{ item }">
               <div class="text-no-wrap">
-                {{ item.produced_at || "Not completed" }}
+                {{ formatDate(item.produced_at) || "Not completed" }}
               </div>
             </template>
 
@@ -1309,13 +1309,15 @@
               <v-col cols="12" md="4">
                 <div class="text-body-2 text-grey">Planned At</div>
                 <div class="text-body-1 font-weight-medium">
-                  {{ selectedBatch?.planned_at }}
+                  {{ formatDate(selectedBatch?.planned_at) }}
                 </div>
               </v-col>
               <v-col cols="12" md="4">
                 <div class="text-body-2 text-grey">Produced At</div>
                 <div class="text-body-1 font-weight-medium">
-                  {{ selectedBatch?.produced_at || "Not completed" }}
+                  {{
+                    formatDate(selectedBatch?.produced_at) || "Not completed"
+                  }}
                 </div>
               </v-col>
               <v-col cols="12" md="4">

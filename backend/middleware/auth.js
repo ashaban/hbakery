@@ -26,6 +26,17 @@ function authenticateToken(req, res, next) {
   });
 }
 
+function decodeToken(req) {
+  return new Promise((resolve, reject) => {
+    const token = req.headers["authorization"];
+    jwt.verify(token, secret, (err, user) => {
+      if (err) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+      resolve(user);
+    });
+  });
+}
 /**
  * Require a specific task code, e.g. 'can_add_sale'
  */
@@ -74,4 +85,5 @@ module.exports = {
   authenticateToken,
   requireTask,
   requireAnyTask,
+  decodeToken,
 };
