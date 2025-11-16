@@ -372,10 +372,23 @@ router.get("/", requireTask("can_see_sales"), async (req, res) => {
   let params = [];
   let i = 0;
 
-  if (req.query.outlet_id) {
-    params.push(req.query.outlet_id);
+  if (req.query["outlet_id[]"] || req.query.outlet_id) {
+    let outletIds = req.query["outlet_id[]"] || req.query.outlet_id;
+
+    // Normalize into an array
+    if (!Array.isArray(outletIds)) {
+      outletIds = outletIds.toString().split(",").map(Number);
+    } else {
+      outletIds = outletIds.map(Number);
+    }
+
     i++;
-    where.push(`s.outlet_id = $${i}`);
+    params.push(outletIds);
+    where.push(`s.outlet_id = ANY($${i})`);
+  } else {
+    i++;
+    params.push([-1]);
+    where.push(`s.outlet_id = ANY($${i})`);
   }
 
   if (req.query.start_date) {

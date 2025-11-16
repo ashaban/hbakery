@@ -97,7 +97,7 @@
               variant="outlined"
             />
           </v-col>
-          <v-col class="d-flex justify-end" cols="12" sm="2">
+          <v-col class="d-flex justify-end">
             <v-btn
               class="mr-2"
               color="primary"
@@ -1045,7 +1045,15 @@ function resetFilters() {
 async function loadOutlets() {
   loadingOutlets.value = true;
   try {
-    const res = await fetch("/outlets?limit=1000&active=true");
+    const outletsParams = new URLSearchParams({ limit: 1000, active: "true" });
+    if (store.state.auth.outlets.length) {
+      store.state.auth.outlets.forEach((outlet) =>
+        outletsParams.append("id[]", outlet.outlet_id),
+      );
+    } else {
+      outletsParams.append("id[]", -1); // force no outlets
+    }
+    const res = await fetch(`/outlets?${outletsParams}`);
     const data = await res.json();
     outlets.value = data.data || [];
   } catch (error) {

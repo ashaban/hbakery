@@ -273,11 +273,23 @@ router.get("/", requireTask("can_see_free_releases"), async (req, res) => {
   const where = [];
   const params = [];
   let i = 0;
+  if (req.query["outlet_id[]"] || req.query.outlet_id) {
+    let outletIds = req.query["outlet_id[]"] || req.query.outlet_id;
 
-  if (req.query.outlet_id) {
-    params.push(req.query.outlet_id);
+    // Normalize into an array
+    if (!Array.isArray(outletIds)) {
+      outletIds = outletIds.toString().split(",").map(Number);
+    } else {
+      outletIds = outletIds.map(Number);
+    }
+
     i++;
-    where.push(`po.outlet_id = $${i}`);
+    params.push(outletIds);
+    where.push(`po.outlet_id = ANY($${i})`);
+  } else {
+    i++;
+    params.push([-1]);
+    where.push(`po.outlet_id = ANY($${i})`);
   }
   if (req.query.status) {
     params.push(req.query.status);

@@ -45,6 +45,7 @@
               item-value="id"
               :items="outlets"
               label="Outlet"
+              multiple
               prepend-inner-icon="mdi-store"
               variant="outlined"
             />
@@ -94,7 +95,7 @@
               variant="outlined"
             />
           </v-col>
-          <v-col class="d-flex justify-end" cols="12" sm="3">
+          <v-col class="d-flex justify-end" cols="12">
             <v-btn
               class="mr-2"
               color="primary"
@@ -960,7 +961,7 @@ const currentItems = ref([]);
 
 // Filters
 const filters = reactive({
-  outlet_id: "",
+  outlet_id: [],
   start_date: "",
   end_date: "",
   payment_status: "",
@@ -1230,7 +1231,13 @@ function validatePayments() {
 async function loadSales() {
   loading.value = true;
   const params = new URLSearchParams({ page: page.value, limit: 10 });
-  if (filters.outlet_id) params.append("outlet_id", filters.outlet_id);
+  if (filters.outlet_id?.length) {
+    filters.outlet_id.forEach((id) => params.append("outlet_id[]", id));
+  } else if (store.state.auth.outlets.length) {
+    store.state.auth.outlets.forEach((outlet) =>
+      params.append("outlet_id[]", outlet.outlet_id),
+    );
+  }
   if (filters.start_date) params.append("start_date", filters.start_date);
   if (filters.end_date) params.append("end_date", filters.end_date);
   if (filters.payment_status)
@@ -1457,17 +1464,22 @@ async function saveSale() {
 // Init
 async function loadInitialData() {
   try {
+    const outletsParams = new URLSearchParams({ limit: 1000 });
+    if (store.state.auth.outlets.length) {
+      store.state.auth.outlets.forEach((outlet) =>
+        outletsParams.append("id[]", outlet.outlet_id),
+      );
+    } else {
+      outletsParams.append("id[]", -1); // force no outlets
+    }
     const [outRes, prodRes, custRes] = await Promise.all([
-      fetch("/outlets?limit=1000"),
+      fetch(`/outlets?${outletsParams}`),
       fetch("/products?limit=1000"),
       fetch("/customers?limit=1000"),
     ]);
 
-    const outlets1 = (await outRes.json()).data || [];
+    outlets.value = (await outRes.json()).data || [];
 
-    outlets.value = outlets1.filter((o) =>
-      store.state.auth?.outlets?.find((outlet) => outlet.outlet_id === o.id),
-    );
     products.value = (await prodRes.json()).data || [];
     customers.value = (await custRes.json()).data || [];
   } catch (e) {

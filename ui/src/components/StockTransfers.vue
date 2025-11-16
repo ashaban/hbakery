@@ -55,7 +55,7 @@
               density="comfortable"
               item-title="name"
               item-value="id"
-              :items="outlets"
+              :items="fromOutlets"
               label="From Outlet"
               prepend-inner-icon="mdi-export"
               variant="outlined"
@@ -68,7 +68,7 @@
               density="comfortable"
               item-title="name"
               item-value="id"
-              :items="outlets"
+              :items="toOutlets"
               label="To Outlet"
               prepend-inner-icon="mdi-import"
               variant="outlined"
@@ -325,7 +325,7 @@
                     v-model="form.from_outlet_id"
                     item-title="name"
                     item-value="id"
-                    :items="outlets"
+                    :items="fromOutlets"
                     label="From Outlet"
                     prepend-inner-icon="mdi-export"
                     required
@@ -338,7 +338,7 @@
                     v-model="form.to_outlet_id"
                     item-title="name"
                     item-value="id"
-                    :items="outlets"
+                    :items="toOutlets"
                     label="To Outlet"
                     prepend-inner-icon="mdi-import"
                     required
@@ -1135,7 +1135,8 @@ const saving = ref(false);
 const deleting = ref(false);
 const adjustingQuality = ref(false);
 const transfers = ref([]);
-const outlets = ref([]);
+const fromOutlets = ref([]);
+const toOutlets = ref([]);
 const products = ref([]);
 const page = ref(1);
 const totalPages = ref(1);
@@ -1788,12 +1789,22 @@ function resetFilters() {
 // Initialization
 async function loadInitialData() {
   try {
-    const [outletsRes, productsRes] = await Promise.all([
-      fetch("/outlets?limit=1000"),
+    const outletsParams = new URLSearchParams({ limit: 1000 });
+    if (store.state.auth.outlets.length) {
+      store.state.auth.outlets.forEach((outlet) =>
+        outletsParams.append("id[]", outlet.outlet_id),
+      );
+    } else {
+      outletsParams.append("id[]", -1); // force no outlets
+    }
+    const [fromOutletsRes, toOutletsRes, productsRes] = await Promise.all([
+      fetch(`/outlets?${outletsParams}`),
+      fetch(`/outlets`),
       fetch("/products?limit=1000"),
     ]);
 
-    outlets.value = (await outletsRes.json()).data || [];
+    fromOutlets.value = (await fromOutletsRes.json()).data || [];
+    toOutlets.value = (await toOutletsRes.json()).data || [];
     products.value = (await productsRes.json()).data || [];
   } catch (error) {
     console.error("Error loading initial data:", error);

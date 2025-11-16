@@ -60,6 +60,13 @@ export default {
     this.$store.commit("setActivityCheckInterval", null);
   },
   methods: {
+    onIdle() {
+      console.log("User is now idle");
+    },
+
+    onremind() {
+      console.log("User is active again");
+    },
     initializeAuth() {
       if (localStorage.getItem("token") && localStorage.getItem("username")) {
         this.$store.state.auth.token = localStorage.getItem("token");

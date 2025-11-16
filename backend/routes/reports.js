@@ -1,12 +1,13 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
-const { requireTask } = require("../middleware/auth");
+const { requireTask, decodeToken } = require("../middleware/auth");
 
 router.get(
   "/stock-balance",
   requireTask("can_see_product_stock_balances"),
   async (req, res) => {
+    const user = await decodeToken(req);
     const client = await pool.connect();
     try {
       const {
@@ -18,6 +19,14 @@ router.get(
         page = 1,
         limit = 20,
       } = req.query;
+      let outletIds = [outlet_id];
+      if (!outlet_id && user.outlets) {
+        outletIds = user.outlets.map((outlet) => {
+          return outlet.outlet_id;
+        });
+      } else if (!outlet_id && user.outlets.length === 0) {
+        outletIds = [-1];
+      }
 
       // Date handling
       const defaultStartDate = new Date();
@@ -52,7 +61,7 @@ WITH ledger AS (
   FROM product_ledger pl
   WHERE
     ($1::int IS NULL OR pl.product_id = $1)
-    AND ($2::int IS NULL OR pl.outlet_id = $2)
+    AND (pl.outlet_id = ANY($2))
     AND pl.movement_date <= $4::date
 ),
 
@@ -127,13 +136,13 @@ LEFT JOIN period_movements pm ON pm.product_id = p.id AND pm.outlet_id = o.id AN
 LEFT JOIN closing cl ON cl.product_id = p.id AND cl.outlet_id = o.id AND ($5 = 'ALL' OR cl.quality = $5)
 WHERE
   ($1::int IS NULL OR p.id = $1)
-  AND ($2::int IS NULL OR o.id = $2)
+  AND (o.id = ANY($2))
 ORDER BY o.name, p.name;
 `;
 
       const result = await client.query(stockQuery, [
         product_id,
-        outlet_id,
+        outletIds,
         finalStartDate,
         finalEndDate,
         finalQuality,
@@ -1347,10 +1356,23 @@ router.get(
       let params = [];
       let i = 0;
 
-      if (req.query.outlet_id) {
-        params.push(req.query.outlet_id);
+      if (req.query["outlet_id[]"] || req.query.outlet_id) {
+        let outletIds = req.query["outlet_id[]"] || req.query.outlet_id;
+
+        // Normalize into an array
+        if (!Array.isArray(outletIds)) {
+          outletIds = outletIds.toString().split(",").map(Number);
+        } else {
+          outletIds = outletIds.map(Number);
+        }
+
         i++;
-        where.push(`s.outlet_id = $${i}`);
+        params.push(outletIds);
+        where.push(`s.outlet_id = ANY($${i})`);
+      } else {
+        i++;
+        params.push([-1]);
+        where.push(`s.outlet_id = ANY($${i})`);
       }
 
       if (req.query.start_date) {
@@ -1443,10 +1465,23 @@ router.get(
       let params = [];
       let i = 0;
 
-      if (req.query.outlet_id) {
-        params.push(req.query.outlet_id);
+      if (req.query["outlet_id[]"] || req.query.outlet_id) {
+        let outletIds = req.query["outlet_id[]"] || req.query.outlet_id;
+
+        // Normalize into an array
+        if (!Array.isArray(outletIds)) {
+          outletIds = outletIds.toString().split(",").map(Number);
+        } else {
+          outletIds = outletIds.map(Number);
+        }
+
         i++;
-        where.push(`pl.outlet_id = $${i}`);
+        params.push(outletIds);
+        where.push(`s.outlet_id = ANY($${i})`);
+      } else {
+        i++;
+        params.push([-1]);
+        where.push(`s.outlet_id = ANY($${i})`);
       }
 
       if (req.query.start_date) {

@@ -328,7 +328,6 @@
                 <v-btn
                   class="px-4"
                   color="grey"
-                  size="small"
                   variant="outlined"
                   @click="resetBatchFilters"
                 >
@@ -339,7 +338,6 @@
                   class="px-4"
                   color="primary"
                   elevation="2"
-                  size="small"
                   @click="applyBatchFilters"
                 >
                   <v-icon size="18" start>mdi-filter-check</v-icon>
@@ -917,7 +915,6 @@
                 <v-btn
                   class="px-4"
                   color="grey"
-                  size="small"
                   variant="outlined"
                   @click="resetFilters"
                 >
@@ -928,7 +925,6 @@
                   class="px-4"
                   color="primary"
                   elevation="2"
-                  size="small"
                   @click="applyFilters"
                 >
                   <v-icon size="18" start>mdi-filter-check</v-icon>

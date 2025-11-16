@@ -10,36 +10,63 @@ router.get("/", requireTask("can_see_settings"), async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const offset = (page - 1) * limit;
+
   const search = req.query.search ? `%${req.query.search}%` : "%";
   const type = req.query.type || "%";
 
+  const where = ["name ILIKE $1", "type ILIKE $2", "is_active = true"];
+  const params = [search, type];
+  let i = 2;
+
+  // MULTIPLE OUTLETS SUPPORT (optional filter)
+  if (req.query["id[]"] || req.query.id) {
+    let outletIds = req.query["id[]"] || req.query.id;
+
+    if (!Array.isArray(outletIds)) {
+      outletIds = outletIds.toString().split(",").map(Number);
+    } else {
+      outletIds = outletIds.map(Number);
+    }
+
+    i++;
+    params.push(outletIds);
+    where.push(`id = ANY($${i})`);
+  }
+
+  const whereSQL = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
   try {
-    // Get total count
+    // Count
     const countResult = await pool.query(
-      `SELECT COUNT(*) FROM outlet 
-       WHERE name ILIKE $1 AND type ILIKE $2 AND is_active = true`,
-      [search, type]
+      `SELECT COUNT(*) FROM outlet ${whereSQL}`,
+      params
     );
-    const totalRecords = parseInt(countResult.rows[0].count);
+
+    const totalRecords = Number(countResult.rows[0].count);
     const totalPages = Math.ceil(totalRecords / limit);
 
-    // Get outlets
+    // Add limit + offset
+    params.push(limit, offset);
+
     const result = await pool.query(
-      `SELECT id, name, type, is_active, is_main, location,
-              TO_CHAR(created_at, 'DD-MM-YYYY') AS created_at
-       FROM outlet 
-       WHERE name ILIKE $1 AND type ILIKE $2 AND is_active = true
-       ORDER BY 
-         CASE type 
-           WHEN 'MAIN' THEN 1
-           WHEN 'SHOP' THEN 2
-           WHEN 'CAR' THEN 3
-           ELSE 4
-         END,
-         name
-       LIMIT $3 OFFSET $4`,
-      [search, type, limit, offset]
+      `
+      SELECT id, name, type, is_active, is_main, location,
+             TO_CHAR(created_at, 'DD-MM-YYYY') AS created_at
+      FROM outlet
+      ${whereSQL}
+      ORDER BY 
+        CASE type 
+          WHEN 'MAIN' THEN 1
+          WHEN 'SHOP' THEN 2
+          WHEN 'CAR' THEN 3
+          ELSE 4
+        END,
+        name
+      LIMIT $${i + 1} OFFSET $${i + 2}
+      `,
+      params
     );
+
     res.json({
       data: result.rows,
       totalRecords,

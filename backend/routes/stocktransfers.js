@@ -112,16 +112,38 @@ router.get("/", requireTask("can_see_stock_transfers"), async (req, res) => {
     let params = [];
     let paramCount = 0;
 
-    if (req.query.from_outlet_id) {
+    if (req.query["from_outlet_id[]"] || req.query.from_outlet_id) {
+      let outletIds = req.query["from_outlet_id[]"] || req.query.from_outlet_id;
+
+      // Normalize into an array
+      if (!Array.isArray(outletIds)) {
+        outletIds = outletIds.toString().split(",").map(Number);
+      } else {
+        outletIds = outletIds.map(Number);
+      }
+
       paramCount++;
-      whereConditions.push(`st.from_outlet_id = $${paramCount}`);
-      params.push(req.query.from_outlet_id);
+      params.push(outletIds);
+      whereConditions.push(`st.from_outlet_id = ANY($${paramCount})`);
+    } else {
+      paramCount++;
+      params.push([-1]);
+      whereConditions.push(`st.from_outlet_id = ANY($${paramCount})`);
     }
 
-    if (req.query.to_outlet_id) {
+    if (req.query["to_outlet_id[]"] || req.query.to_outlet_id) {
+      let outletIds = req.query["to_outlet_id[]"] || req.query.to_outlet_id;
+
+      // Normalize into an array
+      if (!Array.isArray(outletIds)) {
+        outletIds = outletIds.toString().split(",").map(Number);
+      } else {
+        outletIds = outletIds.map(Number);
+      }
+
       paramCount++;
-      whereConditions.push(`st.to_outlet_id = $${paramCount}`);
-      params.push(req.query.to_outlet_id);
+      params.push(outletIds);
+      whereConditions.push(`st.to_outlet_id = ANY($${paramCount})`);
     }
 
     if (req.query.start_date) {

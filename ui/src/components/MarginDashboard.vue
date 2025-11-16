@@ -724,6 +724,7 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
+import { useStore } from "vuex";
 import { use } from "echarts/core";
 import VChart from "vue-echarts";
 import { CanvasRenderer } from "echarts/renderers";
@@ -746,7 +747,7 @@ use([
   LegendComponent,
   GridComponent,
 ]);
-
+const store = useStore();
 // Reactive state
 const loading = ref(false);
 const products = ref([]);
@@ -1403,6 +1404,11 @@ async function loadDashboardData() {
   loading.value = true;
   try {
     const params = new URLSearchParams();
+    if (store.state.auth.outlets.length && filters.value.outlet_id === null) {
+      store.state.auth.outlets.forEach((outlet) =>
+        params.append("outlet_id[]", outlet.outlet_id),
+      );
+    }
     Object.entries(filters.value).forEach(([key, value]) => {
       if (value) params.append(key, value);
     });
@@ -1490,9 +1496,17 @@ function exportDashboard() {
 
 async function loadReferenceData() {
   try {
+    const outletsParams = new URLSearchParams({ limit: 1000 });
+    if (store.state.auth.outlets.length) {
+      store.state.auth.outlets.forEach((outlet) =>
+        outletsParams.append("id[]", outlet.outlet_id),
+      );
+    } else {
+      outletsParams.append("id[]", -1); // force no outlets
+    }
     const [productsRes, outletsRes] = await Promise.all([
       fetch("/products?limit=1000"),
-      fetch("/outlets?limit=1000"),
+      fetch(`/outlets?${outletsParams}`),
     ]);
 
     if (productsRes.ok) {

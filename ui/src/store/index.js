@@ -5,8 +5,6 @@ const { fetch: originalFetch } = window;
 
 const store = createStore({
   state: {
-    startYear: 2020,
-    endYear: new Date().getFullYear() + 20,
     denyAccess: true,
     auth: {
       username: "",

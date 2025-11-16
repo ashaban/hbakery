@@ -47,7 +47,8 @@
               item-title="name"
               item-value="id"
               :items="outlets"
-              label="Outlet"
+              label="Outlets"
+              multiple
               prepend-inner-icon="mdi-store"
               variant="outlined"
             />
@@ -795,7 +796,7 @@ const currentGiveaway = ref(null);
 
 // Filters
 const filters = reactive({
-  outlet_id: "",
+  outlet_id: [],
   status: "",
   reason: "",
   start_date: "",
@@ -999,7 +1000,13 @@ function validateForm() {
 async function loadGiveaways() {
   loading.value = true;
   const params = new URLSearchParams({ page: page.value, limit: 10 });
-  if (filters.outlet_id) params.append("outlet_id", filters.outlet_id);
+  if (filters.outlet_id?.length) {
+    filters.outlet_id.forEach((id) => params.append("outlet_id[]", id));
+  } else if (store.state.auth.outlets.length) {
+    store.state.auth.outlets.forEach((outlet) =>
+      params.append("outlet_id[]", outlet.outlet_id),
+    );
+  }
   if (filters.status) params.append("status", filters.status);
   if (filters.reason) params.append("reason", filters.reason);
   if (filters.start_date) params.append("start_date", filters.start_date);
@@ -1197,12 +1204,21 @@ async function saveGiveaway() {
 // Init
 async function loadInitialData() {
   try {
+    const outletsParams = new URLSearchParams({ limit: 1000 });
+    if (store.state.auth.outlets.length) {
+      store.state.auth.outlets.forEach((outlet) =>
+        outletsParams.append("id[]", outlet.outlet_id),
+      );
+    } else {
+      outletsParams.append("id[]", -1); // force no outlets
+    }
     const [outRes, prodRes] = await Promise.all([
-      fetch("/outlets?limit=1000"),
+      fetch(`/outlets?${outletsParams}`),
       fetch("/products?limit=1000"),
     ]);
 
     outlets.value = (await outRes.json()).data || [];
+
     products.value = (await prodRes.json()).data || [];
   } catch (e) {
     console.error("Init data load failed:", e);
