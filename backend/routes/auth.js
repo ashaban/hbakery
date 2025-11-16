@@ -52,7 +52,6 @@ router.post("/login", async (req, res) => {
       [user.id]
     );
     const roles = rolesRes.rows;
-    console.log(JSON.stringify(roles, 0, 2));
 
     // Fetch tasks via roles
     const tasksRes = await pool.query(
@@ -67,7 +66,19 @@ router.post("/login", async (req, res) => {
       [user.id]
     );
     const tasks = tasksRes.rows.map((r) => r.code);
-    console.log(JSON.stringify(tasks, 0, 2));
+
+    // Fetch roles
+    const outletsRes = await pool.query(
+      `
+      SELECT os.outlet_id, o.name
+      FROM outlet_staff os
+      JOIN outlet o ON o.id = os.outlet_id
+      WHERE os.user_id = $1
+      ORDER BY o.id
+      `,
+      [user.id]
+    );
+    const outlets = outletsRes.rows;
 
     const payload = {
       id: user.id,
@@ -75,6 +86,7 @@ router.post("/login", async (req, res) => {
       email: user.email,
       roles: roles.map((r) => ({ id: r.id, name: r.name, display: r.display })),
       tasks,
+      outlets,
     };
 
     const token = jwt.sign(payload, secret, { expiresIn: tokenDuration });
@@ -84,6 +96,7 @@ router.post("/login", async (req, res) => {
       name: user.name,
       roles,
       tasks,
+      outlets,
       id: user.id,
       token,
       user: payload,
