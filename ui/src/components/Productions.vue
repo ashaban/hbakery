@@ -607,7 +607,7 @@
                       <v-list-item
                         v-if="$store.getters.hasTask('can_edit_production')"
                         class="rounded-lg mb-1 action-item"
-                        @click="editBatch(item)"
+                        @click="activateBatchEditing(item)"
                       >
                         <template #prepend>
                           <v-avatar
@@ -1884,7 +1884,7 @@
                     />
                   </div>
                 </v-col>
-                <v-col v-if="isEditing || isAddingActual" cols="12" md="4">
+                <v-col v-if="actualAdded" cols="12" md="4">
                   <div class="position-relative w-100">
                     <span v-if="form.produced_at" class="datepicker-label">
                       Actual Production Date &amp; Time
@@ -2061,10 +2061,7 @@
                             </v-chip>
                           </v-col>
                         </template>
-                        <v-card-text
-                          v-if="isEditing || isAddingActual"
-                          class="pa-4"
-                        >
+                        <v-card-text v-if="actualAdded" class="pa-4">
                           <div class="d-flex align-center mb-3">
                             <v-chip
                               :color="p.hasDiscrepancy ? 'orange' : 'green'"
@@ -2232,6 +2229,24 @@
                     Ingredients & Groups
                   </h4>
                 </div>
+                <v-btn
+                  v-if="
+                    deprecated_groups.length &&
+                    !ignore_deprecated_ingredients_choices
+                  "
+                  color="warning"
+                  @click="useInactiveGroups(true)"
+                  >Ignore Deprecated Ingredients Options</v-btn
+                >
+                <v-btn
+                  v-else-if="
+                    deprecated_groups.length &&
+                    ignore_deprecated_ingredients_choices
+                  "
+                  color="success"
+                  @click="useInactiveGroups(false)"
+                  >Use Deprecated Ingredients Options</v-btn
+                >
                 <v-switch
                   v-model="editEnabled"
                   color="primary"
@@ -2331,7 +2346,11 @@
                               :disabled="!editEnabled"
                               :error="item.exceeds"
                               :error-messages="
-                                item.exceeds ? ['Exceeds available stock'] : []
+                                item.exceeds
+                                  ? [
+                                      'Exceeds available stock across all products',
+                                    ]
+                                  : []
                               "
                               hide-details
                               inputmode="none"
@@ -2339,11 +2358,7 @@
                               style="max-width: 140px"
                               type="number"
                               variant="outlined"
-                              @input="
-                                item.exceeds =
-                                  Number(item.qty_required) >
-                                  Number(item.available || 0)
-                              "
+                              @input="updateIngredientBalances"
                             >
                               <template #append-inner>
                                 <span
@@ -2361,10 +2376,9 @@
                               v-if="item.exceeds"
                               location="top"
                               :text="
-                                'Maximum available: ' +
-                                (item.available || 0) +
-                                ' ' +
-                                (item.unit || '')
+                                isEditing
+                                  ? `Stock: ${item.available - (item.previously_used || 0)} + Previously allocated: ${item.previously_used || 0} = ${item.available} available for editing`
+                                  : `Maximum available: ${item.available} ${item.unit || ''} (across all products)`
                               "
                             >
                               <template #activator="{ props }">
@@ -2376,8 +2390,10 @@
                                   size="x-small"
                                   variant="text"
                                   @click="
-                                    item.qty_required = item.available || 0;
-                                    item.exceeds = false;
+                                    adjustIngredientToAvailable(
+                                      item.item_id,
+                                      item.available,
+                                    )
                                   "
                                 >
                                   <v-icon size="16">
@@ -2389,14 +2405,14 @@
                           </div>
                         </template>
 
-                        <template #item.available="{ item }">
+                        <template #item.balance="{ item }">
                           <v-chip
                             class="font-weight-medium"
                             :color="item.exceeds ? 'red' : 'blue'"
                             size="small"
                             variant="outlined"
                           >
-                            {{ item.available || 0 }}
+                            {{ item.balance || 0 }}
                             {{ item.unit }}
                           </v-chip>
                         </template>
@@ -2501,6 +2517,15 @@
                                       variant="outlined"
                                     >
                                       Optional
+                                    </v-chip>
+                                    <v-chip
+                                      v-if="group.deprecated"
+                                      class="ml-2"
+                                      color="warning"
+                                      size="x-small"
+                                      variant="flat"
+                                    >
+                                      Deprecated
                                     </v-chip>
                                   </div>
                                   <div class="d-flex align-center">
@@ -3263,7 +3288,7 @@ const loading = ref(false);
 const saving = ref(false);
 const productions = ref([]);
 const batches = ref([]);
-const showBatches = ref(false);
+const showBatches = ref(true);
 const page = ref(1);
 const totalPages = ref(1);
 const dialog = ref(false);
@@ -3274,11 +3299,15 @@ const selectedBatch = ref(null);
 const editEnabled = ref(true);
 const isEditing = ref(false);
 const isAddingActual = ref(false);
+const actualAdded = ref(false);
 const detail = ref(null);
 const search = ref("");
 const ingredientTabs = ref(0);
 
+const deprecated_groups = ref([]);
+const ignore_deprecated_ingredients_choices = ref(false);
 const products = ref([]);
+const editingProducts = ref([]);
 const staffList = ref([]);
 const availableStock = ref([]);
 const discrepancyReasons = ref([]);
@@ -3420,6 +3449,7 @@ const ingredientHeaders = [
   { title: "Ingredient", key: "item_name" },
   { title: "Quantity Required", key: "qty_required" },
   { title: "Available", key: "available", align: "center" },
+  { title: "Balance", key: "balance", align: "center" },
   { title: "Unit", key: "unit", align: "center" },
 ];
 
@@ -3673,15 +3703,6 @@ const canSaveBatchActual = computed(() => {
       (Number(product.reject_qty) || 0) >= 0,
   );
 
-  // Check if all discrepancies have reasons
-  // const hasValidDiscrepancies = batchActualForm.products.every(
-  //   (product) =>
-  //     !product.hasDiscrepancy ||
-  //     (product.discrepancies &&
-  //       product.discrepancies.length > 0 &&
-  //       product.discrepancies.every((disc) => disc.reason_id)),
-  // );
-
   return hasValidQuantities && !saving.value;
 });
 
@@ -3788,9 +3809,10 @@ const totalLaborCost = computed(() => {
     .toFixed(2);
 });
 
-const hasInsufficientStock = computed(() =>
-  form.products.some((p) => (p.ingredients || []).some((i) => i.exceeds)),
-);
+const hasInsufficientStock = computed(() => {
+  const allIngredients = form.products.flatMap((p) => p.ingredients || []);
+  return allIngredients.some((i) => i.exceeds);
+});
 
 const availableStaff = computed(() => {
   const selectedIds = form.staff
@@ -3812,9 +3834,12 @@ const computedTotalPlannedUnits = computed(() =>
 
 const allIngredientsSummary = computed(() => {
   const map = new Map();
+
+  // Aggregate across all products
   for (const p of form.products) {
     for (const ing of p.ingredients || []) {
       if (!ing.item_id) continue;
+
       if (!map.has(ing.item_id)) {
         map.set(ing.item_id, {
           item_id: ing.item_id,
@@ -3822,18 +3847,15 @@ const allIngredientsSummary = computed(() => {
           unit: ing.unit,
           qty_required: 0,
           available: ing.available || 0,
-          exceeds: false,
+          exceeds: ing.exceeds || false,
         });
       }
+
       const agg = map.get(ing.item_id);
       agg.qty_required += Number(ing.qty_required || 0);
-      agg.available = ing.available || agg.available || 0;
     }
   }
-  for (const agg of map.values()) {
-    agg.qty_required = +agg.qty_required.toFixed(3);
-    agg.exceeds = agg.qty_required > (agg.available || 0);
-  }
+
   return Array.from(map.values()).sort((a, b) =>
     a.item_name.localeCompare(b.item_name),
   );
@@ -3856,6 +3878,7 @@ const canSave = computed(() => {
     ),
   );
 
+  // Use aggregated stock validation
   if (hasInsufficientStock.value) return false;
   if (!hasValidGroupChoices) return false;
   if (!hasValidStaff) return false;
@@ -3894,14 +3917,6 @@ function pTabLabel(p, index) {
 }
 
 const showDiscrepancy = ref(false);
-
-function recomputeActual() {
-  form.actual_qty =
-    (Number(form.good_qty) || 0) +
-    (Number(form.damaged_qty) || 0) +
-    (Number(form.reject_qty) || 0);
-  checkDiscrepancy();
-}
 
 function checkDiscrepancy() {
   const expected = computedTotalPlannedUnits.value;
@@ -3957,6 +3972,7 @@ function addProductRow() {
   if (ingredientTabs.value === "summary") {
     ingredientTabs.value = 0;
   }
+  updateIngredientBalances();
 }
 
 function removeProductRow(index) {
@@ -3969,9 +3985,20 @@ function removeProductRow(index) {
       ? form.products.length - 1
       : "summary";
   }
+  updateIngredientBalances();
 }
 
 async function onProductChange(p) {
+  const existingP = editingProducts.value.find((edit) => {
+    return edit.product_id === p.product_id;
+  });
+  if (existingP) {
+    Object.keys(existingP).forEach((key) => {
+      p[key] = existingP[key];
+    });
+    updateIngredientBalances();
+    return;
+  }
   p.recipeItems = [];
   p.productGroups = [];
   p.group_choices = {};
@@ -3985,18 +4012,33 @@ async function onProductChange(p) {
   if (!p.product_id) return;
 
   try {
-    const res = await fetch(`/products/${p.product_id}/groups`);
+    const res = await fetch(`/products/${p.product_id}/groups?active=true`);
     const data = await res.json();
 
     p.recipeItems = data.fixed_items || [];
     p.productGroups = data.groups || [];
-
+    const hasInactiveGroup = deprecated_groups.value.find((inactive) => {
+      return inactive.product === p.product_id;
+    });
+    if (!ignore_deprecated_ingredients_choices.value && hasInactiveGroup) {
+      p.productGroups = [];
+      for (const inactive of deprecated_groups.value || []) {
+        if (inactive.product !== p.product_id) {
+          continue;
+        }
+        const data = await fetch(`/products/groups/${inactive.group}`);
+        const group = await data.json();
+        group.deprecated = true;
+        p.productGroups.push(group);
+      }
+    }
     p.productGroups.forEach((g, idx) => {
       const def = g.combinations?.find((c) => c.is_default);
-      if (def) p.group_choices[g.id] = def.id;
+      if (def) {
+        p.group_choices[g.id] = def.id;
+      }
       p.expandedGroups.push(idx);
     });
-
     recalcProductIngredients(p);
   } catch (err) {
     console.error("Failed to load product details:", err);
@@ -4007,6 +4049,7 @@ function recalcProductIngredients(p) {
   if (!p.product_id || !p.mode) {
     p.ingredients = [];
     p.computed_qty_product = 0;
+    updateIngredientBalances();
     return;
   }
 
@@ -4027,6 +4070,7 @@ function recalcProductIngredients(p) {
   if (!multiplier || multiplier <= 0) {
     p.ingredients = [];
     p.computed_qty_product = 0;
+    updateIngredientBalances();
     return;
   }
 
@@ -4035,9 +4079,6 @@ function recalcProductIngredients(p) {
   const ingList = [];
 
   for (const r of p.recipeItems) {
-    const available =
-      availableStock.value.find((s) => s.item_id === r.item_id)
-        ?.available_qty || 0;
     const qty_required = +(r.quantity_per_unit * multiplier).toFixed(3);
     ingList.push({
       item_id: r.item_id,
@@ -4045,8 +4086,6 @@ function recalcProductIngredients(p) {
       unit_id: r.unit_id,
       unit: r.unit,
       qty_required,
-      available: +available,
-      exceeds: qty_required > available,
       from_group: false,
       group_id: null,
       group_name: null,
@@ -4061,17 +4100,12 @@ function recalcProductIngredients(p) {
     if (!comb || !comb.options) continue;
 
     for (const opt of comb.options) {
-      const available =
-        availableStock.value.find((s) => s.item_id === opt.item_id)
-          ?.available_qty || 0;
       const qty_required = +(opt.quantity_per_unit * multiplier).toFixed(3);
       ingList.push({
         item_id: opt.item_id,
         item_name: opt.item_name,
         unit: opt.unit,
         qty_required,
-        available: +available,
-        exceeds: qty_required > available,
         from_group: true,
         group_id: group.id,
         group_name: group.name,
@@ -4081,6 +4115,7 @@ function recalcProductIngredients(p) {
   }
 
   p.ingredients = ingList;
+  updateIngredientBalances();
 }
 
 function openAddDialog() {
@@ -4116,6 +4151,9 @@ function resetForm() {
     products: [],
   });
   ingredientTabs.value = 0;
+  deprecated_groups.value = [];
+  ignore_deprecated_ingredients_choices.value = false;
+  editingProducts.value = [];
 }
 
 function resetFilters() {
@@ -4166,7 +4204,7 @@ async function loadProductions() {
 
 async function loadProducts() {
   try {
-    const res = await fetch("/products?limit=1000&page=1");
+    const res = await fetch("/products?limit=1000&page=1&active=true");
     const data = await res.json();
     products.value = data.data || [];
   } catch (err) {
@@ -4222,15 +4260,138 @@ const getRoleColor = (role) => {
   return colors[role] || "grey";
 };
 
-const editBatch = async (batch) => {
+function adjustIngredientToAvailable(itemId, availableQty) {
+  let totalRequired = 0;
+
+  // Calculate current total requirement
+  for (const p of form.products) {
+    for (const ing of p.ingredients || []) {
+      if (ing.item_id === itemId) {
+        totalRequired += Number(ing.qty_required || 0);
+      }
+    }
+  }
+
+  if (totalRequired <= availableQty) return;
+
+  const ratio = availableQty / totalRequired;
+
+  // Adjust each product's ingredient proportionally
+  for (const p of form.products) {
+    for (const ing of p.ingredients || []) {
+      if (ing.item_id === itemId) {
+        ing.qty_required = +(Number(ing.qty_required || 0) * ratio).toFixed(3);
+      }
+    }
+  }
+  updateIngredientBalances();
+}
+
+function updateIngredientBalances() {
+  // Aggregate all ingredient requirements across all products
+  const totalRequirements = new Map();
+
+  // First pass: sum up all requirements
+  for (const p of form.products) {
+    for (const ing of p.ingredients || []) {
+      if (!ing.item_id) continue;
+
+      const key = ing.item_id;
+      if (!totalRequirements.has(key)) {
+        totalRequirements.set(key, {
+          item_id: ing.item_id,
+          item_name: ing.item_name,
+          unit: ing.unit,
+          total_required: 0,
+          available: 0,
+          balance: 0,
+          exceeds: false,
+          // Track if this ingredient was previously used in this production
+          previously_used: 0,
+        });
+      }
+
+      const agg = totalRequirements.get(key);
+      agg.total_required += Number(ing.qty_required || 0);
+    }
+  }
+
+  // Second pass: get available stock and account for previously used quantities
+  for (const [itemId, requirement] of totalRequirements) {
+    const stockItem = availableStock.value.find((s) => s.item_id === itemId);
+    const baseAvailable = stockItem ? Number(stockItem.available_qty) : 0;
+
+    // If we're editing an existing production, we need to add back the previously used quantities
+    // because they're already allocated to this production
+    let previouslyUsed = 0;
+
+    if (isEditing.value) {
+      // Calculate how much of this ingredient was previously used in this production
+      for (const p of form.products) {
+        for (const ing of p.ingredients || []) {
+          if (ing.item_id === itemId) {
+            // If this ingredient has a previously used quantity stored, use it
+            if (ing.previously_used !== undefined) {
+              previouslyUsed += Number(ing.previously_used || 0);
+            } else {
+              // Otherwise, use the current qty_required as the previously used amount
+              previouslyUsed += Number(ing.qty_required || 0);
+            }
+          }
+        }
+      }
+    }
+
+    // Effective available stock = current stock + previously allocated quantities
+    requirement.available = baseAvailable + previouslyUsed;
+    requirement.previously_used = previouslyUsed;
+    requirement.exceeds = requirement.total_required > requirement.available;
+    requirement.balance = parseFloat(
+      (requirement.available - requirement.total_required).toFixed(6),
+    );
+  }
+
+  // Third pass: update individual product ingredients with aggregated info
+  for (const p of form.products) {
+    for (const ing of p.ingredients || []) {
+      if (!ing.item_id) continue;
+
+      const aggregated = totalRequirements.get(ing.item_id);
+      if (aggregated) {
+        ing.available = aggregated.available;
+        ing.exceeds = aggregated.exceeds;
+        ing.balance = aggregated.balance;
+        // Store the previously used quantity for reference
+        ing.previously_used = aggregated.previously_used;
+      }
+    }
+  }
+}
+
+//control if productions with old ingredients groups should still continue using them
+const useInactiveGroups = (use) => {
+  isEditing.value = true;
+  isAddingActual.value = false;
+  dialog.value = true;
+  editEnabled.value = true;
+  const id = form.id;
+  resetForm();
+  ignore_deprecated_ingredients_choices.value = use;
+  editBatch(id);
+};
+
+const activateBatchEditing = (batch) => {
   isEditing.value = true;
   isAddingActual.value = false;
   dialog.value = true;
   editEnabled.value = true;
   resetForm();
+  editBatch(batch.id);
+};
 
+const editBatch = async (id) => {
   try {
-    const res = await fetch(`/productions/batches/${batch.id}`);
+    const res = await fetch(`/productions/batches/${id}`);
     const data = await res.json();
 
     if (!res.ok) {
@@ -4243,24 +4404,30 @@ const editBatch = async (batch) => {
     form.planned_at = toDisplay(data.batch.planned_at);
     form.produced_at = toDisplay(data.batch.produced_at);
 
-    // Staff
-
     // Products
     form.products = [];
     (data.products || []).forEach((prod) => {
+      for (const product of products.value) {
+        if (product.id === prod.product_id) {
+          product.editing = true;
+        }
+      }
       const p = createEmptyProduct();
       p.production_id = prod.production_id;
       p.product_id = prod.product_id;
       p.product_name = prod.product_name;
-      p.planned_qty = prod.qty_product || 0;
-      p.good_qty = prod.good_qty || 0;
-      p.damaged_qty = prod.damaged_qty || 0;
-      p.reject_qty = prod.reject_qty || 0;
-      p.actual_qty = prod.actual_qty || 0;
+      p.planned_qty = prod.qty_product || "";
+      p.good_qty = prod.good_qty || "";
+      p.damaged_qty = prod.damaged_qty || "";
+      p.reject_qty = prod.reject_qty || "";
+      p.actual_qty = prod.actual_qty || "";
       p.hasDiscrepancy = prod.discrepancies.length > 0;
       p.discrepancies = prod.discrepancies || [];
       p.mode = prod.mode || "by_product";
       form.staff = prod.staff || [];
+      if (prod.good_qty || prod.damaged_qty || prod.reject_qty) {
+        actualAdded.value = true;
+      }
 
       if (p.mode === "by_product") {
         p.qty_product_input = Number(prod.qty_product || 0);
@@ -4279,6 +4446,27 @@ const editBatch = async (batch) => {
 
     // Load metadata + attach ingredients/group choices
     for (const prod of data.products || []) {
+      //get groups that are not active and manually get them, as the onProductChange will only load active groups
+      deprecated_groups.value = prod.ingredients
+        .filter((i) => i.group_active === false && i.group_id !== null)
+        .map((i) => {
+          return {
+            product: prod.product_id,
+            group: i.group_id,
+          };
+        });
+      //ensure unique
+      if (deprecated_groups.value.length) {
+        deprecated_groups.value = [
+          ...new Map(
+            deprecated_groups.value.map((item) => [
+              `${item.product}-${item.group}`,
+              item,
+            ]),
+          ).values(),
+        ];
+      }
+
       const p =
         form.products.find((x) => x.production_id === prod.production_id) ||
         form.products.find((x) => x.product_id === prod.product_id);
@@ -4304,163 +4492,45 @@ const editBatch = async (batch) => {
       }
 
       // Ingredients from API
+      const defaultIngredients = JSON.parse(JSON.stringify(p.ingredients));
       if (Array.isArray(prod.ingredients) && prod.ingredients.length) {
-        p.ingredients = prod.ingredients.map((ing) => {
-          const available =
-            availableStock.value.find((s) => s.item_id === ing.item_id)
-              ?.available_qty || 0;
-          const qty = Number(ing.qty_required || ing.quantity || 0);
+        p.ingredients = [];
+        for (const ing of prod.ingredients) {
+          if (
+            ignore_deprecated_ingredients_choices.value &&
+            !defaultIngredients.find((def) => {
+              return def.item_id === ing.item_id;
+            })
+          ) {
+            continue;
+          }
 
-          return {
+          const prevUsed = Number(ing.qty_required || ing.quantity || 0);
+
+          p.ingredients.push({
             item_id: ing.item_id,
             item_name: ing.item_name,
             unit: ing.unit,
-            qty_required: qty,
-            available: +available,
-            exceeds: qty > available,
+            qty_required: prevUsed,
+            previously_used: prevUsed,
             from_group: !!ing.group_id,
             group_id: ing.group_id || null,
             group_name: ing.group_name || null,
             combination_id: ing.combination_id || null,
-          };
-        });
+          });
+        }
       }
+      editingProducts.value.push(JSON.parse(JSON.stringify(p)));
     }
-
     ingredientTabs.value = form.products.length ? 0 : "summary";
     checkDiscrepancy();
+    updateIngredientBalances();
   } catch (err) {
     console.error("Failed to load batch for editing:", err);
     alert("Failed to load batch for editing.");
     dialog.value = false;
   }
 };
-
-async function edit(item, type) {
-  isEditing.value = true;
-  isAddingActual.value = type === "actual";
-  dialog.value = true;
-  editEnabled.value = !isAddingActual.value;
-
-  resetForm();
-
-  try {
-    const res = await fetch(`/productions/${item.id}`);
-    const data = await res.json();
-
-    form.id = data.production.id;
-    form.planned_at = toDisplay(data.production.planned_at);
-    form.produced_at = toDisplay(data.production.produced_at);
-    form.notes = data.production.notes || "";
-    form.good_qty = Number(data.production.good_qty || 0);
-    form.damaged_qty = Number(data.production.damaged_qty || 0);
-    form.reject_qty = Number(data.production.reject_qty || 0);
-    form.actual_qty = Number(data.production.actual_qty || 0);
-    form.discrepancies = data.discrepancies || [];
-
-    form.staff =
-      (data.staff || []).map((row) => ({
-        staff_id: row.staff_id,
-        role: row.role || "",
-        notes: row.notes || "",
-      })) || [];
-
-    const productsMap = (data.products || []).map((p) => {
-      const np = createEmptyProduct();
-      np.product_id = p.product_id;
-      np.mode = p.mode;
-      np.qty_product_input =
-        p.mode === "by_product" ? Number(p.qty_product || 0) : null;
-      np.base_ingredient_id = p.base_ingredient_id || null;
-      np.base_ingredient_qty = p.base_ingredient_qty || null;
-      return np;
-    });
-
-    if (!productsMap.length && data.production.product_id) {
-      const np = createEmptyProduct();
-      np.product_id = data.production.product_id;
-      np.mode = data.production.mode;
-      np.qty_product_input =
-        np.mode === "by_product"
-          ? Number(data.production.qty_product || 0)
-          : null;
-      np.base_ingredient_id = data.production.base_ingredient_id || null;
-      np.base_ingredient_qty = data.production.base_ingredient_qty || null;
-      productsMap.push(np);
-    }
-
-    form.products = productsMap.length ? productsMap : [createEmptyProduct()];
-
-    for (const p of form.products) {
-      if (!p.product_id) continue;
-      await onProductChange(p);
-    }
-
-    if (data.items && data.items.length) {
-      for (const itemRow of data.items) {
-        const target = form.products.find(
-          (p) => !itemRow.product_id || p.product_id === itemRow.product_id,
-        );
-        if (!target) continue;
-        const available =
-          availableStock.value.find((s) => s.item_id === itemRow.item_id)
-            ?.available_qty || 0;
-
-        const existing = target.ingredients.find(
-          (i) => i.item_id === itemRow.item_id,
-        );
-        const qty = Number(itemRow.qty_required || itemRow.quantity || 0);
-
-        if (existing) {
-          existing.qty_required = qty;
-          existing.available = +available;
-          existing.exceeds = qty > available;
-        } else {
-          target.ingredients.push({
-            item_id: itemRow.item_id,
-            item_name: itemRow.item_name,
-            unit: itemRow.unit,
-            qty_required: qty,
-            available: +available,
-            exceeds: qty > available,
-            from_group: !!itemRow.group_id,
-            group_id: itemRow.group_id || null,
-            group_name: itemRow.group_name || null,
-            combination_id: itemRow.combination_id || null,
-          });
-        }
-      }
-    }
-
-    if (data.group_choices && data.group_choices.length) {
-      for (const gc of data.group_choices) {
-        const p = form.products.find(
-          (x) => !gc.product_id || x.product_id === gc.product_id,
-        );
-        if (!p) continue;
-        p.group_choices[gc.group_id] = gc.combination_id;
-      }
-      for (const p of form.products) {
-        recalcProductIngredients(p);
-      }
-    }
-
-    checkDiscrepancy();
-  } catch (err) {
-    console.error("Failed to load production for editing:", err);
-  }
-}
-
-async function remove(item) {
-  if (!confirm("Are you sure you want to delete this production?")) return;
-  try {
-    await fetch(`/productions/${item.id}`, { method: "DELETE" });
-    await loadProductions();
-  } catch (err) {
-    console.error("Failed to delete production:", err);
-    alert("Failed to delete production. Please try again.");
-  }
-}
 
 async function saveProduction() {
   saving.value = true;

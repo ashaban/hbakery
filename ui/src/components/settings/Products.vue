@@ -154,6 +154,19 @@
                   type="number"
                 />
               </v-col>
+              <v-col cols="12" sm="4">
+                <v-text-field
+                  v-model="state.barcode"
+                  autocomplete="off"
+                  autocorrect="off"
+                  bg-color="#E0E0E0"
+                  :error-messages="v$.barcode.$errors.map((e) => e.$message)"
+                  inputmode="none"
+                  label="Bar Code"
+                  required
+                  spellcheck="false"
+                />
+              </v-col>
             </v-row>
 
             <!-- 🧩 Mandatory Ingredients Section -->
@@ -862,6 +875,7 @@ const headers = [
   { title: "Name", key: "name" },
   { title: "Description", key: "description" },
   { title: "Unit", key: "unit" },
+  { title: "Bar Code", key: "barcode" },
   { title: "Price", key: "price" },
   { title: "Actions", key: "actions" },
 ];
@@ -877,6 +891,7 @@ const state = reactive({
   description: "",
   unit: "",
   price: "",
+  barcode: "",
   items: [], // Mandatory ingredients
   groups: [], // Ingredient groups
 });
@@ -899,6 +914,7 @@ const validItems = helpers.withMessage(
 const rules = {
   name: { required },
   unit: { required },
+  barcode: { required },
   price: { required, minValue: minValue(1) },
   items: { hasAtLeastOneItem, validItems },
 };
@@ -1264,6 +1280,7 @@ function activateAddDialog() {
     description: "",
     unit: "",
     price: "",
+    barcode: "",
     items: [],
     groups: [],
   });
@@ -1284,6 +1301,7 @@ async function activateEditDialog(item) {
       description: product.description,
       unit: product.unit,
       price: product.price,
+      barcode: product.barcode,
       items: (data.items || []).map((i) => ({
         item_id: i.item_id,
         quantity_per_unit: i.quantity_per_unit,
@@ -1326,6 +1344,7 @@ async function saveProduct() {
   formData.append("description", state.description);
   formData.append("unit", state.unit);
   formData.append("price", state.price);
+  formData.append("barcode", state.barcode);
   formData.append("items", JSON.stringify(state.items));
   formData.append("groups", JSON.stringify(state.groups));
 

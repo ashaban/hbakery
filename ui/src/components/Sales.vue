@@ -361,6 +361,106 @@
             </v-card-text>
           </v-card>
 
+          <!-- Barcode Scanner Section -->
+          <v-card class="mb-6" variant="outlined">
+            {{ products }}
+            <v-card-title
+              class="d-flex align-center justify-space-between bg-orange-lighten-5"
+            >
+              <div class="d-flex align-center">
+                <v-icon class="mr-2" color="orange">mdi-barcode-scan</v-icon>
+                Barcode Scanner
+                <v-chip class="ml-3" color="orange" size="small" variant="flat">
+                  Quick Product Entry
+                </v-chip>
+              </div>
+              <div class="d-flex align-center gap-2">
+                <v-btn
+                  color="orange"
+                  size="small"
+                  variant="tonal"
+                  @click="toggleScanner"
+                >
+                  <v-icon start>{{
+                    scannerActive ? "mdi-stop" : "mdi-barcode"
+                  }}</v-icon>
+                  {{ scannerActive ? "Stop Scanner" : "Start Scanner" }}
+                </v-btn>
+                <v-btn
+                  color="grey"
+                  icon
+                  size="small"
+                  variant="text"
+                  @click="showScannerHelp = true"
+                >
+                  <v-icon>mdi-help-circle</v-icon>
+                </v-btn>
+              </div>
+            </v-card-title>
+
+            <v-card-text class="pa-4">
+              <div v-if="scannerActive" class="scanner-section">
+                <v-alert
+                  class="mb-4"
+                  color="info"
+                  icon="mdi-barcode-scan"
+                  variant="tonal"
+                >
+                  <strong>Scanner Active</strong> - Focus on the barcode input
+                  field below and scan products
+                </v-alert>
+
+                <v-text-field
+                  ref="barcodeInputRef"
+                  v-model="barcodeInput"
+                  autocomplete="off"
+                  autocorrect="off"
+                  autofocus
+                  clearable
+                  density="comfortable"
+                  label="Scan Barcode or Enter Product Code"
+                  placeholder="Scan barcode or type product code and press Enter"
+                  prepend-inner-icon="mdi-barcode"
+                  spellcheck="false"
+                  variant="outlined"
+                  @blur="onBarcodeBlur"
+                  @keydown.enter="handleBarcodeScan"
+                >
+                  <template #append>
+                    <v-progress-circular
+                      v-if="scanningProduct"
+                      indeterminate
+                      size="24"
+                      width="2"
+                    />
+                    <v-icon v-else color="green">mdi-arrow-right</v-icon>
+                  </template>
+                </v-text-field>
+
+                <div v-if="lastScannedProduct" class="scan-result mt-2">
+                  <v-alert
+                    color="success"
+                    density="compact"
+                    icon="mdi-check"
+                    variant="tonal"
+                  >
+                    Added: <strong>{{ lastScannedProduct.name }}</strong> ({{
+                      lastScannedProduct.code
+                    }})
+                  </v-alert>
+                </div>
+              </div>
+              <div v-else class="text-center py-4">
+                <v-icon class="mb-2" color="grey" size="48"
+                  >mdi-barcode-off</v-icon
+                >
+                <div class="text-body-1 text-grey">
+                  Click "Start Scanner" to enable barcode scanning
+                </div>
+              </div>
+            </v-card-text>
+          </v-card>
+
           <!-- Items -->
           <v-card class="mb-6" variant="outlined">
             <v-card-title
@@ -436,6 +536,12 @@
                           variant="outlined"
                           @update:model-value="() => onProductChange(it)"
                         />
+                        <div
+                          v-if="it.product_code"
+                          class="text-caption text-grey mt-1"
+                        >
+                          Code: {{ it.product_code }}
+                        </div>
                       </v-col>
 
                       <!-- Stock for chosen quality -->
@@ -534,7 +640,7 @@
                 >
                 <div class="text-h6 text-grey mb-2">No Items Added</div>
                 <div class="text-body-1 text-grey mb-4">
-                  Click "Add Item" to start adding products to this sale
+                  Click "Add Item" or use barcode scanner to add products
                 </div>
                 <v-btn
                   color="primary"
@@ -707,6 +813,77 @@
               isEditing ? "mdi-content-save" : "mdi-check"
             }}</v-icon>
             {{ isEditing ? "Update Sale" : "Create Sale" }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Scanner Help Dialog -->
+    <v-dialog v-model="showScannerHelp" max-width="600">
+      <v-card>
+        <v-toolbar color="orange" density="comfortable">
+          <v-icon class="mr-2" color="white">mdi-help-circle</v-icon>
+          <v-toolbar-title class="text-white"
+            >Barcode Scanner Help</v-toolbar-title
+          >
+          <v-spacer />
+          <v-btn icon @click="showScannerHelp = false">
+            <v-icon color="white">mdi-close</v-icon>
+          </v-btn>
+        </v-toolbar>
+
+        <v-card-text class="pa-6">
+          <v-list>
+            <v-list-item>
+              <template #prepend>
+                <v-icon color="orange">mdi-barcode</v-icon>
+              </template>
+              <v-list-item-title>How to Use</v-list-item-title>
+              <v-list-item-subtitle>
+                Click "Start Scanner", focus on the barcode field, and scan
+                products. The system will automatically find and add products.
+              </v-list-item-subtitle>
+            </v-list-item>
+
+            <v-list-item>
+              <template #prepend>
+                <v-icon color="green">mdi-keyboard</v-icon>
+              </template>
+              <v-list-item-title>Manual Entry</v-list-item-title>
+              <v-list-item-subtitle>
+                You can also type product codes manually and press Enter to add
+                them.
+              </v-list-item-subtitle>
+            </v-list-item>
+
+            <v-list-item>
+              <template #prepend>
+                <v-icon color="blue">mdi-autorenew</v-icon>
+              </template>
+              <v-list-item-title>Auto-Increment</v-list-item-title>
+              <v-list-item-subtitle>
+                Scanning the same product multiple times will increase its
+                quantity.
+              </v-list-item-subtitle>
+            </v-list-item>
+
+            <v-list-item>
+              <template #prepend>
+                <v-icon color="red">mdi-alert</v-icon>
+              </template>
+              <v-list-item-title>Troubleshooting</v-list-item-title>
+              <v-list-item-subtitle>
+                If a product isn't found, check that the outlet is selected and
+                the product exists in the system.
+              </v-list-item-subtitle>
+            </v-list-item>
+          </v-list>
+        </v-card-text>
+
+        <v-card-actions class="pa-4">
+          <v-spacer />
+          <v-btn color="orange" @click="showScannerHelp = false">
+            Got it!
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -934,7 +1111,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, nextTick, onMounted, reactive, ref, watch } from "vue";
 import { useStore } from "vuex";
 
 const store = useStore();
@@ -949,6 +1126,14 @@ const customers = ref([]);
 const products = ref([]);
 const page = ref(1);
 const totalPages = ref(1);
+
+// Barcode Scanner State
+const scannerActive = ref(false);
+const barcodeInput = ref("");
+const scanningProduct = ref(false);
+const lastScannedProduct = ref(null);
+const showScannerHelp = ref(false);
+const barcodeInputRef = ref(null);
 
 // UI state
 const showDialog = ref(false);
@@ -968,8 +1153,8 @@ const filters = reactive({
 });
 
 // Customer selector state
-const customerSelection = ref(null); // holds id when selected, or null
-const customerSearch = ref(""); // free-typed text, used for auto-create on save
+const customerSelection = ref(null);
+const customerSearch = ref("");
 
 // Form
 const today = new Date().toISOString().split("T")[0];
@@ -978,7 +1163,7 @@ const form = reactive({
   sale_date: today,
   notes: "",
   items: [],
-  payments: [], // default row added below in resetForm()
+  payments: [],
 });
 
 // Validation
@@ -1037,6 +1222,7 @@ const saleTotals = computed(() => {
   const balance = Math.max(total - paid, 0);
   return { total, paid, balance };
 });
+
 watch(
   () => saleTotals.value.total,
   (newTotal) => {
@@ -1045,6 +1231,94 @@ watch(
     }
   },
 );
+
+// BARCODE SCANNER FUNCTIONS
+function toggleScanner() {
+  scannerActive.value = !scannerActive.value;
+  if (scannerActive.value) {
+    nextTick(() => {
+      barcodeInputRef.value?.focus();
+    });
+  } else {
+    barcodeInput.value = "";
+    lastScannedProduct.value = null;
+  }
+}
+
+async function handleBarcodeScan() {
+  const barcode = barcodeInput.value?.trim();
+  if (!barcode) return;
+
+  scanningProduct.value = true;
+
+  try {
+    // Find product by barcode or code
+    const product = products.value.find(
+      (p) => p.barcode === barcode || p.code === barcode,
+    );
+
+    if (!product) {
+      store.commit("setMessage", {
+        type: "error",
+        text: `Product not found for code: ${barcode}`,
+      });
+      return;
+    }
+
+    // Check if product already exists in items
+    const existingItemIndex = form.items.findIndex(
+      (item) => item.product_id === product.id && item.quality === "GOOD",
+    );
+
+    if (existingItemIndex !== -1) {
+      // Increment quantity of existing item
+      const existingItem = form.items[existingItemIndex];
+      existingItem.quantity = String(Number(existingItem.quantity) + 1);
+      lastScannedProduct.value = product;
+    } else {
+      // Add new item
+      const newItem = {
+        product_id: product.id,
+        product_code: product.code,
+        quality: "GOOD",
+        quantity: "1",
+        unit_price: product.price || "",
+        stockData: null,
+      };
+
+      form.items.push(newItem);
+      lastScannedProduct.value = product;
+
+      // Fetch stock availability for new item
+      await fetchItemAvailability(newItem);
+    }
+
+    // Clear input and refocus for next scan
+    barcodeInput.value = "";
+    nextTick(() => {
+      barcodeInputRef.value?.focus();
+    });
+
+    validateForm();
+  } catch (error) {
+    console.error("Barcode scan error:", error);
+    store.commit("setMessage", {
+      type: "error",
+      text: "Error processing barcode scan",
+    });
+  } finally {
+    scanningProduct.value = false;
+  }
+}
+
+function onBarcodeBlur() {
+  // Refocus if scanner is still active
+  if (scannerActive.value) {
+    nextTick(() => {
+      barcodeInputRef.value?.focus();
+    });
+  }
+}
 
 // Helpers
 function money(v) {
@@ -1079,8 +1353,8 @@ function addItem() {
   form.items.push({
     product_id: "",
     quality: "GOOD",
-    quantity: "", // empty by default (your rule)
-    unit_price: "", // defaulted when product chosen
+    quantity: "",
+    unit_price: "",
     stockData: null,
   });
   validateForm();
@@ -1100,10 +1374,10 @@ function getItemAvailable(it) {
   return it.stockData[it.quality] || 0;
 }
 async function onProductChange(it) {
-  // default unit price from product master; allow edit
   const prod = products.value.find((p) => p.id === it.product_id);
   if (prod && (it.unit_price === "" || it.unit_price == null)) {
     it.unit_price = Number(prod.price || 0);
+    it.product_code = prod.code;
   }
   await fetchItemAvailability(it);
   validateForm();
@@ -1149,16 +1423,16 @@ function onCustomerChange(val) {
     return;
   }
   if (val && typeof val === "object") {
-    // Normalize to the shape we expect
     customerSelection.value = { id: val.id ?? null, name: val.name ?? "" };
     return;
   }
   customerSelection.value = null;
 }
+
 // Payments logic
 function addPayment() {
   form.payments.push({
-    amount: "", // must be filled if row exists
+    amount: "",
     method: "CASH",
     reference: "",
     payment_date: today,
@@ -1210,7 +1484,6 @@ function validateForm() {
 }
 function validatePayments() {
   const errs = [];
-  // Rule: default payment row exists; if any row exists, amount is mandatory for that row
   let paid = 0;
   form.payments.forEach((p, idx) => {
     if (p.amount === "" || Number(p.amount) <= 0) {
@@ -1291,7 +1564,7 @@ async function openEditDialog(row) {
     form.items = (data.items || []).map((li) => ({
       product_id: li.product_id,
       quality: li.quality,
-      quantity: String(li.quantity), // keep as string for "empty" detection
+      quantity: String(li.quantity),
       unit_price: Number(li.unit_price),
       stockData: null,
     }));
@@ -1345,6 +1618,7 @@ async function openViewDialog(row) {
 
 function closeDialog() {
   showDialog.value = false;
+  scannerActive.value = false;
   resetForm();
 }
 
@@ -1354,7 +1628,6 @@ function resetForm() {
   form.notes = "";
   form.items = [];
   form.payments = [];
-  // Default payment row must exist with empty amount (your rule)
   addPayment();
 
   customerSelection.value = null;
@@ -1363,6 +1636,11 @@ function resetForm() {
   validationErrors.value = [];
   paymentErrors.value = [];
   paymentAutoLinked.value = true;
+
+  // Reset scanner state
+  barcodeInput.value = "";
+  lastScannedProduct.value = null;
+  scanningProduct.value = false;
 }
 
 function openDeleteDialog(row) {
@@ -1470,7 +1748,7 @@ async function loadInitialData() {
         outletsParams.append("id[]", outlet.outlet_id),
       );
     } else {
-      outletsParams.append("id[]", -1); // force no outlets
+      outletsParams.append("id[]", -1);
     }
     const [outRes, prodRes, custRes] = await Promise.all([
       fetch(`/outlets?${outletsParams}`),
@@ -1479,7 +1757,6 @@ async function loadInitialData() {
     ]);
 
     outlets.value = (await outRes.json()).data || [];
-
     products.value = (await prodRes.json()).data || [];
     customers.value = (await custRes.json()).data || [];
   } catch (e) {
@@ -1519,5 +1796,23 @@ onMounted(() => {
 }
 .text-right {
   text-align: right;
+}
+
+/* Scanner specific styles */
+.scanner-section {
+  transition: all 0.3s ease;
+}
+.scan-result {
+  animation: slideIn 0.3s ease-out;
+}
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>

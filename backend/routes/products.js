@@ -13,13 +13,168 @@ const { requireTask } = require("../middleware/auth");
  * ✅ GET /products/:id/groups - Get product groups with combinations for production
  * Returns groups with their combinations and ingredient quantities
  */
+router.get("/groups/:id", requireTask("can_see_settings"), async (req, res) => {
+  const { id } = req.params;
+  const { active } = req.query;
+
+  try {
+    // Get groups
+    const groupsRes = await pool.query(
+      `
+      SELECT 
+        id, 
+        name, 
+        description, 
+        is_mandatory, 
+        selection_mode
+      FROM product_item_group 
+      WHERE id = $1
+      ORDER BY id
+      `,
+      [id]
+    );
+
+    // Get options for all groups
+    const optionsRes = await pool.query(
+      `
+      SELECT 
+        o.id AS option_id,
+        o.group_id,
+        o.item_id,
+        i.name AS item_name,
+        COALESCE(u.shortname, u.name) AS unit,
+        o.position
+      FROM product_item_option o
+      JOIN item i ON i.id = o.item_id
+      LEFT JOIN itemunit u ON u.id = i.unit_id
+      WHERE o.group_id IN (
+        SELECT id FROM product_item_group WHERE id = $1
+      )
+      ORDER BY o.group_id, o.position
+      `,
+      [id]
+    );
+
+    // Get combinations
+    const combinationsRes = await pool.query(
+      `
+      SELECT 
+        c.id,
+        c.group_id,
+        c.combination_mask,
+        c.name,
+        c.is_default,
+        c.notes
+      FROM product_item_group_combination c
+      WHERE c.group_id IN (
+        SELECT id FROM product_item_group WHERE id = $1
+      )
+      ORDER BY c.group_id, c.id
+      `,
+      [id]
+    );
+
+    // Get combination quantities
+    const quantitiesRes = await pool.query(
+      `
+      SELECT 
+        q.combination_id,
+        q.option_id,
+        q.quantity_per_unit,
+        o.item_id,
+        i.name AS item_name,
+        COALESCE(u.shortname, u.name) AS unit
+      FROM product_item_group_combination_qty q
+      JOIN product_item_option o ON o.id = q.option_id
+      JOIN item i ON i.id = o.item_id
+      LEFT JOIN itemunit u ON u.id = i.unit_id
+      WHERE q.combination_id IN (
+        SELECT c.id FROM product_item_group_combination c
+        WHERE c.group_id IN (
+          SELECT id FROM product_item_group WHERE id = $1
+        )
+      )
+      ORDER BY q.combination_id, q.option_id
+      `,
+      [id]
+    );
+
+    // Organize options by group
+    const optionsByGroup = optionsRes.rows.reduce((acc, option) => {
+      if (!acc[option.group_id]) {
+        acc[option.group_id] = [];
+      }
+      acc[option.group_id].push({
+        option_id: option.option_id,
+        item_id: option.item_id,
+        item_name: option.item_name,
+        unit: option.unit,
+        position: option.position,
+      });
+      return acc;
+    }, {});
+
+    // Organize quantities by combination
+    const quantitiesByCombination = quantitiesRes.rows.reduce((acc, qty) => {
+      if (!acc[qty.combination_id]) {
+        acc[qty.combination_id] = [];
+      }
+      acc[qty.combination_id].push({
+        option_id: qty.option_id,
+        item_id: qty.item_id,
+        item_name: qty.item_name,
+        quantity_per_unit: parseFloat(qty.quantity_per_unit),
+        unit: qty.unit,
+      });
+      return acc;
+    }, {});
+
+    // Organize combinations by group
+    const combinationsByGroup = combinationsRes.rows.reduce((acc, combo) => {
+      if (!acc[combo.group_id]) {
+        acc[combo.group_id] = [];
+      }
+
+      // Get options for this combination
+      const options = quantitiesByCombination[combo.id] || [];
+
+      acc[combo.group_id].push({
+        id: combo.id,
+        name: combo.name,
+        is_default: combo.is_default,
+        combination_mask: combo.combination_mask,
+        notes: combo.notes,
+        options: options,
+      });
+      return acc;
+    }, {});
+
+    // Build final groups structure
+    const groups = groupsRes.rows.map((group) => ({
+      id: group.id,
+      name: group.name,
+      description: group.description,
+      is_mandatory: group.is_mandatory,
+      selection_mode: group.selection_mode,
+      options: optionsByGroup[group.id] || [],
+      combinations: combinationsByGroup[group.id] || [],
+    }));
+
+    res.json(groups[0]);
+  } catch (err) {
+    console.error("Error fetching product groups:", err);
+    res.status(500).json({ error: "Failed to fetch product groups" });
+  }
+});
+
 router.get("/:id/groups", requireTask("can_see_settings"), async (req, res) => {
   const { id } = req.params;
+  const { active } = req.query;
 
   try {
     // Verify product exists
     const productResult = await pool.query(
-      "SELECT id, name FROM product WHERE id = $1",
+      "SELECT id, name, barcode FROM product WHERE id = $1",
       [id]
     );
 
@@ -54,10 +209,10 @@ router.get("/:id/groups", requireTask("can_see_settings"), async (req, res) => {
         is_mandatory, 
         selection_mode
       FROM product_item_group 
-      WHERE product_id = $1
+      WHERE product_id = $1 and is_active = $2
       ORDER BY id
       `,
-      [id]
+      [id, active]
     );
 
     // Get options for all groups
@@ -75,10 +230,10 @@ router.get("/:id/groups", requireTask("can_see_settings"), async (req, res) => {
       LEFT JOIN itemunit u ON u.id = i.unit_id
       WHERE o.group_id IN (
         SELECT id FROM product_item_group WHERE product_id = $1
-      )
+      ) and o.is_active = $2
       ORDER BY o.group_id, o.position
       `,
-      [id]
+      [id, active]
     );
 
     // Get combinations
@@ -94,10 +249,10 @@ router.get("/:id/groups", requireTask("can_see_settings"), async (req, res) => {
       FROM product_item_group_combination c
       WHERE c.group_id IN (
         SELECT id FROM product_item_group WHERE product_id = $1
-      )
+      ) and c.is_active = $2
       ORDER BY c.group_id, c.id
       `,
-      [id]
+      [id, active]
     );
 
     // Get combination quantities
@@ -119,10 +274,10 @@ router.get("/:id/groups", requireTask("can_see_settings"), async (req, res) => {
         WHERE c.group_id IN (
           SELECT id FROM product_item_group WHERE product_id = $1
         )
-      )
+      ) and q.is_active = $2
       ORDER BY q.combination_id, q.option_id
       `,
-      [id]
+      [id, active]
     );
 
     // Organize options by group
@@ -220,7 +375,7 @@ router.get("/", requireTask("can_see_settings"), async (req, res) => {
     const totalPages = Math.ceil(totalRecords / limit);
 
     const result = await pool.query(
-      `SELECT id, name, description, unit, price, 
+      `SELECT id, name, description, unit, price, barcode, 
               TO_CHAR(created_at, 'DD-MM-YYYY') AS created_at
          FROM product
         WHERE name ILIKE $1
@@ -387,13 +542,14 @@ router.post("/", requireTask("can_add_settings"), async (req, res) => {
       await client.query("BEGIN");
 
       const insertProduct = await client.query(
-        `INSERT INTO product (name, description, unit, price)
-         VALUES ($1, $2, $3, $4) RETURNING id`,
+        `INSERT INTO product (name, description, unit, price, barcode)
+         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
         [
           fields.name?.[0],
           fields.description?.[0] || null,
           fields.unit?.[0] || null,
           fields.price?.[0] || 0,
+          fields.barcode?.[0] || null,
         ]
       );
       const productId = insertProduct.rows[0].id;
@@ -511,21 +667,29 @@ router.put("/:id", requireTask("can_add_settings"), async (req, res) => {
     try {
       await client.query("BEGIN");
 
+      /* ----------------------------------------------------
+         1. UPDATE BASIC PRODUCT INFO
+      ---------------------------------------------------- */
       await client.query(
-        `UPDATE product SET name=$1, description=$2, unit=$3, price=$4 WHERE id=$5`,
+        `UPDATE product SET name=$1, description=$2, unit=$3, price=$4, barcode=$5 
+         WHERE id=$6`,
         [
           fields.name?.[0],
           fields.description?.[0] || "",
           fields.unit?.[0] || null,
           fields.price?.[0] || 0,
+          fields.barcode?.[0] || "",
           productId,
         ]
       );
 
-      /* Replace mandatory items */
+      /* ----------------------------------------------------
+         2. RESET MANDATORY ITEMS (product_item)
+      ---------------------------------------------------- */
       await client.query(`DELETE FROM product_item WHERE product_id=$1`, [
         productId,
       ]);
+
       if (fields.items) {
         const items = JSON.parse(fields.items);
         for (const it of items) {
@@ -537,42 +701,61 @@ router.put("/:id", requireTask("can_add_settings"), async (req, res) => {
         }
       }
 
-      /* Replace groups entirely */
+      /* ----------------------------------------------------
+         3. FETCH EXISTING GROUP IDS (to deactivate)
+      ---------------------------------------------------- */
       const groupIdsRes = await client.query(
-        `SELECT id FROM product_item_group WHERE product_id=$1`,
+        `SELECT id FROM product_item_group WHERE product_id=$1 AND is_active = true`,
         [productId]
       );
       const groupIds = groupIdsRes.rows.map((r) => r.id);
+
+      /* ----------------------------------------------------
+         4. SOFT-ARCHIVE OLD GROUPS (instead of delete)
+      ---------------------------------------------------- */
       if (groupIds.length) {
         await client.query(
-          `DELETE FROM product_item_group_combination_qty WHERE combination_id IN (
-          SELECT id FROM product_item_group_combination WHERE group_id = ANY($1::int[])
-        )`,
+          `UPDATE product_item_group SET is_active=false WHERE id = ANY($1::int[])`,
           [groupIds]
         );
+
         await client.query(
-          `DELETE FROM product_item_group_combination WHERE group_id = ANY($1::int[])`,
+          `UPDATE product_item_option SET is_active=false 
+           WHERE group_id = ANY($1::int[])`,
           [groupIds]
         );
+
         await client.query(
-          `DELETE FROM product_item_option WHERE group_id = ANY($1::int[])`,
+          `UPDATE product_item_group_combination SET is_active=false 
+           WHERE group_id = ANY($1::int[])`,
           [groupIds]
         );
+
         await client.query(
-          `DELETE FROM product_item_group WHERE id = ANY($1::int[])`,
+          `UPDATE product_item_group_combination_qty SET is_active=false 
+           WHERE combination_id IN (
+              SELECT id FROM product_item_group_combination 
+              WHERE group_id = ANY($1::int[])
+           )`,
           [groupIds]
         );
       }
 
+      /* ----------------------------------------------------
+         5. INSERT NEW GROUPS / OPTIONS / COMBINATIONS
+      ---------------------------------------------------- */
       if (fields.groups) {
         const groups = JSON.parse(fields.groups);
 
         for (const g of groups) {
+          // Create group
           const {
             rows: [grp],
           } = await client.query(
-            `INSERT INTO product_item_group (product_id, name, description, is_mandatory, selection_mode)
-             VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+            `INSERT INTO product_item_group 
+             (product_id, name, description, is_mandatory, selection_mode, is_active)
+             VALUES ($1, $2, $3, $4, $5, true)
+             RETURNING id`,
             [
               productId,
               g.name || null,
@@ -581,29 +764,36 @@ router.put("/:id", requireTask("can_add_settings"), async (req, res) => {
               g.selection_mode || "ANY",
             ]
           );
+
           const groupId = grp.id;
 
+          /* ----- Insert options ----- */
           const optionIdByItem = {};
           if (Array.isArray(g.options)) {
             for (const opt of g.options) {
               const {
                 rows: [o],
               } = await client.query(
-                `INSERT INTO product_item_option (group_id, item_id, position)
-                 VALUES ($1, $2, $3) RETURNING id`,
+                `INSERT INTO product_item_option 
+                   (group_id, item_id, position, is_active)
+                 VALUES ($1, $2, $3, true)
+                 RETURNING id`,
                 [groupId, opt.item_id, opt.position ?? 0]
               );
               optionIdByItem[opt.item_id] = o.id;
             }
           }
 
+          /* ----- Insert combinations ----- */
           if (Array.isArray(g.combinations)) {
             for (const cmb of g.combinations) {
               const {
                 rows: [c],
               } = await client.query(
-                `INSERT INTO product_item_group_combination (group_id, combination_mask, name, is_default, notes)
-                 VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+                `INSERT INTO product_item_group_combination
+                   (group_id, combination_mask, name, is_default, notes, is_active)
+                 VALUES ($1, $2, $3, $4, $5, true)
+                 RETURNING id`,
                 [
                   groupId,
                   cmb.combination_mask,
@@ -612,8 +802,10 @@ router.put("/:id", requireTask("can_add_settings"), async (req, res) => {
                   cmb.notes || null,
                 ]
               );
+
               const combId = c.id;
 
+              /* Insert combination quantities */
               if (Array.isArray(cmb.quantities)) {
                 for (const q of cmb.quantities) {
                   const optionId = optionIdByItem[q.item_id];
@@ -621,9 +813,11 @@ router.put("/:id", requireTask("can_add_settings"), async (req, res) => {
                     throw new Error(
                       `Option not found for item ${q.item_id} in group ${groupId}`
                     );
+
                   await client.query(
-                    `INSERT INTO product_item_group_combination_qty (combination_id, option_id, quantity_per_unit)
-                     VALUES ($1, $2, $3)`,
+                    `INSERT INTO product_item_group_combination_qty 
+                       (combination_id, option_id, quantity_per_unit, is_active)
+                     VALUES ($1, $2, $3, true)`,
                     [combId, optionId, q.quantity_per_unit]
                   );
                 }

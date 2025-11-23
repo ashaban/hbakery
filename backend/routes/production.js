@@ -847,6 +847,7 @@ router.get(
             iu.shortname AS unit,
             ppi.group_id,
             pig.name AS group_name,
+            pig.is_active AS group_active,
             ppi.combination_id,
             pigc.name AS combination_name
           FROM product_production_item ppi
