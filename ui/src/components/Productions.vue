@@ -4154,6 +4154,7 @@ function resetForm() {
   deprecated_groups.value = [];
   ignore_deprecated_ingredients_choices.value = false;
   editingProducts.value = [];
+  actualAdded.value = false;
 }
 
 function resetFilters() {
