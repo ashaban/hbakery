@@ -169,7 +169,6 @@ router.get("/", requireTask("can_see_stock_transfers"), async (req, res) => {
     const countResult = await pool.query(countQuery, params);
     const totalRecords = parseInt(countResult.rows[0].count);
     const totalPages = Math.ceil(totalRecords / limit);
-
     // Data query
     params.push(limit, offset);
     const dataQuery = `
@@ -194,7 +193,6 @@ router.get("/", requireTask("can_see_stock_transfers"), async (req, res) => {
     `;
 
     const result = await pool.query(dataQuery, params);
-
     res.json({
       data: result.rows,
       totalRecords,

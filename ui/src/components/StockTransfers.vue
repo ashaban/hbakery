@@ -676,7 +676,7 @@
                     v-model="adjust.outlet_id"
                     item-title="name"
                     item-value="id"
-                    :items="outlets"
+                    :items="fromOutlets"
                     label="Outlet"
                     prepend-inner-icon="mdi-store"
                     required
@@ -1200,8 +1200,10 @@ const headers = [
 
 // Enhanced Computed Properties
 const isReturnToMain = computed(() => {
-  const fromOutlet = outlets.value.find((o) => o.id === form.from_outlet_id);
-  const toOutlet = outlets.value.find((o) => o.id === form.to_outlet_id);
+  const fromOutlet = fromOutlets.value.find(
+    (o) => o.id === form.from_outlet_id,
+  );
+  const toOutlet = toOutlets.value.find((o) => o.id === form.to_outlet_id);
   return toOutlet?.type === "MAIN" && fromOutlet?.type !== "MAIN";
 });
 
@@ -1720,8 +1722,14 @@ function resetForm() {
 async function loadTransfers() {
   loading.value = true;
   const params = new URLSearchParams({ page: page.value, limit: 10 });
-  if (filters.from_outlet_id)
+
+  if (filters.from_outlet_id) {
     params.append("from_outlet_id", filters.from_outlet_id);
+  } else if (store.state.auth.outlets.length) {
+    store.state.auth.outlets.forEach((outlet) =>
+      params.append("from_outlet_id[]", outlet.outlet_id),
+    );
+  }
   if (filters.to_outlet_id) params.append("to_outlet_id", filters.to_outlet_id);
   if (filters.date) params.append("date", filters.date);
 
