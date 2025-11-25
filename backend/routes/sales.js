@@ -2,6 +2,7 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
+const salesController = require("../modules/salesDashboard");
 const { authenticateToken, requireTask } = require("../middleware/auth");
 
 const {
@@ -106,6 +107,10 @@ async function getSaleDetail(client, saleId) {
     payments: payments.rows,
   };
 }
+
+router.get("/salesanalytics/analytics", salesController.getSalesAnalytics);
+router.get("/salesanalytics", salesController.getSales);
+router.get("/salesanalytics/:id", salesController.getSaleDetails);
 
 // =========================
 // API Endpoints
