@@ -363,7 +363,6 @@
 
           <!-- Barcode Scanner Section -->
           <v-card class="mb-6" variant="outlined">
-            {{ products }}
             <v-card-title
               class="d-flex align-center justify-space-between bg-orange-lighten-5"
             >
