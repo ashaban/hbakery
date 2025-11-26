@@ -1477,11 +1477,11 @@ router.get(
 
         i++;
         params.push(outletIds);
-        where.push(`s.outlet_id = ANY($${i})`);
+        where.push(`pl.outlet_id = ANY($${i})`);
       } else {
         i++;
         params.push([-1]);
-        where.push(`s.outlet_id = ANY($${i})`);
+        where.push(`pl.outlet_id = ANY($${i})`);
       }
 
       if (req.query.start_date) {

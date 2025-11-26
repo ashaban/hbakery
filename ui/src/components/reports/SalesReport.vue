@@ -796,6 +796,10 @@ async function loadDashboardData() {
     // Add filters
     if (filters.outlet_id?.length) {
       filters.outlet_id.forEach((id) => params.append("outlet_id[]", id));
+    } else if (store.state.auth.outlets.length) {
+      store.state.auth.outlets.forEach((outlet) =>
+        params.append("outlet_id[]", outlet.outlet_id),
+      );
     }
     if (filters.start_date) params.append("start_date", filters.start_date);
     if (filters.end_date) params.append("end_date", filters.end_date);
