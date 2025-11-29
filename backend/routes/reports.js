@@ -999,7 +999,7 @@ router.get(
       const whereSQL = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
       // 🧾 Opening balance
-      const openingSQL = `
+      const openingINSQL = `
       SELECT 
         i.id AS item_id,
         i.name AS item_name,
@@ -1013,6 +1013,26 @@ router.get(
       LEFT JOIN item_ledger il 
         ON il.item_id = i.id
         AND il.movement_date < $1::date
+        AND il.type = 'IN'
+      ${whereSQL}
+      GROUP BY i.id, i.name, iu.name, i.human_readable_unit, i.conversion_factor
+    `;
+
+      const openingOUTSQL = `
+      SELECT 
+        i.id AS item_id,
+        i.name AS item_name,
+        iu.name AS base_unit,
+        i.human_readable_unit,
+        i.conversion_factor,
+        COALESCE(SUM(il.quantity), 0) AS opening_balance,
+        COALESCE(SUM(il.quantity * il.unit_price), 0) AS total_price
+      FROM item i
+      JOIN itemunit iu ON iu.id = i.unit_id
+      LEFT JOIN item_ledger il 
+        ON il.item_id = i.id
+        AND il.movement_date < $1::date
+        AND il.type = 'OUT'
       ${whereSQL}
       GROUP BY i.id, i.name, iu.name, i.human_readable_unit, i.conversion_factor
     `;
@@ -1055,7 +1075,11 @@ router.get(
       GROUP BY i.id, iu.name, i.human_readable_unit, i.conversion_factor
     `;
 
-      const openingRes = await client.query(openingSQL, [
+      const openingINRes = await client.query(openingINSQL, [
+        start_date || "1900-01-01",
+        ...(params.length ? params : []),
+      ]);
+      const openingOUTRes = await client.query(openingOUTSQL, [
         start_date || "1900-01-01",
         ...(params.length ? params : []),
       ]);
@@ -1081,11 +1105,13 @@ router.get(
             base_unit: row.base_unit || "",
             human_readable_unit: row.human_readable_unit || "",
             conversion_factor: Number(row.conversion_factor || 1),
-            opening_balance: 0,
+            opening_balance_in: 0,
+            opening_balance_out: 0,
             inwards: 0,
             outwards: 0,
             closing_balance: 0,
-            total_price_opening: 0,
+            total_price_opening_in: 0,
+            total_price_opening_out: 0,
             total_price_inwards: 0,
             total_price_outwards: 0,
             total_price_closing: 0,
@@ -1095,10 +1121,15 @@ router.get(
       }
 
       // Merge all sets
-      for (const r of openingRes.rows) {
+      for (const r of openingINRes.rows) {
         const it = ensureItem(r);
-        it.opening_balance = Number(r.opening_balance);
-        it.total_price_opening = Number(r.total_price);
+        it.opening_balance_in = Number(r.opening_balance);
+        it.total_price_opening_in = Number(r.total_price);
+      }
+      for (const r of openingOUTRes.rows) {
+        const it = ensureItem(r);
+        it.opening_balance_out = Number(r.opening_balance);
+        it.total_price_opening_out = Number(r.total_price);
       }
       for (const r of inwardRes.rows) {
         const it = ensureItem(r);
@@ -1113,6 +1144,9 @@ router.get(
 
       // Compute derived metrics
       for (const it of result.values()) {
+        it.opening_balance = it.opening_balance_in - it.opening_balance_out;
+        it.total_price_opening =
+          it.total_price_opening_in - it.total_price_opening_out;
         it.closing_balance = it.opening_balance + it.inwards - it.outwards;
         it.total_price_closing =
           it.total_price_opening +
