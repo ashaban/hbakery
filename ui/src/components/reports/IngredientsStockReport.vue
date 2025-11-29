@@ -283,23 +283,6 @@
             {{ formatCurrency(item.total_price_closing) }}
           </template>
 
-          <template #bottom>
-            <div class="px-4 py-3 d-flex justify-end flex-wrap gap-2">
-              <v-chip class="mr-2" color="blue" variant="tonal">
-                Opening Value: {{ formatCurrency(totals.opening_value) }}
-              </v-chip>
-              <v-chip class="mr-2" color="green" variant="tonal">
-                Inwards Value: {{ formatCurrency(totals.inwards_value) }}
-              </v-chip>
-              <v-chip class="mr-2" color="red" variant="tonal">
-                Outwards Value: {{ formatCurrency(totals.outwards_value) }}
-              </v-chip>
-              <v-chip color="purple" variant="tonal">
-                Closing Value: {{ formatCurrency(totals.closing_value) }}
-              </v-chip>
-            </div>
-          </template>
-
           <template #no-data>
             <div class="text-center py-8">
               <v-icon class="mb-2" color="grey-lighten-2" size="64"
@@ -423,8 +406,8 @@ const filters = reactive({
 });
 
 const dateRange = reactive({
-  start: null,
-  end: null,
+  start: new Date().toISOString().split("T")[0],
+  end: new Date().toISOString().split("T")[0],
 });
 
 const allItems = ref([]);

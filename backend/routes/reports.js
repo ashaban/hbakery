@@ -993,11 +993,7 @@ router.get(
       // Filter by selected items
       if (items) {
         const arr = Array.isArray(items) ? items : [items];
-        const placeholders = arr
-          .map((_, i) => `$${params.length + i + 1}`)
-          .join(",");
-        params.push(...arr);
-        where.push(`i.id IN (${placeholders})`);
+        where.push(`i.id IN (${arr})`);
       }
 
       const whereSQL = where.length ? `WHERE ${where.join(" AND ")}` : "";
@@ -1126,9 +1122,16 @@ router.get(
         // Human-readable quantities
         const cf = it.conversion_factor || 1;
         it.opening_balance_human = it.opening_balance * cf;
+        it.opening_balance_human = parseFloat(
+          it.opening_balance_human.toFixed(3)
+        );
         it.inwards_human = it.inwards * cf;
+        it.inwards_human = parseFloat(it.inwards_human.toFixed(3));
         it.outwards_human = it.outwards * cf;
         it.closing_balance_human = it.closing_balance * cf;
+        it.closing_balance_human = parseFloat(
+          it.closing_balance_human.toFixed(3)
+        );
 
         // Human-readable unit labels for display
         it.unit_label = it.human_readable_unit || it.base_unit;
