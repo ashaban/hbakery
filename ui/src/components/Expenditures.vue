@@ -573,7 +573,7 @@ function validateForm() {
 /* LOADERS */
 async function loadCostTypes() {
   try {
-    const res = await fetch("/expenditures/types");
+    const res = await fetch("/expenditures/types?limit=1000000");
     const data = await res.json();
     costTypes.value = data.data;
   } catch (err) {
