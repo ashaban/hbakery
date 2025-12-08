@@ -598,9 +598,7 @@ const filters = reactive({
   product_id: "",
   outlet_id: "",
   quality: "GOOD", // Default to GOOD
-  start_date: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-    .toISOString()
-    .split("T")[0],
+  start_date: new Date().toISOString().split("T")[0],
   end_date: new Date().toISOString().split("T")[0],
 });
 

@@ -588,6 +588,7 @@
                           type="number"
                           variant="outlined"
                           @blur="normalizePrice(it)"
+                          @input="() => validateForm()"
                         />
                       </v-col>
 
@@ -1470,9 +1471,11 @@ function validateForm() {
       errs.push(`Item ${line}: insufficient ${it.quality} stock.`);
     }
     if (it.product_id && it.quality) {
-      const key = `${it.product_id}|${it.quality}`;
+      const key = `${it.product_id}|${it.quality}|${it.unit_price}`;
       if (comboSet.has(key)) {
-        errs.push(`Duplicate product and quality detected on item ${idx + 1}.`);
+        errs.push(
+          `Duplicate product of same quality and price detected on item ${idx + 1}.`,
+        );
       }
       comboSet.add(key);
     }

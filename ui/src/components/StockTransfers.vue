@@ -325,12 +325,11 @@
                     v-model="form.from_outlet_id"
                     item-title="name"
                     item-value="id"
-                    :items="fromOutlets"
+                    :items="filteredFromOutlets"
                     label="From Outlet"
                     prepend-inner-icon="mdi-export"
                     required
                     variant="outlined"
-                    @update:model-value="onOutletChange"
                   />
                 </v-col>
                 <v-col cols="12" md="6">
@@ -338,7 +337,7 @@
                     v-model="form.to_outlet_id"
                     item-title="name"
                     item-value="id"
-                    :items="toOutlets"
+                    :items="filteredToOutlets"
                     label="To Outlet"
                     prepend-inner-icon="mdi-import"
                     required
@@ -1198,6 +1197,16 @@ const headers = [
   { title: "Total Qty", key: "total_quantity", align: "center" },
   { title: "Actions", key: "actions", sortable: false },
 ];
+
+const filteredFromOutlets = computed(() => {
+  if (!form.to_outlet_id) return fromOutlets.value;
+  return fromOutlets.value.filter((outlet) => outlet.id !== form.to_outlet_id);
+});
+
+const filteredToOutlets = computed(() => {
+  if (!form.from_outlet_id) return toOutlets.value;
+  return toOutlets.value.filter((outlet) => outlet.id !== form.from_outlet_id);
+});
 
 // Enhanced Computed Properties
 const isReturnToMain = computed(() => {
