@@ -476,7 +476,6 @@ router.get("/", requireTask("can_see_expenditures"), async (req, res) => {
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
     `;
     const result = await pool.query(dataSql, [...params, limit, offset]);
-    console.log(JSON.stringify(result.rows, 0, 2));
     res.json({
       data: result.rows,
       totalPages,

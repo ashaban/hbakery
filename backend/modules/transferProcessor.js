@@ -184,7 +184,7 @@ async function processTransferWithQualityAdjustments(
     transferItems,
     movement_date
   );
-
+  // throw new Error("Debug: stop here");
   return {
     transferId,
     adjustmentIds,

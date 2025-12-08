@@ -185,7 +185,7 @@ async function recordTransferLedger(
         meta: { product_id: it.product_id, requested: qtyToTransfer },
       };
     }
-
+    // console.log(JSON.stringify(movements, 0, 2));
     // Record per production movement
     for (const m of movements) {
       const isReplacement = isReturnToMain && it.is_replacement;

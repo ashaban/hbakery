@@ -112,7 +112,7 @@
               variant="outlined"
             />
           </v-col>
-          <v-col class="d-flex justify-end" cols="12" sm="1">
+          <v-col class="d-flex justify-end" cols="12" sm="12">
             <v-btn
               class="mr-2"
               color="primary"

@@ -1165,6 +1165,7 @@ const form = reactive({
   movement_date: new Date().toISOString().split("T")[0],
   remarks: "",
   items: [],
+  originalItems: [],
 });
 
 // Quality Adjustment Form
@@ -1352,9 +1353,24 @@ async function fetchAvailableStock(item) {
     );
     const data = await res.json();
     item.stockData = data.stock || { GOOD: 0, DAMAGED: 0, REJECT: 0 };
+    let availableStock = item.stockData[item.from_quality] || 0;
 
-    // Set available stock based on from_quality
-    item.availableStock = item.stockData[item.from_quality] || 0;
+    // If editing, add back the original quantity
+    if (isEditing.value && item.originalQuantity) {
+      // Find if this item was in the original transfer
+      const originalItem = form.originalItems.find(
+        (orig) =>
+          orig.product_id === item.product_id &&
+          orig.from_quality === item.from_quality &&
+          orig.to_quality === item.to_quality,
+      );
+
+      if (originalItem) {
+        availableStock += Number(originalItem.quantity);
+      }
+    }
+
+    item.availableStock = availableStock;
   } catch (error) {
     console.error("Error fetching stock:", error);
     item.availableStock = 0;
@@ -1372,13 +1388,30 @@ async function onFromQualityChange(item) {
 
 function hasStockError(item) {
   if (!item.quantity || !item.product_id || !item.from_quality) return false;
-  return Number(item.quantity) > (item.availableStock || 0);
+
+  const requestedQuantity = Number(item.quantity);
+  const availableStock = item.availableStock || 0;
+
+  // If editing, we need to check if we're increasing the quantity
+  if (isEditing.value && item.originalQuantity) {
+    const originalQuantity = Number(item.originalQuantity);
+    const quantityIncrease = requestedQuantity - originalQuantity;
+
+    if (quantityIncrease > 0) {
+      // Only validate the increase amount
+      return requestedQuantity > availableStock;
+    }
+    return false; // Decreasing or same quantity is always valid
+  }
+
+  // For new transfers, validate normally
+  return requestedQuantity > availableStock;
 }
 
 function getItemError(item) {
   if (!item.product_id || !item.from_quality || !item.to_quality) return null;
 
-  // Check for duplicates - now based on product + to_quality combination
+  // Check for duplicates
   const combination = `${item.product_id}_${item.from_quality}_${item.to_quality}`;
   const duplicateCount = form.items.filter(
     (i) =>
@@ -1392,9 +1425,19 @@ function getItemError(item) {
     return "This product with same transfer quality is already added";
   }
 
-  // Check stock based on from_quality (actual stock quality)
+  // Check stock with edit consideration
   if (hasStockError(item)) {
-    return `Insufficient ${item.from_quality} stock. Available: ${item.availableStock || 0}`;
+    const product = products.value.find((p) => p.id === item.product_id);
+    const availableStock = item.availableStock || 0;
+
+    if (isEditing.value && item.originalQuantity) {
+      const originalQuantity = Number(item.originalQuantity);
+      const maxAllowed = originalQuantity + availableStock;
+
+      return `Cannot increase quantity beyond ${availableStock}. Available: ${availableStock - originalQuantity}`;
+    }
+
+    return `Insufficient ${item.from_quality} stock. Available: ${availableStock}`;
   }
 
   return null;
@@ -1426,6 +1469,7 @@ function addItem() {
     replacement_note: "",
     availableStock: 0,
     stockData: null,
+    originalQuantity: 0,
   });
   validateForm();
 }
@@ -1586,6 +1630,12 @@ async function openEditDialog(transfer) {
       data.transfer.movement_date?.split("T")[0] ||
       new Date().toISOString().split("T")[0];
     form.remarks = data.transfer.remarks;
+    form.originalItems = data.items.map((item) => ({
+      product_id: item.product_id,
+      from_quality: item.from_quality || "GOOD",
+      to_quality: item.to_quality || "GOOD",
+      quantity: item.quantity,
+    }));
 
     // Enhanced item mapping with quality fields
     form.items = data.items.map((item) => ({
@@ -1597,6 +1647,7 @@ async function openEditDialog(transfer) {
       replacement_note: item.replacement_note || "",
       availableStock: 0,
       stockData: null,
+      originalQuantity: item.quantity,
     }));
 
     for (const item of form.items) {
@@ -1715,6 +1766,7 @@ function resetForm() {
   form.movement_date = new Date().toISOString().split("T")[0];
   form.remarks = "";
   form.items = [];
+  form.originalItems = [];
   validationErrors.value = [];
 }
 
