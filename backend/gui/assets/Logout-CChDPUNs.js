@@ -1,0 +1,1 @@
+import{_ as t,q as o,t as s}from"./index-AufZmc18.js";import{V as r}from"./VContainer-B7y45AGF.js";const e={mounted(){this.$store.dispatch("logout")}};function a(c,n,i,p,_,d){return s(),o(r,{"grid-list-xs":""})}const m=t(e,[["render",a]]);export{m as default};
