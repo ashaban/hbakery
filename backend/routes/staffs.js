@@ -313,8 +313,8 @@ router.post("/", requireTask("can_add_staffs"), async (req, res) => {
     const name = fields.name?.[0] || fields.name;
     let hired_at = fields.hired_at?.[0] || fields.hired_at;
     hired_at = moment(hired_at, "DD-MM-YYYY").format("YYYY-MM-DD");
-    const phone = fields.phone?.[0] || fields.phone;
-    const position = fields.position?.[0] || fields.position;
+    const phone = fields.phone?.[0] || "";
+    const position = fields.position?.[0] || "";
     const salary = Number(fields.salary?.[0] || fields.salary || 0);
     const status = fields.status?.[0] || fields.status || "Active";
 
@@ -366,8 +366,8 @@ router.put("/:id", requireTask("can_edit_staffs"), async (req, res) => {
     const name = fields.name?.[0] || fields.name;
     let hired_at = fields.hired_at?.[0] || fields.hired_at;
     hired_at = moment(hired_at, "DD-MM-YYYY").format("YYYY-MM-DD");
-    const phone = fields.phone?.[0] || fields.phone;
-    const position = fields.position?.[0] || fields.position;
+    const phone = fields.phone?.[0] || "";
+    const position = fields.position?.[0] || "";
     const salary = Number(fields.salary?.[0] || fields.salary || 0);
     const status = fields.status?.[0] || fields.status || "Active";
 
