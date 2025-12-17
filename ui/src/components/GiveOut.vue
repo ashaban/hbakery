@@ -197,7 +197,7 @@
 
         <template #item.total_qty="{ item }">
           <v-chip color="green" size="small" variant="flat">
-            {{ item.total_qty }}
+            {{ parseFloat(item.total_qty) }}
           </v-chip>
         </template>
 
@@ -869,8 +869,13 @@ function money(v) {
   });
 }
 
-function formatDate(date) {
-  return new Date(date).toLocaleDateString();
+function formatDate(dateString) {
+  if (!dateString) return "";
+  return new Date(dateString).toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function getOutletIcon(type) {

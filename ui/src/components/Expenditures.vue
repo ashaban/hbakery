@@ -482,9 +482,13 @@ function formatCurrency(val) {
   });
 }
 
-function formatDate(date) {
-  if (!date) return "";
-  return moment(date, "YYYY-MM-DD").format("DD-MM-YYYY");
+function formatDate(dateString) {
+  if (!dateString) return "";
+  return new Date(dateString).toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function clearFilters() {

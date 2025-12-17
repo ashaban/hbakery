@@ -51,7 +51,7 @@ router.post("/", requireTask("can_schedule_production"), async (req, res) => {
     const batchRes = await client.query(
       `INSERT INTO production_batch (batch_code, created_by)
        VALUES ($1, $2) RETURNING id`,
-      [batchCode, req.user?.id || 1]
+      [batchCode, user?.id]
     );
     const batchId = batchRes.rows[0].id;
 
@@ -673,7 +673,7 @@ router.get("/batches", requireTask("can_see_production"), async (req, res) => {
         ) AS team_leader_name
       FROM production_batch pb
       LEFT JOIN product_production pp ON pb.id = pp.batch_id
-      LEFT JOIN users u ON u.id = pp.produced_by
+      LEFT JOIN users u ON u.id = pb.created_by
       ${whereSQL}
       GROUP BY pb.id, pb.batch_code, pb.created_at, u.name
       ORDER BY COALESCE(MAX(pp.produced_at), MAX(pp.planned_at), pb.created_at) DESC

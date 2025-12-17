@@ -1308,8 +1308,13 @@ function getQualityColor(quality) {
   return colors[quality] || "grey";
 }
 
-function formatDate(date) {
-  return new Date(date).toLocaleDateString();
+function formatDate(dateString) {
+  if (!dateString) return "";
+  return new Date(dateString).toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 // Enhanced Item Methods
@@ -1441,7 +1446,6 @@ function getItemError(item) {
 
     if (isEditing.value && item.originalQuantity) {
       const originalQuantity = Number(item.originalQuantity);
-      const maxAllowed = originalQuantity + availableStock;
 
       return `Cannot increase quantity beyond ${availableStock}. Available: ${availableStock - originalQuantity}`;
     }

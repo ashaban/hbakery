@@ -1294,7 +1294,7 @@
                 </v-chip>
               </v-col>
               <v-col cols="12" md="4">
-                <div class="text-body-2 text-grey">Created By</div>
+                <div class="text-body-2 text-grey">Planned By</div>
                 <div class="text-body-1 font-weight-medium">
                   {{ selectedBatch?.created_by_name }}
                 </div>
@@ -3409,7 +3409,7 @@ const batchHeaders = [
   { title: "Planned Start", key: "planned_at", sortable: true },
   { title: "Produced At", key: "produced_at", sortable: true },
   { title: "Team Leader", key: "team_leader_name", sortable: true },
-  { title: "Created By", key: "created_by_name", sortable: true },
+  { title: "Planned By", key: "created_by_name", sortable: true },
   {
     title: "Actions",
     key: "actions",

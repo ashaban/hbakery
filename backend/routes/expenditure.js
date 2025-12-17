@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const moment = require("moment");
 const pool = require("../db");
 const { authenticateToken, requireTask } = require("../middleware/auth");
 
@@ -393,7 +394,6 @@ router.get("/", requireTask("can_see_expenditures"), async (req, res) => {
       end_date_from,
       end_date_to,
     } = req.query;
-
     const params = [];
     const where = [];
 
@@ -413,15 +413,18 @@ router.get("/", requireTask("can_see_expenditures"), async (req, res) => {
        🗓️ Filter by start_date range
     ---------------------------------------------------------- */
     if (start_date_from && start_date_to) {
-      params.push(start_date_from, start_date_to);
+      params.push(
+        moment(start_date_from, "DD-MM-YYYY").format("YYYY-MM-DD"),
+        moment(start_date_to, "DD-MM-YYYY").format("YYYY-MM-DD")
+      );
       where.push(
         `e.start_date BETWEEN $${params.length - 1} AND $${params.length}`
       );
     } else if (start_date_from) {
-      params.push(start_date_from);
+      params.push(moment(start_date_from, "DD-MM-YYYY").format("YYYY-MM-DD"));
       where.push(`e.start_date >= $${params.length}`);
     } else if (start_date_to) {
-      params.push(start_date_to);
+      params.push(moment(start_date_to, "DD-MM-YYYY").format("YYYY-MM-DD"));
       where.push(`e.start_date <= $${params.length}`);
     }
 
@@ -429,15 +432,18 @@ router.get("/", requireTask("can_see_expenditures"), async (req, res) => {
        🕒 Filter by end_date range
     ---------------------------------------------------------- */
     if (end_date_from && end_date_to) {
-      params.push(end_date_from, end_date_to);
+      params.push(
+        moment(end_date_from, "DD-MM-YYYY").format("YYYY-MM-DD"),
+        moment(end_date_to, "DD-MM-YYYY").format("YYYY-MM-DD")
+      );
       where.push(
         `e.end_date BETWEEN $${params.length - 1} AND $${params.length}`
       );
     } else if (end_date_from) {
-      params.push(end_date_from);
+      params.push(moment(end_date_from, "DD-MM-YYYY").format("YYYY-MM-DD"));
       where.push(`e.end_date >= $${params.length}`);
     } else if (end_date_to) {
-      params.push(end_date_to);
+      params.push(moment(end_date_to, "DD-MM-YYYY").format("YYYY-MM-DD"));
       where.push(`e.end_date <= $${params.length}`);
     }
 
