@@ -55,15 +55,6 @@
         >
           <v-icon start>mdi-plus</v-icon> Add Staff
         </v-btn>
-        <v-btn
-          v-if="$store.getters.hasTask('can_see_staffs')"
-          class="text-white mr-2"
-          color="secondary"
-          size="small"
-          @click="showHistory"
-        >
-          <v-icon start>mdi-history</v-icon> Contract History
-        </v-btn>
       </div>
     </div>
 
@@ -76,7 +67,6 @@
       dense
       :headers="headers"
       :items="values"
-      :items-per-page="10"
       :loading="loading"
     >
       <template #item.salary="{ item }">
@@ -218,6 +208,7 @@
               bg-color="#E0E0E0"
               :items="['Active', 'Resigned', 'Terminated']"
               label="Status"
+              readonly="true"
               required
             />
           </v-form>
@@ -533,52 +524,6 @@
               </v-data-table>
             </v-card-text>
           </v-card>
-        </v-card-text>
-      </v-card>
-    </v-dialog>
-
-    <!-- CONTRACT HISTORY DIALOG -->
-    <v-dialog v-model="showContractHistory" width="1000">
-      <v-card>
-        <v-toolbar color="secondary">
-          <v-toolbar-title>Staff Contract History</v-toolbar-title>
-          <v-btn
-            color="white"
-            icon="mdi-close"
-            @click="showContractHistory = false"
-          />
-        </v-toolbar>
-
-        <v-card-text class="pt-6">
-          <v-data-table
-            class="elevation-1"
-            :headers="contractHistoryHeaders"
-            :items="contractHistory"
-            :loading="loading"
-          >
-            <template #item.staff_name="{ item }">
-              <strong>{{ item.staff_name }}</strong>
-            </template>
-            <template #item.start_date="{ item }">
-              {{ formatDate(item.start_date) }}
-            </template>
-            <template #item.end_date="{ item }">
-              {{ item.end_date ? formatDate(item.end_date) : "Current" }}
-            </template>
-            <template #item.salary="{ item }">
-              {{ formatCurrency(item.salary) }}
-            </template>
-            <template #item.end_reason="{ item }">
-              <v-chip
-                v-if="item.end_reason"
-                :color="getEndReasonColor(item.end_reason)"
-                size="small"
-              >
-                {{ item.end_reason }}
-              </v-chip>
-              <span v-else class="text-grey">Active</span>
-            </template>
-          </v-data-table>
         </v-card-text>
       </v-card>
     </v-dialog>
