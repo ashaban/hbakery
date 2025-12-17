@@ -677,7 +677,6 @@ async function saveExpenditure() {
     const url = editMode.value ? `/expenditures/${form.id}` : "/expenditures";
 
     // Prepare data for API
-    console.log(JSON.stringify(form, 0, 2));
     const payload = {
       ...form,
       start_date: moment(form.start_date, "DD-MM-YYYY").format("YYYY-MM-DD"),
