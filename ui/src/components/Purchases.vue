@@ -173,13 +173,18 @@
     <!-- TABLE -->
     <v-card elevation="2" rounded="lg">
       <v-card-text class="pa-0">
-        <v-data-table
+        <v-data-table-server
+          v-model:items-per-page="itemsPerPage"
+          v-model:page="page"
           class="rounded-lg"
           density="comfortable"
           :headers="headers"
           hover
           :items="values"
+          :items-length="totalRecords"
+          :items-per-page-options="[5, 10, 20, 50, 100]"
           :loading="loading"
+          @update:options="loadValues"
         >
           <template #loading>
             <v-skeleton-loader type="table-row@10" />
@@ -245,21 +250,7 @@
               <div>No purchases found</div>
             </div>
           </template>
-        </v-data-table>
-
-        <v-divider />
-        <div class="d-flex justify-space-between align-center pa-4">
-          <span class="text-caption text-grey">
-            Showing {{ values.length }} of {{ totalRecords }} records
-          </span>
-          <v-pagination
-            v-model="page"
-            color="primary"
-            :length="totalPages"
-            :total-visible="7"
-            @update:model-value="loadValues"
-          />
-        </div>
+        </v-data-table-server>
       </v-card-text>
     </v-card>
 
@@ -621,6 +612,7 @@ import moment from "moment";
 const store = useStore();
 
 /* STATE */
+const itemsPerPage = ref(10);
 const values = ref([]);
 const items = ref([]);
 const loading = ref(false);
@@ -628,7 +620,6 @@ const saving = ref(false);
 const addDialog = ref(false);
 const editDialog = ref(false);
 const page = ref(1);
-const totalPages = ref(1);
 const totalRecords = ref(0);
 const currentItem = ref(null);
 const addFormRef = ref(null);
@@ -826,7 +817,7 @@ async function loadValues() {
   try {
     const params = new URLSearchParams({
       page: page.value,
-      limit: 10,
+      limit: itemsPerPage.value,
     });
 
     if (filters.item_id) params.append("item_id", filters.item_id);
@@ -871,7 +862,6 @@ async function loadValues() {
       };
     });
 
-    totalPages.value = data.totalPages || 1;
     totalRecords.value = data.totalRecords || 0;
     totals.total_quantity = data.total_quantity || 0;
     totals.total_amount = data.total_amount || 0;

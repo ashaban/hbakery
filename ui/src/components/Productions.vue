@@ -356,14 +356,18 @@
           />
 
           <!-- Data Table -->
-          <v-data-table
+          <v-data-table-server
+            v-model:items-per-page="itemsPerPage"
+            v-model:page="page"
             class="elevation-0"
             density="comfortable"
             :headers="batchHeaders"
             hover
             :items="batches"
+            :items-length="totalRecords"
             :loading="loading"
             :search="search"
+            @update:options="loadData"
           >
             <template #loading>
               <v-skeleton-loader type="table-row@10" />
@@ -706,8 +710,8 @@
                 </v-btn>
               </div>
             </template>
-          </v-data-table>
-        </v-card-text>
+          </v-data-table-server></v-card-text
+        >
       </v-card>
     </template>
 
@@ -943,14 +947,18 @@
           />
 
           <!-- Data Table -->
-          <v-data-table
+          <v-data-table-server
+            v-model:items-per-page="itemsPerPage"
+            v-model:page="page"
             class="elevation-0"
             density="comfortable"
             :headers="productionHeaders"
             hover
             :items="productions"
+            :items-length="totalRecords"
             :loading="loading"
             :search="search"
+            @update:options="loadData"
           >
             <template #loading>
               <v-skeleton-loader type="table-row@10" />
@@ -1123,87 +1131,6 @@
                           Complete information
                         </v-list-item-subtitle>
                       </v-list-item>
-
-                      <!-- <v-list-item
-                        class="rounded-lg mb-1 action-item"
-                        :disabled="item.produced_at"
-                        @click="edit(item, 'actual')"
-                      >
-                        <template #prepend>
-                          <v-avatar
-                            class="mr-3"
-                            color="green-lighten-5"
-                            size="36"
-                            variant="flat"
-                          >
-                            <v-icon color="green" size="18">
-                              mdi-plus-circle
-                            </v-icon>
-                          </v-avatar>
-                        </template>
-                        <v-list-item-title
-                          class="text-body-2 font-weight-medium"
-                        >
-                          Add Actual Production
-                        </v-list-item-title>
-                        <v-list-item-subtitle class="text-caption text-green">
-                          Record actual output
-                        </v-list-item-subtitle>
-                      </v-list-item>
-
-                      <v-list-item
-                        class="rounded-lg mb-1 action-item"
-                        @click="edit(item)"
-                      >
-                        <template #prepend>
-                          <v-avatar
-                            class="mr-3"
-                            color="orange-lighten-5"
-                            size="36"
-                            variant="flat"
-                          >
-                            <v-icon color="orange" size="18">
-                              mdi-pencil-outline
-                            </v-icon>
-                          </v-avatar>
-                        </template>
-                        <v-list-item-title
-                          class="text-body-2 font-weight-medium"
-                        >
-                          Edit Production
-                        </v-list-item-title>
-                        <v-list-item-subtitle class="text-caption text-orange">
-                          Modify details
-                        </v-list-item-subtitle>
-                      </v-list-item>
-
-                      <v-divider class="my-2" />
-
-                      <v-list-item
-                        class="rounded-lg action-item text-error"
-                        @click="remove(item)"
-                      >
-                        <template #prepend>
-                          <v-avatar
-                            class="mr-3"
-                            color="red-lighten-5"
-                            size="36"
-                            variant="flat"
-                          >
-                            <v-icon color="red" size="18">
-                              mdi-delete-outline
-                            </v-icon>
-                          </v-avatar>
-                        </template>
-                        <v-list-item-title
-                          class="text-body-2 font-weight-medium text-error"
-                        >
-                          Delete Production
-                        </v-list-item-title>
-                        <v-list-item-subtitle class="text-caption text-red">
-                          Remove permanently
-                        </v-list-item-subtitle>
-                      </v-list-item> -->
                     </v-list>
                   </v-card>
                 </v-menu>
@@ -1225,29 +1152,10 @@
                 </v-btn>
               </div>
             </template>
-          </v-data-table>
+          </v-data-table-server>
         </v-card-text>
       </v-card>
     </template>
-
-    <!-- PAGINATION -->
-    <v-card elevation="2" rounded="lg">
-      <v-card-text class="pa-4">
-        <div class="d-flex justify-space-between align-center">
-          <div class="text-body-2 text-grey">
-            Showing {{ showBatches ? batches.length : productions.length }} of
-            {{ totalItems }} records
-          </div>
-          <v-pagination
-            v-model="page"
-            color="primary"
-            :length="totalPages"
-            :total-visible="7"
-            @update:model-value="loadData"
-          />
-        </div>
-      </v-card-text>
-    </v-card>
 
     <!-- BATCH VIEW DIALOG -->
     <v-dialog
@@ -3284,13 +3192,14 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import { toDisplay, toISO } from "@/utils/date.js";
 
+const itemsPerPage = ref(10);
 const loading = ref(false);
 const saving = ref(false);
 const productions = ref([]);
 const batches = ref([]);
 const showBatches = ref(true);
 const page = ref(1);
-const totalPages = ref(1);
+const totalRecords = ref(0);
 const dialog = ref(false);
 const viewDialog = ref(false);
 const batchViewDialog = ref(false);
@@ -3541,7 +3450,7 @@ const loadBatches = async () => {
   try {
     const params = new URLSearchParams({
       page: page.value,
-      limit: 10,
+      limit: itemsPerPage.value,
     });
 
     // Add batch filters to the request
@@ -3554,7 +3463,7 @@ const loadBatches = async () => {
     const res = await fetch(`/productions/batches?${params.toString()}`);
     const data = await res.json();
     batches.value = data.data || [];
-    totalPages.value = data.totalPages || 1;
+    totalRecords.value = data.totalRecords || 0;
   } catch (err) {
     console.error("Failed to load batches:", err);
     batches.value = [];
@@ -4183,7 +4092,7 @@ async function loadProductions() {
   try {
     const params = new URLSearchParams({
       page: page.value,
-      limit: 10,
+      limit: itemsPerPage.value,
     });
     Object.entries(filters).forEach(([k, v]) => {
       if (v && v !== "all" && !(Array.isArray(v) && !v.length)) {
@@ -4194,7 +4103,7 @@ async function loadProductions() {
     const res = await fetch(`/productions?${params.toString()}`);
     const data = await res.json();
     productions.value = data.data || [];
-    totalPages.value = data.totalPages || 1;
+    totalRecords.value = data.totalRecords || 0;
   } catch (err) {
     console.error("Failed to load productions:", err);
     productions.value = [];

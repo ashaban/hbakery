@@ -306,14 +306,18 @@
         height="4"
         :indeterminate="loading"
       />
-      <v-data-table
+      <v-data-table-server
+        v-model:items-per-page="itemsPerPage"
+        v-model:page="page"
         class="elevation-0"
         :headers="headers"
         :items="sales"
-        :items-per-page="10"
+        :items-length="totalRecords"
+        :items-per-page-options="[5, 10, 20, 50, 100]"
         :loading="loading"
         loading-text="Loading sales..."
         no-data-text="No sales found"
+        @update:options="loadSales"
       >
         <template #top>
           <v-card-title class="d-flex align-center pt-4">
@@ -408,18 +412,7 @@
             </v-tooltip>
           </div>
         </template>
-      </v-data-table>
-
-      <v-card-actions class="px-4 py-3 bg-grey-lighten-3">
-        <v-spacer />
-        <v-pagination
-          v-model="page"
-          color="primary"
-          :length="totalPages"
-          total-visible="7"
-          @update:model-value="loadSales"
-        />
-      </v-card-actions>
+      </v-data-table-server>
     </v-card>
 
     <!-- VIEW DIALOG -->
@@ -666,11 +659,12 @@ import * as echarts from "echarts";
 const store = useStore();
 
 // State
+const itemsPerPage = ref(10);
 const loading = ref(false);
 const sales = ref([]);
 const outlets = ref([]);
 const page = ref(1);
-const totalPages = ref(1);
+const totalRecords = ref(0);
 
 // Chart references
 const revenueChart = ref(null);
@@ -831,7 +825,10 @@ async function loadDashboardData() {
 
 async function loadSales() {
   loading.value = true;
-  const params = new URLSearchParams({ page: page.value, limit: 10 });
+  const params = new URLSearchParams({
+    page: page.value,
+    limit: itemsPerPage.value,
+  });
   if (filters.outlet_id?.length) {
     filters.outlet_id.forEach((id) => params.append("outlet_id[]", id));
   } else if (store.state.auth.outlets.length) {
@@ -848,7 +845,7 @@ async function loadSales() {
     const res = await fetch(`/sales/salesanalytics?${params}`);
     const data = await res.json();
     sales.value = data.data || [];
-    totalPages.value = data.totalPages || 1;
+    totalRecords.value = data.totalCount || 0;
   } catch (e) {
   } finally {
     loading.value = false;

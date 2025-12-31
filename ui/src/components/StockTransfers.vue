@@ -119,14 +119,18 @@
       />
 
       <!-- ENHANCED TABLE -->
-      <v-data-table
+      <v-data-table-server
+        v-model:items-per-page="itemsPerPage"
+        v-model:page="page"
         class="elevation-0"
         :headers="headers"
         :items="transfers"
-        :items-per-page="10"
+        :items-length="totalRecords"
+        :items-per-page-options="[5, 10, 20, 50, 100]"
         :loading="loading"
         loading-text="Loading transfers..."
         no-data-text="No transfers found"
+        @update:options="loadTransfers"
       >
         <template #top>
           <v-card-title class="d-flex align-center pt-4">
@@ -257,19 +261,7 @@
             </v-tooltip>
           </div>
         </template>
-      </v-data-table>
-
-      <!-- ENHANCED PAGINATION -->
-      <v-card-actions class="px-4 py-3 bg-grey-lighten-3">
-        <v-spacer />
-        <v-pagination
-          v-model="page"
-          color="primary"
-          :length="totalPages"
-          total-visible="7"
-          @update:model-value="loadTransfers"
-        />
-      </v-card-actions>
+      </v-data-table-server>
     </v-card>
 
     <v-dialog v-model="showDialog" max-width="1200" persistent scrollable>
@@ -1129,6 +1121,7 @@ import { useStore } from "vuex";
 const store = useStore();
 
 // Data
+const itemsPerPage = ref(10);
 const loading = ref(false);
 const saving = ref(false);
 const deleting = ref(false);
@@ -1138,7 +1131,7 @@ const fromOutlets = ref([]);
 const toOutlets = ref([]);
 const products = ref([]);
 const page = ref(1);
-const totalPages = ref(1);
+const totalRecords = ref(0);
 
 // UI State
 const showDialog = ref(false);
@@ -1786,7 +1779,10 @@ function resetForm() {
 // API Operations
 async function loadTransfers() {
   loading.value = true;
-  const params = new URLSearchParams({ page: page.value, limit: 10 });
+  const params = new URLSearchParams({
+    page: page.value,
+    limit: itemsPerPage.value,
+  });
 
   if (filters.from_outlet_id) {
     params.append("from_outlet_id", filters.from_outlet_id);
@@ -1802,7 +1798,7 @@ async function loadTransfers() {
     const res = await fetch(`/stocktransfers?${params}`);
     const data = await res.json();
     transfers.value = data.data || [];
-    totalPages.value = data.totalPages || 1;
+    totalRecords.value = data.totalRecords || 0;
   } catch (error) {
     store.commit("setMessage", {
       type: "error",

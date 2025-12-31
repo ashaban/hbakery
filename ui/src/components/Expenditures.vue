@@ -11,14 +11,24 @@
             Monitor and manage operational and sales costs
           </p>
         </div>
-        <v-btn
-          v-if="$store.getters.hasTask('can_add_expenditure')"
-          color="primary"
-          prepend-icon="mdi-plus-circle"
-          @click="openDialog(false)"
-        >
-          New Expenditure
-        </v-btn>
+        <div class="d-flex gap-2">
+          <v-btn
+            v-if="$store.getters.hasTask('can_add_expenditure')"
+            color="primary"
+            prepend-icon="mdi-plus"
+            @click="openSingleDialog(false)"
+          >
+            Add Expenditure
+          </v-btn>
+          <v-btn
+            v-if="$store.getters.hasTask('can_add_expenditure')"
+            color="secondary"
+            prepend-icon="mdi-plus-multiple"
+            @click="openBulkDialog"
+          >
+            Add Multiple
+          </v-btn>
+        </div>
       </v-card-text>
     </v-card>
 
@@ -166,13 +176,17 @@
     <!-- TABLE -->
     <v-card elevation="2" rounded="lg">
       <v-card-text class="pa-0">
-        <v-data-table
+        <v-data-table-server
+          v-model:items-per-page="itemsPerPage"
+          v-model:page="page"
           class="rounded-lg"
           density="comfortable"
           :headers="headers"
-          hover
           :items="expenditures"
+          :items-length="totalRecords"
+          :items-per-page-options="[5, 10, 20, 50, 100]"
           :loading="loading"
+          @update:options="loadData"
         >
           <template #loading>
             <v-skeleton-loader type="table-row@10" />
@@ -211,7 +225,7 @@
                     icon
                     size="small"
                     variant="text"
-                    @click="openDialog(true, item)"
+                    @click="openSingleDialog(true, item)"
                   >
                     <v-icon>mdi-pencil</v-icon>
                   </v-btn>
@@ -243,48 +257,34 @@
               <div>No expenditures found</div>
             </div>
           </template>
-        </v-data-table>
-
-        <v-divider />
-        <div class="d-flex justify-space-between align-center pa-4">
-          <span class="text-caption text-grey">
-            Showing {{ expenditures.length }} of {{ totalRecords }} records
-          </span>
-          <v-pagination
-            v-model="page"
-            color="primary"
-            :length="totalPages"
-            :total-visible="7"
-            @update:model-value="loadData"
-          />
-        </div>
+        </v-data-table-server>
       </v-card-text>
     </v-card>
 
-    <!-- ADD/EDIT DIALOG -->
-    <v-dialog v-model="dialog" max-width="600px" persistent>
+    <!-- SINGLE ADD/EDIT DIALOG -->
+    <v-dialog v-model="singleDialog" max-width="600px" persistent>
       <v-card>
         <v-toolbar class="text-white" color="primary" density="comfortable">
-          <v-toolbar-title>{{
-            editMode ? "Edit Expenditure" : "New Expenditure"
-          }}</v-toolbar-title>
+          <v-toolbar-title>
+            {{ editMode ? "Edit Expenditure" : "Add Expenditure" }}
+          </v-toolbar-title>
           <v-spacer />
           <v-btn
             color="white"
             icon="mdi-close"
             variant="text"
-            @click="closeDialog"
+            @click="closeSingleDialog"
           />
         </v-toolbar>
 
         <v-card-text class="pa-4">
-          <v-form ref="formRef" @submit.prevent="saveExpenditure">
+          <v-form ref="singleFormRef" @submit.prevent="saveSingleExpenditure">
             <v-autocomplete
-              v-model="form.type_id"
+              v-model="singleForm.type_id"
               autocomplete="off"
               autocorrect="off"
               color="primary"
-              :error-messages="errors.type_id"
+              :error-messages="singleErrors.type_id"
               inputmode="none"
               item-title="name"
               item-value="id"
@@ -293,13 +293,9 @@
               required
               spellcheck="false"
               variant="outlined"
-              @blur="validateField('type_id')"
-              @input="clearError('type_id')"
-            >
-              <template #label>
-                <span class="required-field">Cost Type</span>
-              </template>
-            </v-autocomplete>
+              @blur="validateSingleField('type_id')"
+              @input="clearSingleError('type_id')"
+            />
 
             <v-row dense>
               <v-col cols="12" md="6">
@@ -308,28 +304,28 @@
                     >Start Date *</label
                   >
                   <VueDatePicker
-                    v-model="form.start_date"
+                    v-model="singleForm.start_date"
                     auto-apply
                     :class="[
                       'rounded-lg',
                       'border',
-                      'px-4',
-                      'py-2',
+                      'px-2',
+                      'py-1',
                       'w-100',
-                      errors.start_date ? 'error-field' : '',
+                      singleErrors.start_date ? 'error-field' : '',
                     ]"
                     format="dd-MM-yyyy"
                     model-type="format"
                     placeholder="Start Date"
                     :teleport="true"
-                    @blur="validateField('start_date')"
-                    @update:model-value="clearError('start_date')"
+                    @blur="validateSingleField('start_date')"
+                    @update:model-value="clearSingleError('start_date')"
                   />
                   <div
-                    v-if="errors.start_date"
+                    v-if="singleErrors.start_date"
                     class="text-caption text-error mt-1"
                   >
-                    {{ errors.start_date }}
+                    {{ singleErrors.start_date }}
                   </div>
                 </div>
               </v-col>
@@ -339,39 +335,39 @@
                     >End Date *</label
                   >
                   <VueDatePicker
-                    v-model="form.end_date"
+                    v-model="singleForm.end_date"
                     auto-apply
                     :class="[
                       'rounded-lg',
                       'border',
-                      'px-4',
-                      'py-2',
+                      'px-2',
+                      'py-1',
                       'w-100',
-                      errors.end_date ? 'error-field' : '',
+                      singleErrors.end_date ? 'error-field' : '',
                     ]"
                     format="dd-MM-yyyy"
                     model-type="format"
                     placeholder="End Date"
                     :teleport="true"
-                    @blur="validateField('end_date')"
-                    @update:model-value="validateDateRange()"
+                    @blur="validateSingleField('end_date')"
+                    @update:model-value="validateSingleDateRange()"
                   />
                   <div
-                    v-if="errors.end_date"
+                    v-if="singleErrors.end_date"
                     class="text-caption text-error mt-1"
                   >
-                    {{ errors.end_date }}
+                    {{ singleErrors.end_date }}
                   </div>
                 </div>
               </v-col>
             </v-row>
 
             <v-text-field
-              v-model.number="form.amount"
+              v-model.number="singleForm.amount"
               autocomplete="off"
               autocorrect="off"
               color="primary"
-              :error-messages="errors.amount"
+              :error-messages="singleErrors.amount"
               inputmode="none"
               label="Amount *"
               prefix="$"
@@ -379,16 +375,12 @@
               spellcheck="false"
               type="number"
               variant="outlined"
-              @blur="validateField('amount')"
-              @input="clearError('amount')"
-            >
-              <template #label>
-                <span class="required-field">Amount</span>
-              </template>
-            </v-text-field>
+              @blur="validateSingleField('amount')"
+              @input="clearSingleError('amount')"
+            />
 
             <v-textarea
-              v-model="form.description"
+              v-model="singleForm.description"
               color="primary"
               label="Description"
               rows="3"
@@ -399,12 +391,393 @@
 
         <v-card-actions class="pa-4">
           <v-spacer />
-          <v-btn color="grey" variant="outlined" @click="closeDialog"
+          <v-btn color="grey" variant="outlined" @click="closeSingleDialog"
             >Cancel</v-btn
           >
-          <v-btn color="primary" :loading="saving" @click="saveExpenditure">
+          <v-btn
+            color="primary"
+            :loading="singleSaving"
+            @click="saveSingleExpenditure"
+          >
             <v-icon start>mdi-content-save</v-icon>
             {{ editMode ? "Update" : "Save" }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- BULK ADD DIALOG -->
+    <v-dialog v-model="bulkDialog" max-width="1200px" persistent>
+      <v-card class="d-flex flex-column" style="height: 100vh">
+        <!-- HEADER - Fixed -->
+        <v-toolbar class="text-white" color="primary" density="comfortable">
+          <v-toolbar-title> Add Multiple Expenditures </v-toolbar-title>
+          <v-spacer />
+          <v-btn
+            color="white"
+            icon="mdi-close"
+            variant="text"
+            @click="closeBulkDialog"
+          />
+        </v-toolbar>
+
+        <!-- CONTENT - Scrollable -->
+        <v-card-text class="pa-4 flex-grow-1" style="overflow-y: auto">
+          <v-alert class="mb-4" type="info" variant="tonal">
+            <strong>Quick Add Mode</strong> - Add multiple expenditures at once.
+            Each row will be saved as a separate expenditure record.
+          </v-alert>
+
+          <!-- Bulk Options -->
+          <v-card class="mb-4" elevation="1">
+            <v-card-text>
+              <v-row>
+                <v-col cols="12" md="6">
+                  <v-switch
+                    v-model="bulkOptions.sameDates"
+                    color="primary"
+                    hide-details
+                    label="Use same dates for all rows"
+                    @update:model-value="handleSameDatesToggle"
+                  />
+                  <div v-if="bulkOptions.sameDates" class="mt-4">
+                    <v-row dense>
+                      <v-col cols="12" md="6">
+                        <div class="d-flex flex-column">
+                          <label class="text-caption text-grey mb-1"
+                            >Start Date</label
+                          >
+                          <VueDatePicker
+                            v-model="bulkOptions.commonStartDate"
+                            auto-apply
+                            class="border rounded-lg px-2 py-1 w-100"
+                            format="dd-MM-yyyy"
+                            model-type="format"
+                            placeholder="Start Date"
+                            :teleport="true"
+                            @update:model-value="applyCommonStartDate"
+                          />
+                        </div>
+                      </v-col>
+                      <v-col cols="12" md="6">
+                        <div class="d-flex flex-column">
+                          <label class="text-caption text-grey mb-1"
+                            >End Date</label
+                          >
+                          <VueDatePicker
+                            v-model="bulkOptions.commonEndDate"
+                            auto-apply
+                            class="border rounded-lg px-2 py-1 w-100"
+                            format="dd-MM-yyyy"
+                            model-type="format"
+                            placeholder="End Date"
+                            :teleport="true"
+                            @update:model-value="applyCommonEndDate"
+                          />
+                        </div>
+                      </v-col>
+                    </v-row>
+                  </div>
+                </v-col>
+                <v-col cols="12" md="6">
+                  <v-alert
+                    v-if="bulkOptions.sameDates"
+                    density="compact"
+                    type="info"
+                    variant="tonal"
+                  >
+                    All rows will use the same start and end dates
+                  </v-alert>
+                  <v-alert v-else density="compact" type="info" variant="tonal">
+                    Each row can have different dates
+                  </v-alert>
+                </v-col>
+              </v-row>
+            </v-card-text>
+          </v-card>
+
+          <!-- Bulk Form Controls -->
+          <v-card class="mb-4" elevation="1">
+            <v-card-actions class="pa-3">
+              <v-btn
+                color="primary"
+                prepend-icon="mdi-plus"
+                @click="addBulkRow"
+              >
+                Add Row
+              </v-btn>
+              <v-btn
+                color="secondary"
+                prepend-icon="mdi-content-copy"
+                @click="duplicateLastRow"
+              >
+                Duplicate Last Row
+              </v-btn>
+              <v-btn
+                color="grey"
+                prepend-icon="mdi-delete"
+                @click="clearAllBulkRows"
+              >
+                Clear All
+              </v-btn>
+              <v-spacer />
+              <div class="text-body-1 font-weight-medium">
+                {{ bulkForm.length }} row(s) • Total:
+                {{ formatCurrency(calculateBulkTotal()) }}
+              </div>
+            </v-card-actions>
+          </v-card>
+
+          <!-- Bulk Form Table -->
+          <v-card class="mb-4" elevation="1">
+            <v-table density="comfortable" fixed-header height="500px">
+              <thead>
+                <tr>
+                  <th width="50">#</th>
+                  <th width="250">Cost Type *</th>
+                  <th v-if="!bulkOptions.sameDates" width="150">
+                    Start Date *
+                  </th>
+                  <th v-if="!bulkOptions.sameDates" width="150">End Date *</th>
+                  <th v-if="bulkOptions.sameDates" width="150">Dates</th>
+                  <th width="150">Amount *</th>
+                  <th>Description</th>
+                  <th width="50">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="(row, index) in bulkForm"
+                  :key="index"
+                  :class="hasBulkRowError(index) ? 'error-row' : ''"
+                >
+                  <td class="text-center">
+                    <span class="font-weight-medium">{{ index + 1 }}</span>
+                  </td>
+                  <td>
+                    <v-autocomplete
+                      v-model="row.type_id"
+                      density="compact"
+                      :error="hasBulkFieldError(index, 'type_id')"
+                      hide-details
+                      item-title="name"
+                      item-value="id"
+                      :items="costTypes"
+                      variant="outlined"
+                      @blur="validateBulkField(index, 'type_id')"
+                      @update:model-value="clearBulkError(index, 'type_id')"
+                    />
+                    <div
+                      v-if="hasBulkFieldError(index, 'type_id')"
+                      class="text-caption text-error mt-1"
+                    >
+                      {{ getBulkError(index, "type_id") }}
+                    </div>
+                  </td>
+
+                  <!-- Individual Dates (when sameDates is false) -->
+                  <td v-if="!bulkOptions.sameDates">
+                    <div class="d-flex flex-column">
+                      <VueDatePicker
+                        v-model="row.start_date"
+                        auto-apply
+                        :class="[
+                          'border',
+                          'rounded-lg',
+                          'px-2',
+                          'py-1',
+                          hasBulkFieldError(index, 'start_date')
+                            ? 'error-field'
+                            : '',
+                        ]"
+                        format="dd-MM-yyyy"
+                        model-type="format"
+                        placeholder="Start Date"
+                        :teleport="true"
+                        @blur="validateBulkField(index, 'start_date')"
+                        @update:model-value="
+                          clearBulkError(index, 'start_date')
+                        "
+                      />
+                      <div
+                        v-if="hasBulkFieldError(index, 'start_date')"
+                        class="text-caption text-error mt-1"
+                      >
+                        {{ getBulkError(index, "start_date") }}
+                      </div>
+                    </div>
+                  </td>
+
+                  <td v-if="!bulkOptions.sameDates">
+                    <div class="d-flex flex-column">
+                      <VueDatePicker
+                        v-model="row.end_date"
+                        auto-apply
+                        :class="[
+                          'border',
+                          'rounded-lg',
+                          'px-2',
+                          'py-1',
+                          hasBulkFieldError(index, 'end_date')
+                            ? 'error-field'
+                            : '',
+                        ]"
+                        format="dd-MM-yyyy"
+                        model-type="format"
+                        placeholder="End Date"
+                        :teleport="true"
+                        @blur="validateBulkField(index, 'end_date')"
+                        @update:model-value="validateBulkDateRange(index)"
+                      />
+                      <div
+                        v-if="hasBulkFieldError(index, 'end_date')"
+                        class="text-caption text-error mt-1"
+                      >
+                        {{ getBulkError(index, "end_date") }}
+                      </div>
+                    </div>
+                  </td>
+
+                  <!-- Common Dates Display (when sameDates is true) -->
+                  <td v-if="bulkOptions.sameDates">
+                    <div class="text-caption text-grey text-center">
+                      <div class="font-weight-medium">
+                        {{ bulkOptions.commonStartDate || "Not set" }}
+                      </div>
+                      <div class="text-xs">to</div>
+                      <div class="font-weight-medium">
+                        {{ bulkOptions.commonEndDate || "Not set" }}
+                      </div>
+                    </div>
+                  </td>
+
+                  <!-- Amount field -->
+                  <td>
+                    <v-text-field
+                      v-model.number="row.amount"
+                      density="compact"
+                      :error="hasBulkFieldError(index, 'amount')"
+                      hide-details
+                      prefix="$"
+                      type="number"
+                      variant="outlined"
+                      @blur="validateBulkField(index, 'amount')"
+                      @input="clearBulkError(index, 'amount')"
+                    />
+                    <div
+                      v-if="hasBulkFieldError(index, 'amount')"
+                      class="text-caption text-error mt-1"
+                    >
+                      {{ getBulkError(index, "amount") }}
+                    </div>
+                  </td>
+
+                  <!-- Description field -->
+                  <td>
+                    <v-text-field
+                      v-model="row.description"
+                      density="compact"
+                      hide-details
+                      variant="outlined"
+                    />
+                  </td>
+
+                  <td class="text-center">
+                    <v-btn
+                      color="red"
+                      icon="mdi-delete"
+                      size="small"
+                      variant="text"
+                      @click="removeBulkRow(index)"
+                    />
+                  </td>
+                </tr>
+              </tbody>
+            </v-table>
+          </v-card>
+
+          <!-- Validation Summary -->
+          <v-row>
+            <v-col cols="12" md="6">
+              <v-card elevation="1">
+                <v-card-text>
+                  <div class="d-flex align-center">
+                    <v-icon
+                      class="mr-2"
+                      :color="getBulkValidationStatus().valid ? 'green' : 'red'"
+                    >
+                      {{
+                        getBulkValidationStatus().valid
+                          ? "mdi-check-circle"
+                          : "mdi-alert-circle"
+                      }}
+                    </v-icon>
+                    <div>
+                      <div class="text-subtitle-2">
+                        {{
+                          getBulkValidationStatus().valid
+                            ? "All rows are valid"
+                            : "Validation Issues"
+                        }}
+                      </div>
+                      <div class="text-caption text-grey">
+                        {{ getBulkValidationStatus().validCount }} valid,
+                        {{ getBulkValidationStatus().invalidCount }} invalid
+                      </div>
+                    </div>
+                  </div>
+                </v-card-text>
+              </v-card>
+            </v-col>
+            <v-col cols="12" md="6">
+              <v-card elevation="1">
+                <v-card-text>
+                  <div class="text-subtitle-2">Summary</div>
+                  <div class="d-flex justify-space-between mt-2">
+                    <div class="text-caption text-grey">Total Rows:</div>
+                    <div class="text-body-2 font-weight-medium">
+                      {{ bulkForm.length }}
+                    </div>
+                  </div>
+                  <div class="d-flex justify-space-between">
+                    <div class="text-caption text-grey">Total Amount:</div>
+                    <div class="text-body-2 font-weight-medium text-primary">
+                      {{ formatCurrency(calculateBulkTotal()) }}
+                    </div>
+                  </div>
+                  <div
+                    v-if="bulkOptions.sameDates"
+                    class="d-flex justify-space-between"
+                  >
+                    <div class="text-caption text-grey">Dates:</div>
+                    <div class="text-body-2">
+                      {{ bulkOptions.commonStartDate || "?" }} to
+                      {{ bulkOptions.commonEndDate || "?" }}
+                    </div>
+                  </div>
+                </v-card-text>
+              </v-card>
+            </v-col>
+          </v-row>
+        </v-card-text>
+
+        <!-- FOOTER - Fixed -->
+        <v-divider />
+        <v-card-actions class="pa-4 bg-grey-lighten-4" style="flex-shrink: 0">
+          <v-spacer />
+          <v-btn color="grey" variant="outlined" @click="closeBulkDialog">
+            Cancel
+          </v-btn>
+          <v-btn
+            color="primary"
+            :disabled="
+              !getBulkValidationStatus().valid || bulkForm.length === 0
+            "
+            :loading="bulkSaving"
+            prepend-icon="mdi-content-save-all"
+            @click="saveBulkExpenditures"
+          >
+            Save All ({{ bulkForm.length }})
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -418,13 +791,14 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import moment from "moment";
 
 /* STATE */
+const itemsPerPage = ref(10);
 const expenditures = ref([]);
 const costTypes = ref([]);
-const formRef = ref(null);
+const singleFormRef = ref(null);
 const filters = reactive({
   type_ids: [],
   start_from: "",
@@ -438,13 +812,23 @@ const summary = reactive({
   total_sale_cost: 0,
 });
 const page = ref(1);
-const totalPages = ref(1);
 const totalRecords = ref(0);
-const dialog = ref(false);
+const singleDialog = ref(false);
+const bulkDialog = ref(false);
 const editMode = ref(false);
 const loading = ref(false);
-const saving = ref(false);
-const form = reactive({
+const singleSaving = ref(false);
+const bulkSaving = ref(false);
+
+// Bulk options
+const bulkOptions = reactive({
+  sameDates: false,
+  commonStartDate: "",
+  commonEndDate: "",
+});
+
+// Single form
+const singleForm = reactive({
   id: null,
   type_id: "",
   start_date: "",
@@ -452,12 +836,18 @@ const form = reactive({
   amount: "",
   description: "",
 });
-const errors = reactive({
+
+const singleErrors = reactive({
   type_id: "",
   start_date: "",
   end_date: "",
   amount: "",
 });
+
+// Bulk form
+const bulkForm = ref([]);
+const bulkErrors = ref([]); // Array of error objects for each row
+
 const snackbar = reactive({
   show: false,
   message: "",
@@ -518,27 +908,227 @@ function showSnackbar(message, color = "success") {
   snackbar.show = true;
 }
 
-/* VALIDATIONS */
-function validateField(field) {
+/* SINGLE FORM VALIDATIONS */
+function validateSingleField(field) {
   switch (field) {
     case "type_id":
-      errors.type_id = !form.type_id ? "Cost type is required" : "";
+      singleErrors.type_id = !singleForm.type_id ? "Cost type is required" : "";
       break;
     case "start_date":
-      errors.start_date = !form.start_date ? "Start date is required" : "";
+      singleErrors.start_date = !singleForm.start_date
+        ? "Start date is required"
+        : "";
       break;
     case "end_date":
-      errors.end_date = !form.end_date ? "End date is required" : "";
-      if (form.start_date && form.end_date) {
-        validateDateRange();
+      singleErrors.end_date = !singleForm.end_date
+        ? "End date is required"
+        : "";
+      if (singleForm.start_date && singleForm.end_date) {
+        validateSingleDateRange();
       }
       break;
     case "amount":
-      if (!form.amount && form.amount !== 0) {
+      if (!singleForm.amount && singleForm.amount !== 0) {
+        singleErrors.amount = "Amount is required";
+      } else if (!Number.isInteger(Number(singleForm.amount))) {
+        singleErrors.amount = "Amount must be a whole number";
+      } else if (singleForm.amount < 0) {
+        singleErrors.amount = "Amount must be positive";
+      } else {
+        singleErrors.amount = "";
+      }
+      break;
+  }
+}
+
+function validateSingleDateRange() {
+  if (singleForm.start_date && singleForm.end_date) {
+    const start = moment(singleForm.start_date, "DD-MM-YYYY");
+    const end = moment(singleForm.end_date, "DD-MM-YYYY");
+    if (end.isBefore(start)) {
+      singleErrors.end_date = "End date cannot be before start date";
+    } else {
+      clearSingleError("end_date");
+    }
+  }
+}
+
+function clearSingleError(field) {
+  singleErrors[field] = "";
+}
+
+function validateSingleForm() {
+  validateSingleField("type_id");
+  validateSingleField("start_date");
+  validateSingleField("end_date");
+  validateSingleField("amount");
+
+  return (
+    !singleErrors.type_id &&
+    !singleErrors.start_date &&
+    !singleErrors.end_date &&
+    !singleErrors.amount
+  );
+}
+
+/* BULK FORM FUNCTIONS */
+function initializeBulkForm() {
+  bulkForm.value = [];
+  bulkErrors.value = [];
+  bulkOptions.sameDates = false;
+  bulkOptions.commonStartDate = "";
+  bulkOptions.commonEndDate = "";
+  // Start with 3 empty rows
+  for (let i = 0; i < 3; i++) {
+    addBulkRow();
+  }
+}
+
+function addBulkRow() {
+  const newRow = {
+    type_id: "",
+    start_date: bulkOptions.sameDates ? bulkOptions.commonStartDate : "",
+    end_date: bulkOptions.sameDates ? bulkOptions.commonEndDate : "",
+    amount: "",
+    description: "",
+  };
+  bulkForm.value.push(newRow);
+  bulkErrors.value.push({
+    type_id: "",
+    start_date: "",
+    end_date: "",
+    amount: "",
+  });
+}
+
+function removeBulkRow(index) {
+  bulkForm.value.splice(index, 1);
+  bulkErrors.value.splice(index, 1);
+}
+
+function clearAllBulkRows() {
+  bulkForm.value = [];
+  bulkErrors.value = [];
+}
+
+function duplicateLastRow() {
+  if (bulkForm.value.length === 0) {
+    addBulkRow();
+    return;
+  }
+
+  const lastRow = { ...bulkForm.value[bulkForm.value.length - 1] };
+  bulkForm.value.push(lastRow);
+  bulkErrors.value.push({
+    type_id: "",
+    start_date: "",
+    end_date: "",
+    amount: "",
+  });
+}
+
+function handleSameDatesToggle() {
+  if (bulkOptions.sameDates) {
+    // When enabling same dates, apply common dates to all rows
+    bulkForm.value.forEach((row) => {
+      row.start_date = bulkOptions.commonStartDate;
+      row.end_date = bulkOptions.commonEndDate;
+    });
+  } else {
+    // When disabling same dates, clear date validation errors
+    bulkForm.value.forEach((row, index) => {
+      clearBulkError(index, "start_date");
+      clearBulkError(index, "end_date");
+    });
+  }
+}
+
+function applyCommonStartDate() {
+  if (bulkOptions.sameDates && bulkOptions.commonStartDate) {
+    bulkForm.value.forEach((row) => {
+      row.start_date = bulkOptions.commonStartDate;
+    });
+  }
+}
+
+function applyCommonEndDate() {
+  if (bulkOptions.sameDates && bulkOptions.commonEndDate) {
+    bulkForm.value.forEach((row) => {
+      row.end_date = bulkOptions.commonEndDate;
+    });
+  }
+}
+
+function hasBulkRowError(rowIndex) {
+  if (!bulkErrors.value[rowIndex]) return false;
+  const errors = bulkErrors.value[rowIndex];
+  return (
+    errors.type_id || errors.start_date || errors.end_date || errors.amount
+  );
+}
+
+function hasBulkFieldError(rowIndex, field) {
+  if (!bulkErrors.value[rowIndex]) return false;
+  return !!bulkErrors.value[rowIndex][field];
+}
+
+function getBulkError(rowIndex, field) {
+  if (bulkErrors.value[rowIndex]) {
+    return bulkErrors.value[rowIndex][field];
+  }
+  return "";
+}
+
+function validateBulkField(rowIndex, field) {
+  if (!bulkErrors.value[rowIndex]) {
+    bulkErrors.value[rowIndex] = {
+      type_id: "",
+      start_date: "",
+      end_date: "",
+      amount: "",
+    };
+  }
+
+  const row = bulkForm.value[rowIndex];
+  const errors = bulkErrors.value[rowIndex];
+
+  switch (field) {
+    case "type_id":
+      errors.type_id = !row.type_id ? "Cost type is required" : "";
+      break;
+    case "start_date":
+      if (bulkOptions.sameDates) {
+        // When same dates is enabled, check common dates
+        if (!bulkOptions.commonStartDate) {
+          errors.start_date = "Start date is required";
+        } else {
+          errors.start_date = "";
+        }
+      } else {
+        errors.start_date = !row.start_date ? "Start date is required" : "";
+      }
+      break;
+    case "end_date":
+      if (bulkOptions.sameDates) {
+        // When same dates is enabled, check common dates
+        if (!bulkOptions.commonEndDate) {
+          errors.end_date = "End date is required";
+        } else {
+          errors.end_date = "";
+        }
+      } else {
+        errors.end_date = !row.end_date ? "End date is required" : "";
+        if (row.start_date && row.end_date) {
+          validateBulkDateRange(rowIndex);
+        }
+      }
+      break;
+    case "amount":
+      if (!row.amount && row.amount !== 0) {
         errors.amount = "Amount is required";
-      } else if (!Number.isInteger(Number(form.amount))) {
+      } else if (!Number.isInteger(Number(row.amount))) {
         errors.amount = "Amount must be a whole number";
-      } else if (form.amount < 0) {
+      } else if (row.amount < 0) {
         errors.amount = "Amount must be positive";
       } else {
         errors.amount = "";
@@ -547,31 +1137,105 @@ function validateField(field) {
   }
 }
 
-function validateDateRange() {
-  if (form.start_date && form.end_date) {
-    const start = moment(form.start_date, "DD-MM-YYYY");
-    const end = moment(form.end_date, "DD-MM-YYYY");
+function validateBulkDateRange(rowIndex) {
+  const row = bulkForm.value[rowIndex];
+  const errors = bulkErrors.value[rowIndex];
+
+  if (row.start_date && row.end_date) {
+    const start = moment(row.start_date, "DD-MM-YYYY");
+    const end = moment(row.end_date, "DD-MM-YYYY");
+
     if (end.isBefore(start)) {
       errors.end_date = "End date cannot be before start date";
     } else {
-      clearError("end_date");
+      errors.end_date = "";
     }
   }
 }
 
-function clearError(field) {
-  errors[field] = "";
+function clearBulkError(rowIndex, field) {
+  if (bulkErrors.value[rowIndex]) {
+    bulkErrors.value[rowIndex][field] = "";
+  }
 }
 
-function validateForm() {
-  validateField("type_id");
-  validateField("start_date");
-  validateField("end_date");
-  validateField("amount");
+function validateAllBulkRows() {
+  let allValid = true;
 
-  return (
-    !errors.type_id && !errors.start_date && !errors.end_date && !errors.amount
-  );
+  // Validate common dates first if sameDates is enabled
+  if (bulkOptions.sameDates) {
+    if (!bulkOptions.commonStartDate) {
+      showSnackbar("Common start date is required", "error");
+      return false;
+    }
+    if (!bulkOptions.commonEndDate) {
+      showSnackbar("Common end date is required", "error");
+      return false;
+    }
+
+    // Validate date range for common dates
+    const start = moment(bulkOptions.commonStartDate, "DD-MM-YYYY");
+    const end = moment(bulkOptions.commonEndDate, "DD-MM-YYYY");
+    if (end.isBefore(start)) {
+      showSnackbar("End date cannot be before start date", "error");
+      return false;
+    }
+  }
+
+  // Validate each row
+  bulkForm.value.forEach((row, index) => {
+    validateBulkField(index, "type_id");
+    validateBulkField(index, "start_date");
+    validateBulkField(index, "end_date");
+    validateBulkField(index, "amount");
+
+    const errors = bulkErrors.value[index];
+    if (
+      errors &&
+      (errors.type_id || errors.start_date || errors.end_date || errors.amount)
+    ) {
+      allValid = false;
+    }
+  });
+
+  return allValid;
+}
+
+function getBulkValidationStatus() {
+  let validCount = 0;
+  let invalidCount = 0;
+
+  bulkErrors.value.forEach((errors) => {
+    const hasErrors =
+      errors &&
+      (errors.type_id || errors.start_date || errors.end_date || errors.amount);
+    if (hasErrors) {
+      invalidCount++;
+    } else {
+      validCount++;
+    }
+  });
+
+  // Check common dates if sameDates is enabled
+  if (bulkOptions.sameDates) {
+    if (!bulkOptions.commonStartDate || !bulkOptions.commonEndDate) {
+      invalidCount = bulkForm.value.length; // All rows are invalid if common dates not set
+      validCount = 0;
+    }
+  }
+
+  return {
+    valid: invalidCount === 0,
+    validCount,
+    invalidCount,
+  };
+}
+
+function calculateBulkTotal() {
+  return bulkForm.value.reduce((total, row) => {
+    const amount = parseFloat(row.amount) || 0;
+    return total + amount;
+  }, 0);
 }
 
 /* LOADERS */
@@ -616,11 +1280,10 @@ async function loadData() {
     if (filters.end_from) params.append("end_date_from", filters.end_from);
     if (filters.end_to) params.append("end_date_to", filters.end_to);
     params.append("page", page.value);
-    params.append("limit", 10);
+    params.append("limit", itemsPerPage.value);
     const res = await fetch(`/expenditures?${params.toString()}`);
     const data = await res.json();
     expenditures.value = data.data || [];
-    totalPages.value = data.totalPages || 1;
     totalRecords.value = data.totalRecords || 0;
     await loadSummary();
   } catch (err) {
@@ -631,24 +1294,24 @@ async function loadData() {
   }
 }
 
-/* CRUD */
-function openDialog(edit = false, item = null) {
+/* DIALOG HANDLERS */
+function openSingleDialog(edit = false, item = null) {
   editMode.value = edit;
-  dialog.value = true;
-  // Clear previous errors
-  Object.keys(errors).forEach((key) => (errors[key] = ""));
+  singleDialog.value = true;
+
+  Object.keys(singleErrors).forEach((key) => (singleErrors[key] = ""));
 
   if (edit && item) {
-    Object.assign(form, {
+    Object.assign(singleForm, {
       id: item.id,
       type_id: item.type_id,
-      start_date: moment(item.start_date, "YYYY-MM-DD").format("DD-MM-YYYY"),
-      end_date: moment(item.end_date, "YYYY-MM-DD").format("DD-MM-YYYY"),
+      start_date: moment(item.start_date).format("DD-MM-YYYY"),
+      end_date: moment(item.end_date).format("DD-MM-YYYY"),
       amount: item.amount,
       description: item.description,
     });
   } else {
-    Object.assign(form, {
+    Object.assign(singleForm, {
       id: null,
       type_id: "",
       start_date: "",
@@ -659,30 +1322,46 @@ function openDialog(edit = false, item = null) {
   }
 }
 
-function closeDialog() {
-  dialog.value = false;
-  // Clear errors when closing
-  Object.keys(errors).forEach((key) => (errors[key] = ""));
+function closeSingleDialog() {
+  singleDialog.value = false;
+  Object.keys(singleErrors).forEach((key) => (singleErrors[key] = ""));
 }
 
-async function saveExpenditure() {
-  if (!validateForm()) {
+function openBulkDialog() {
+  bulkDialog.value = true;
+  initializeBulkForm();
+}
+
+function closeBulkDialog() {
+  bulkDialog.value = false;
+  bulkForm.value = [];
+  bulkErrors.value = [];
+  bulkOptions.sameDates = false;
+  bulkOptions.commonStartDate = "";
+  bulkOptions.commonEndDate = "";
+}
+
+/* SINGLE EXPENDITURE SAVE */
+async function saveSingleExpenditure() {
+  if (!validateSingleForm()) {
     showSnackbar("Please fix the validation errors", "error");
     return;
   }
 
-  saving.value = true;
+  singleSaving.value = true;
   try {
     const method = editMode.value ? "PUT" : "POST";
-    const url = editMode.value ? `/expenditures/${form.id}` : "/expenditures";
+    const url = editMode.value
+      ? `/expenditures/${singleForm.id}`
+      : "/expenditures";
 
-    // Prepare data for API
     const payload = {
-      ...form,
-      start_date: moment(form.start_date, "DD-MM-YYYY").format("YYYY-MM-DD"),
-      end_date: moment(form.end_date, "DD-MM-YYYY").format("YYYY-MM-DD"),
+      ...singleForm,
+      start_date: moment(singleForm.start_date, "DD-MM-YYYY").format(
+        "YYYY-MM-DD",
+      ),
+      end_date: moment(singleForm.end_date, "DD-MM-YYYY").format("YYYY-MM-DD"),
     };
-    console.log(JSON.stringify(payload, 0, 2));
 
     const res = await fetch(url, {
       method,
@@ -695,7 +1374,7 @@ async function saveExpenditure() {
       throw new Error(errorData.message || "Save failed");
     }
 
-    dialog.value = false;
+    singleDialog.value = false;
     showSnackbar(
       `Expenditure ${editMode.value ? "updated" : "created"} successfully`,
     );
@@ -704,7 +1383,70 @@ async function saveExpenditure() {
     console.error("Failed to save expenditure:", err);
     showSnackbar(err.message || "Failed to save expenditure", "error");
   } finally {
-    saving.value = false;
+    singleSaving.value = false;
+  }
+}
+
+/* BULK EXPENDITURES SAVE */
+async function saveBulkExpenditures() {
+  if (!validateAllBulkRows()) {
+    showSnackbar("Please fix all validation errors before saving", "error");
+    return;
+  }
+
+  if (bulkForm.value.length === 0) {
+    showSnackbar("No expenditures to save", "error");
+    return;
+  }
+
+  bulkSaving.value = true;
+  try {
+    // Prepare payload for bulk API
+    const payload = {
+      expenditures: bulkForm.value.map((row) => ({
+        type_id: row.type_id,
+        start_date: bulkOptions.sameDates
+          ? moment(bulkOptions.commonStartDate, "DD-MM-YYYY").format(
+              "YYYY-MM-DD",
+            )
+          : moment(row.start_date, "DD-MM-YYYY").format("YYYY-MM-DD"),
+        end_date: bulkOptions.sameDates
+          ? moment(bulkOptions.commonEndDate, "DD-MM-YYYY").format("YYYY-MM-DD")
+          : moment(row.end_date, "DD-MM-YYYY").format("YYYY-MM-DD"),
+        amount: parseFloat(row.amount),
+        description: row.description || null,
+      })),
+    };
+
+    const res = await fetch("/expenditures/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.message || "Bulk save failed");
+    }
+
+    const result = await res.json();
+
+    bulkDialog.value = false;
+    showSnackbar(
+      `Successfully created ${result.created} expenditure(s)`,
+      result.failed > 0 ? "warning" : "success",
+    );
+
+    if (result.failed > 0 && result.errors) {
+      console.warn("Some expenditures failed:", result.errors);
+    }
+
+    await loadData();
+  } catch (err) {
+    console.error("Failed to save bulk expenditures:", err);
+    showSnackbar(err.message || "Failed to save bulk expenditures", "error");
+  } finally {
+    bulkSaving.value = false;
   }
 }
 
@@ -749,5 +1491,8 @@ onMounted(async () => {
 }
 .text-error {
   color: #ff5252;
+}
+.error-row {
+  background-color: #ffebee !important;
 }
 </style>

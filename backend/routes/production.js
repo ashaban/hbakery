@@ -734,7 +734,6 @@ router.get("/batches", requireTask("can_see_production"), async (req, res) => {
         products: productMap[b.id] || [],
       }));
     }
-
     res.json({
       data: batches,
       totalRecords,

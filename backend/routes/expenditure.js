@@ -334,6 +334,73 @@ router.post("/", requireTask("can_add_expenditure"), async (req, res) => {
   }
 });
 
+// ➕➕ Add Multiple Expenditures (Bulk Insert)
+router.post("/bulk", requireTask("can_add_expenditure"), async (req, res) => {
+  const { expenditures } = req.body;
+
+  if (!Array.isArray(expenditures) || expenditures.length === 0) {
+    return res.status(400).json({ error: "expenditures array is required" });
+  }
+
+  const client = await pool.connect();
+  let created = 0;
+  let failed = 0;
+  const errors = [];
+
+  try {
+    await client.query("BEGIN");
+
+    for (let i = 0; i < expenditures.length; i++) {
+      const exp = expenditures[i];
+      const { type_id, start_date, end_date, amount, description } = exp;
+
+      // Basic validation per row
+      if (!type_id || !start_date || !end_date || !amount) {
+        failed++;
+        errors.push({
+          index: i,
+          error: "Missing required fields",
+          data: exp,
+        });
+        continue;
+      }
+
+      try {
+        await client.query(
+          `
+            INSERT INTO expenditure
+              (type_id, start_date, end_date, amount, description)
+            VALUES ($1, $2, $3, $4, $5)
+          `,
+          [type_id, start_date, end_date, amount, description || null]
+        );
+        created++;
+      } catch (err) {
+        failed++;
+        errors.push({
+          index: i,
+          error: err.message,
+          data: exp,
+        });
+      }
+    }
+
+    await client.query("COMMIT");
+
+    res.json({
+      created,
+      failed,
+      errors,
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("❌ Bulk insert failed:", err);
+    res.status(500).json({ error: "Bulk insert failed" });
+  } finally {
+    client.release();
+  }
+});
+
 // ✏️ Edit Expenditure
 router.put("/:id", requireTask("can_edit_expenditure"), async (req, res) => {
   try {

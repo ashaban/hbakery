@@ -62,12 +62,17 @@
     <v-progress-linear :active="loading" :indeterminate="loading" />
 
     <!-- STAFF TABLE -->
-    <v-data-table
+    <v-data-table-server
+      v-model:items-per-page="itemsPerPage"
+      v-model:page="page"
       class="elevation-1"
       dense
       :headers="headers"
       :items="values"
+      :items-length="totalRecords"
+      :items-per-page-options="[5, 10, 20, 50, 100]"
       :loading="loading"
+      @update:options="loadValues"
     >
       <template #item.salary="{ item }">
         {{ formatCurrency(item.salary) }}
@@ -117,7 +122,7 @@
           mdi-square-edit-outline
         </v-icon>
       </template>
-    </v-data-table>
+    </v-data-table-server>
 
     <!-- PAGINATION -->
     <div class="d-flex justify-end align-center mt-4">
@@ -559,6 +564,7 @@ import { minValue, required } from "@vuelidate/validators";
 import { useStore } from "vuex";
 
 // store
+const itemsPerPage = ref(10);
 const store = useStore();
 const loading = ref(false);
 const dialog = ref(false);
@@ -572,7 +578,7 @@ const staffDetailsDialog = ref(false);
 
 // pagination & data
 const page = ref(1);
-const totalPages = ref(1);
+const totalRecords = ref(0);
 const limit = 10;
 const values = ref([]);
 const totals = reactive({ total_staff: "" });
@@ -842,7 +848,7 @@ async function loadValues() {
   loading.value = true;
   const params = new URLSearchParams({
     page: page.value,
-    limit,
+    limit: itemsPerPage.value,
   });
   if (filters.search) params.append("search", filters.search);
   if (filters.status) params.append("status", filters.status);
@@ -857,8 +863,8 @@ async function loadValues() {
     const res = await fetch(`/staffs?${params.toString()}`);
     const data = await res.json();
     values.value = data.data || [];
-    totalPages.value = data.totalPages || 1;
     totals.total_staff = data.totalRecords || 0;
+    totalRecords.value = data.totalRecords || 0;
   } catch (err) {
     console.error(err);
     store.commit("setMessage", { type: "error", text: "Failed to load staff" });

@@ -139,14 +139,18 @@
         height="4"
         :indeterminate="loading"
       />
-      <v-data-table
+      <v-data-table-server
+        v-model:items-per-page="itemsPerPage"
+        v-model:page="page"
         class="elevation-0"
         :headers="headers"
         :items="giveaways"
-        :items-per-page="10"
+        :items-length="totalRecords"
+        :items-per-page-options="[5, 10, 20, 50, 100]"
         :loading="loading"
         loading-text="Loading giveaways..."
         no-data-text="No giveaways found"
+        @update:options="loadGiveaways"
       >
         <template #top>
           <v-card-title class="d-flex align-center pt-4">
@@ -272,18 +276,7 @@
             </v-tooltip>
           </div>
         </template>
-      </v-data-table>
-
-      <v-card-actions class="px-4 py-3 bg-grey-lighten-3">
-        <v-spacer />
-        <v-pagination
-          v-model="page"
-          color="primary"
-          :length="totalPages"
-          total-visible="7"
-          @update:model-value="loadGiveaways"
-        />
-      </v-card-actions>
+      </v-data-table-server>
     </v-card>
 
     <!-- CREATE/EDIT DIALOG -->
@@ -777,6 +770,7 @@ import { useStore } from "vuex";
 const store = useStore();
 
 // State
+const itemsPerPage = ref(10);
 const loading = ref(false);
 const saving = ref(false);
 const deleting = ref(false);
@@ -784,7 +778,7 @@ const giveaways = ref([]);
 const outlets = ref([]);
 const products = ref([]);
 const page = ref(1);
-const totalPages = ref(1);
+const totalRecords = ref(0);
 
 // UI state
 const showDialog = ref(false);
@@ -1004,7 +998,10 @@ function validateForm() {
 // API
 async function loadGiveaways() {
   loading.value = true;
-  const params = new URLSearchParams({ page: page.value, limit: 10 });
+  const params = new URLSearchParams({
+    page: page.value,
+    limit: itemsPerPage.value,
+  });
   if (filters.outlet_id?.length) {
     filters.outlet_id.forEach((id) => params.append("outlet_id[]", id));
   } else if (store.state.auth.outlets.length) {
@@ -1021,7 +1018,7 @@ async function loadGiveaways() {
     const res = await fetch(`/productOut?${params}`);
     const data = await res.json();
     giveaways.value = data.data || [];
-    totalPages.value = data.totalPages || 1;
+    totalRecords.value = data.totalRecords || 0;
   } catch (e) {
     store.commit("setMessage", {
       type: "error",
