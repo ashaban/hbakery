@@ -1407,10 +1407,10 @@ function getItemAvailable(it) {
 }
 async function onProductChange(it) {
   const prod = products.value.find((p) => p.id === it.product_id);
-  if (prod && (it.unit_price === "" || it.unit_price == null)) {
-    it.unit_price = Number(prod.price || 0);
-    it.product_code = prod.code;
-  }
+  // if (prod && (it.unit_price === "" || it.unit_price == null)) {
+  it.unit_price = Number(prod.price || 0);
+  it.product_code = prod.code;
+  // }
   await fetchItemAvailability(it);
   validateForm();
 }
