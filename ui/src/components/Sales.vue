@@ -814,6 +814,134 @@
                 </div>
               </v-card-text>
             </v-card>
+
+            <!-- Customer Debts -->
+            <v-card class="mt-6" variant="outlined">
+              <v-card-title
+                class="d-flex align-center justify-space-between bg-red-lighten-5"
+              >
+                <div class="d-flex align-center">
+                  <v-icon class="mr-2" color="red">mdi-account-cash</v-icon>
+                  Customer Debts
+                  <v-chip class="ml-3" color="red" size="small" variant="flat">
+                    {{ form.debts.length }} row(s)
+                  </v-chip>
+                </div>
+                <v-btn color="red" size="small" @click="addDebt">
+                  <v-icon start>mdi-plus</v-icon>
+                  Add Debtor
+                </v-btn>
+              </v-card-title>
+
+              <v-card-text class="pa-4">
+                <v-alert class="mb-4" color="info" density="compact" variant="tonal">
+                  If this sale covers items for multiple customers entered as
+                  one bulk sale, list here who still owes money and how much
+                  — without needing to say which items were theirs. The total
+                  below must exactly match the sale's unpaid balance.
+                </v-alert>
+
+                <v-alert
+                  v-if="isEditing && form.debts.some((d) => d.hasRepayments)"
+                  class="mb-4"
+                  color="warning"
+                  density="compact"
+                  icon="mdi-lock-alert"
+                  variant="tonal"
+                >
+                  One or more of these debts already has a repayment
+                  recorded against it. Saving changes to the debt list will
+                  be rejected until those repayments are accounted for.
+                </v-alert>
+
+                <v-alert
+                  v-if="debtErrors.length"
+                  class="mb-4"
+                  color="error"
+                  icon="mdi-alert-circle"
+                  variant="tonal"
+                >
+                  <div v-for="err in debtErrors" :key="err">• {{ err }}</div>
+                </v-alert>
+
+                <div v-for="(d, didx) in form.debts" :key="didx" class="mb-3">
+                  <v-row dense>
+                    <v-col cols="12" md="4">
+                      <v-combobox
+                        v-model="d.customerSelection"
+                        auto-select-first="false"
+                        clearable
+                        density="comfortable"
+                        hide-no-data
+                        item-title="name"
+                        item-value="id"
+                        :items="customers"
+                        label="Customer"
+                        return-object
+                        variant="outlined"
+                        @update:model-value="validateForm"
+                      />
+                    </v-col>
+                    <v-col cols="12" md="3">
+                      <v-text-field
+                        v-model="d.amount"
+                        autocomplete="off"
+                        autocorrect="off"
+                        density="comfortable"
+                        inputmode="none"
+                        label="Amount Owed"
+                        spellcheck="false"
+                        type="number"
+                        variant="outlined"
+                        @input="validateForm"
+                      />
+                    </v-col>
+                    <v-col cols="12" md="4">
+                      <v-text-field
+                        v-model="d.notes"
+                        autocomplete="off"
+                        autocorrect="off"
+                        density="comfortable"
+                        inputmode="none"
+                        label="Notes (optional)"
+                        spellcheck="false"
+                        variant="outlined"
+                      />
+                    </v-col>
+                    <v-col class="text-right" cols="12" md="1">
+                      <v-btn
+                        color="error"
+                        icon
+                        size="small"
+                        variant="text"
+                        @click="removeDebt(didx)"
+                      >
+                        <v-icon>mdi-delete-outline</v-icon>
+                      </v-btn>
+                    </v-col>
+                  </v-row>
+                </div>
+
+                <v-divider class="my-4" />
+                <div class="d-flex justify-end">
+                  <div class="text-right mr-6">
+                    <div>
+                      Debts Total: <strong>{{ money(debtsTotal) }}</strong>
+                    </div>
+                    <div
+                      :class="
+                        debtsReconciled ? 'text-success' : 'text-error'
+                      "
+                    >
+                      Unpaid Balance:
+                      <strong>{{
+                        money(Math.max(total - totalPaid, 0))
+                      }}</strong>
+                    </div>
+                  </div>
+                </div>
+              </v-card-text>
+            </v-card>
           </v-card-text>
 
           <v-card-actions class="pa-4 bg-grey-lighten-4">
@@ -1071,6 +1199,71 @@
                 </div>
               </v-card-text>
             </v-card>
+
+            <v-card v-if="currentDebts.length" class="mb-6 elevation-2">
+              <v-card-title class="d-flex align-center bg-red-lighten-5">
+                <v-icon class="mr-2" color="red">mdi-account-cash</v-icon>
+                Customer Debts
+              </v-card-title>
+              <v-card-text class="pa-0">
+                <v-table density="comfortable">
+                  <thead>
+                    <tr class="bg-grey-lighten-4">
+                      <th class="text-left font-weight-bold text-grey">
+                        CUSTOMER
+                      </th>
+                      <th class="text-right font-weight-bold text-grey">
+                        OWED
+                      </th>
+                      <th class="text-right font-weight-bold text-grey">
+                        REPAID
+                      </th>
+                      <th class="text-right font-weight-bold text-grey">
+                        BALANCE
+                      </th>
+                      <th class="text-right font-weight-bold text-grey">
+                        ACTION
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="d in currentDebts" :key="d.id">
+                      <td class="text-left">
+                        {{ d.customer_name }}
+                        <div v-if="d.notes" class="text-caption text-grey">
+                          {{ d.notes }}
+                        </div>
+                      </td>
+                      <td class="text-right">{{ money(d.amount) }}</td>
+                      <td class="text-right">{{ money(d.repaid) }}</td>
+                      <td class="text-right">
+                        <v-chip
+                          :color="Number(d.balance) > 0 ? 'error' : 'success'"
+                          size="small"
+                          variant="flat"
+                        >
+                          {{ money(d.balance) }}
+                        </v-chip>
+                      </td>
+                      <td class="text-right">
+                        <v-btn
+                          v-if="
+                            Number(d.balance) > 0 &&
+                            $store.getters.hasTask('can_add_sale')
+                          "
+                          color="primary"
+                          size="small"
+                          variant="tonal"
+                          @click="openDebtPaymentDialog(d)"
+                        >
+                          Record Payment
+                        </v-btn>
+                      </td>
+                    </tr>
+                  </tbody>
+                </v-table>
+              </v-card-text>
+            </v-card>
           </v-card-text>
 
           <v-card-actions class="pa-4 bg-grey-lighten-4">
@@ -1083,6 +1276,87 @@
             >
               <v-icon start>mdi-close</v-icon>
               Close
+            </v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+
+      <!-- DEBT PAYMENT DIALOG -->
+      <v-dialog v-model="showDebtPaymentDialog" max-width="500">
+        <v-card class="rounded-lg">
+          <v-toolbar color="primary" density="comfortable">
+            <v-avatar class="mr-3" color="primary" size="40">
+              <v-icon color="white">mdi-cash-plus</v-icon>
+            </v-avatar>
+            <v-toolbar-title class="text-h6 font-weight-bold">
+              Record Debt Payment
+            </v-toolbar-title>
+            <v-spacer />
+            <v-btn icon @click="showDebtPaymentDialog = false">
+              <v-icon>mdi-close</v-icon>
+            </v-btn>
+          </v-toolbar>
+          <v-card-text class="pa-6">
+            <div class="text-body-1 mb-4">
+              <strong>{{ debtPaymentTarget?.customer_name }}</strong> owes
+              <strong>{{ money(debtPaymentTarget?.balance) }}</strong>
+            </div>
+            <v-text-field
+              v-model="debtPaymentForm.amount"
+              autocomplete="off"
+              autocorrect="off"
+              density="comfortable"
+              label="Amount"
+              spellcheck="false"
+              type="number"
+              variant="outlined"
+            />
+            <v-select
+              v-model="debtPaymentForm.method"
+              density="comfortable"
+              :items="paymentMethods"
+              label="Method"
+              variant="outlined"
+            />
+            <v-text-field
+              v-model="debtPaymentForm.reference"
+              autocomplete="off"
+              autocorrect="off"
+              density="comfortable"
+              label="Reference (optional)"
+              spellcheck="false"
+              variant="outlined"
+            />
+            <v-text-field
+              v-model="debtPaymentForm.payment_date"
+              autocomplete="off"
+              autocorrect="off"
+              density="comfortable"
+              label="Payment Date"
+              spellcheck="false"
+              type="date"
+              variant="outlined"
+            />
+          </v-card-text>
+          <v-card-actions class="pa-4 bg-grey-lighten-4">
+            <v-spacer />
+            <v-btn
+              size="large"
+              variant="outlined"
+              @click="showDebtPaymentDialog = false"
+            >
+              Cancel
+            </v-btn>
+            <v-btn
+              color="primary"
+              :disabled="!debtPaymentForm.amount"
+              :loading="recordingDebtPayment"
+              size="large"
+              variant="flat"
+              @click="submitDebtPayment"
+            >
+              <v-icon start>mdi-check</v-icon>
+              Record Payment
             </v-btn>
           </v-card-actions>
         </v-card>
@@ -1139,8 +1413,11 @@
 <script setup>
 import { computed, nextTick, onMounted, reactive, ref, watch } from "vue";
 import { useStore } from "vuex";
+import { useRoute, useRouter } from "vue-router";
 
 const store = useStore();
+const route = useRoute();
+const router = useRouter();
 
 // State
 const itemsPerPage = ref(10);
@@ -1170,6 +1447,18 @@ const isEditing = ref(false);
 const currentSaleId = ref(null);
 const currentSale = ref(null);
 const currentItems = ref([]);
+const currentDebts = ref([]);
+
+// Debt repayment dialog state
+const showDebtPaymentDialog = ref(false);
+const recordingDebtPayment = ref(false);
+const debtPaymentTarget = ref(null);
+const debtPaymentForm = reactive({
+  amount: "",
+  method: "CASH",
+  reference: "",
+  payment_date: "",
+});
 
 // Filters
 const filters = reactive({
@@ -1191,11 +1480,13 @@ const form = reactive({
   notes: "",
   items: [],
   payments: [],
+  debts: [],
 });
 
 // Validation
 const validationErrors = ref([]);
 const paymentErrors = ref([]);
+const debtErrors = ref([]);
 
 // Constants
 const headers = [
@@ -1231,6 +1522,13 @@ const total = computed(() => subtotal.value);
 const totalPaid = computed(() =>
   form.payments.reduce((s, p) => s + Number(p.amount || 0), 0),
 );
+const debtsTotal = computed(() =>
+  form.debts.reduce((s, d) => s + Number(d.amount || 0), 0),
+);
+const debtsReconciled = computed(() => {
+  const balance = Math.max(total.value - totalPaid.value, 0);
+  return round2(debtsTotal.value) === round2(balance);
+});
 
 // Save button rule
 const canSave = computed(() => {
@@ -1239,7 +1537,8 @@ const canSave = computed(() => {
     form.sale_date &&
     form.items.length > 0 &&
     validationErrors.value.length === 0 &&
-    paymentErrors.value.length === 0
+    paymentErrors.value.length === 0 &&
+    debtErrors.value.length === 0
   );
 });
 
@@ -1514,7 +1813,7 @@ function validateForm() {
   });
 
   validationErrors.value = errs;
-  validatePayments();
+  validatePayments(); // also revalidates debts, since debt totals depend on payments
 }
 function validatePayments() {
   const errs = [];
@@ -1532,6 +1831,51 @@ function validatePayments() {
     errs.push(`Total payment amount cannot exceed sale total.`);
   }
   paymentErrors.value = errs;
+  validateDebts();
+}
+
+// Debts logic
+function round2(n) {
+  return Math.round(Number(n) * 100) / 100;
+}
+function addDebt() {
+  form.debts.push({ customerSelection: null, amount: "", notes: "" });
+  validateForm();
+}
+function removeDebt(i) {
+  form.debts.splice(i, 1);
+  validateForm();
+}
+function debtCustomerId(d) {
+  if (typeof d.customerSelection === "string") return null;
+  return d.customerSelection?.id ?? null;
+}
+function debtCustomerName(d) {
+  if (typeof d.customerSelection === "string") return d.customerSelection.trim();
+  return d.customerSelection?.name ?? "";
+}
+function validateDebts() {
+  const errs = [];
+  form.debts.forEach((d, idx) => {
+    if (!d.customerSelection || !debtCustomerName(d)) {
+      errs.push(`Debt ${idx + 1}: customer is required.`);
+    }
+    if (d.amount === "" || Number(d.amount) <= 0) {
+      errs.push(`Debt ${idx + 1}: amount must be > 0, or delete the row.`);
+    }
+  });
+
+  const balance = round2(Math.max(saleTotals.value.total - saleTotals.value.paid, 0));
+  const debtSum = round2(
+    form.debts.reduce((s, d) => s + Number(d.amount || 0), 0),
+  );
+  if (debtSum !== balance) {
+    errs.push(
+      `Customer debts (${debtSum}) must add up to exactly the unpaid balance (${balance}).`,
+    );
+  }
+
+  debtErrors.value = errs;
 }
 
 // API
@@ -1615,6 +1959,15 @@ async function openEditDialog(row) {
     }));
     paymentAutoLinked.value = false;
 
+    // Customer debts (existing) - blocked from editing server-side once a
+    // debt has repayments; still shown so the user sees what's there.
+    form.debts = (data.debts || []).map((d) => ({
+      customerSelection: { id: d.customer_id, name: d.customer_name },
+      amount: String(d.amount),
+      notes: d.notes || "",
+      hasRepayments: Number(d.repaid) > 0,
+    }));
+
     // Stock preload
     for (const it of form.items) await fetchItemAvailability(it);
 
@@ -1641,6 +1994,7 @@ async function openViewDialog(row) {
       outlet_type: data.sale.outlet_type,
     };
     currentItems.value = data.items || [];
+    currentDebts.value = data.debts || [];
 
     showViewDialog.value = true;
   } catch (e) {
@@ -1650,6 +2004,64 @@ async function openViewDialog(row) {
     });
   } finally {
     loading.value = false;
+  }
+}
+
+async function refreshCurrentSale() {
+  if (!currentSaleId.value) return;
+  const res = await fetch(`/sales/${currentSaleId.value}`);
+  const data = await res.json();
+  currentSale.value = {
+    ...data.sale,
+    outlet: data.sale.outlet_name,
+    outlet_type: data.sale.outlet_type,
+  };
+  currentItems.value = data.items || [];
+  currentDebts.value = data.debts || [];
+}
+
+function openDebtPaymentDialog(debt) {
+  debtPaymentTarget.value = debt;
+  debtPaymentForm.amount = String(debt.balance);
+  debtPaymentForm.method = "CASH";
+  debtPaymentForm.reference = "";
+  debtPaymentForm.payment_date = today;
+  showDebtPaymentDialog.value = true;
+}
+
+async function submitDebtPayment() {
+  if (!debtPaymentTarget.value || !debtPaymentForm.amount) return;
+  recordingDebtPayment.value = true;
+  try {
+    const res = await fetch(
+      `/sales/debts/${debtPaymentTarget.value.id}/payments`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: Number(debtPaymentForm.amount),
+          method: debtPaymentForm.method || null,
+          reference: debtPaymentForm.reference || null,
+          payment_date: debtPaymentForm.payment_date || today,
+        }),
+      },
+    );
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.message || "Failed to record payment");
+
+    store.commit("setMessage", {
+      type: "success",
+      text: "Debt payment recorded",
+    });
+    showDebtPaymentDialog.value = false;
+    await refreshCurrentSale();
+  } catch (e) {
+    store.commit("setMessage", {
+      type: "error",
+      text: e.message || "Failed to record debt payment",
+    });
+  } finally {
+    recordingDebtPayment.value = false;
   }
 }
 
@@ -1665,6 +2077,7 @@ function resetForm() {
   form.notes = "";
   form.items = [];
   form.payments = [];
+  form.debts = [];
   addPayment();
 
   customerSelection.value = null;
@@ -1672,6 +2085,7 @@ function resetForm() {
 
   validationErrors.value = [];
   paymentErrors.value = [];
+  debtErrors.value = [];
   paymentAutoLinked.value = true;
 
   // Reset scanner state
@@ -1685,13 +2099,15 @@ function openDeleteDialog(row) {
   showDeleteDialog.value = true;
 }
 
+// In confirmDelete() - Handle the enhanced response
 async function confirmDelete() {
   deleting.value = true;
   try {
     const res = await fetch(`/sales/${currentSaleId.value}`, {
       method: "DELETE",
     });
-    if (!res.ok) throw new Error("Failed to delete");
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.message || "Failed to delete sale");
     store.commit("setMessage", {
       type: "success",
       text: "Sale deleted successfully",
@@ -1701,7 +2117,7 @@ async function confirmDelete() {
   } catch (e) {
     store.commit("setMessage", {
       type: "error",
-      text: "Failed to delete sale",
+      text: e.message || "Failed to delete sale",
     });
   } finally {
     deleting.value = false;
@@ -1736,6 +2152,12 @@ async function saveSale() {
       reference: p.reference || null,
       payment_date: p.payment_date || form.sale_date,
     })),
+    debts: form.debts.map((d) => ({
+      customer_id: debtCustomerId(d),
+      customer_name: debtCustomerId(d) ? null : debtCustomerName(d),
+      amount: Number(d.amount),
+      notes: d.notes || null,
+    })),
   };
   if (typeof customerSelection.value === "string") {
     payload.customer_id = null;
@@ -1757,8 +2179,8 @@ async function saveSale() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    if (!res.ok) throw new Error("Failed to save sale");
     const result = await res.json();
+    if (!res.ok) throw new Error(result.message || "Failed to save sale");
 
     store.commit("setMessage", {
       type: "success",
@@ -1770,7 +2192,10 @@ async function saveSale() {
     closeDialog();
     loadSales();
   } catch (e) {
-    store.commit("setMessage", { type: "error", text: "Failed to save sale" });
+    store.commit("setMessage", {
+      type: "error",
+      text: e.message || "Failed to save sale",
+    });
   } finally {
     saving.value = false;
   }
@@ -1801,9 +2226,20 @@ async function loadInitialData() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   loadSales();
   loadInitialData();
+
+  // Deep-link support: /Sales?openSale=123 opens that sale's detail view
+  // directly (used by the Debtors report so clicking a debtor jumps
+  // straight to where they can be paid off).
+  const openSaleId = route.query.openSale;
+  if (openSaleId) {
+    await openViewDialog({ id: openSaleId });
+    const remainingQuery = { ...route.query };
+    delete remainingQuery.openSale;
+    router.replace({ query: remainingQuery });
+  }
 });
 </script>
 

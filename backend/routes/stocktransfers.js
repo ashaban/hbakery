@@ -15,6 +15,27 @@ const {
 const {
   processTransferWithQualityAdjustments,
 } = require("../modules/transferProcessor");
+const { checkTransferIntegrity } = require("../scripts/checkTransferIntegrity");
+
+/**
+ * GET /stock-transfers/integrity-check - Find transfer items that were
+ * recorded but never actually moved stock (missing ledger entries).
+ * Visible to anyone who can create transfers, since it's exactly the
+ * thing they'd want confirmation on right after making one.
+ */
+router.get(
+  "/integrity-check",
+  requireTask("can_transfer_stock"),
+  async (req, res) => {
+    try {
+      const orphans = await checkTransferIntegrity(pool);
+      res.json({ ok: orphans.length === 0, count: orphans.length, data: orphans });
+    } catch (err) {
+      console.error("❌ Transfer integrity check failed:", err);
+      res.status(500).json({ error: "Failed to run transfer integrity check" });
+    }
+  }
+);
 
 /**
  * GET /stock/available-all - Get available stock for all qualities at once
@@ -254,6 +275,7 @@ router.post(
   requireTask("can_adjust_stock_quality"),
   async (req, res) => {
     const client = await pool.connect();
+    let releaseError;
     try {
       const {
         outlet_id,
@@ -296,18 +318,24 @@ router.post(
         summary: result.summary,
       });
     } catch (err) {
-      await client.query("ROLLBACK");
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackErr) {
+        console.error("❌ Rollback failed, discarding connection:", rollbackErr);
+        releaseError = rollbackErr;
+      }
       if (err.code === "INSUFFICIENT_STOCK") {
-        return res.status(400).json({
+        res.status(400).json({
           error: err.code,
           message: err.message,
           details: err.meta,
         });
+      } else {
+        console.error("❌ Quality adjustment failed:", err);
+        res.status(500).json({ error: "Failed to adjust quality" });
       }
-      console.error("❌ Quality adjustment failed:", err);
-      res.status(500).json({ error: "Failed to adjust quality" });
     } finally {
-      client.release();
+      client.release(releaseError);
     }
   }
 );
@@ -317,6 +345,7 @@ router.post(
  */
 router.post("/", requireTask("can_transfer_stock"), async (req, res) => {
   const client = await pool.connect();
+  let releaseError;
   try {
     const { from_outlet_id, to_outlet_id, remarks, items, movement_date } =
       req.body;
@@ -350,18 +379,24 @@ router.post("/", requireTask("can_transfer_stock"), async (req, res) => {
       message: "Transfer recorded successfully",
     });
   } catch (err) {
-    await client.query("ROLLBACK");
+    try {
+      await client.query("ROLLBACK");
+    } catch (rollbackErr) {
+      console.error("❌ Rollback failed, discarding connection:", rollbackErr);
+      releaseError = rollbackErr;
+    }
     if (err.code === "INSUFFICIENT_STOCK") {
-      return res.status(400).json({
+      res.status(400).json({
         error: err.code,
         message: err.message,
         details: err.meta,
       });
+    } else {
+      console.error("❌ Transfer creation failed:", err);
+      res.status(500).json({ error: "Failed to create transfer" });
     }
-    console.error("❌ Transfer creation failed:", err);
-    res.status(500).json({ error: "Failed to create transfer" });
   } finally {
-    client.release();
+    client.release(releaseError);
   }
 });
 
@@ -370,6 +405,7 @@ router.post("/", requireTask("can_transfer_stock"), async (req, res) => {
  */
 router.put("/:id", requireTask("can_edit_stock_transfer"), async (req, res) => {
   const client = await pool.connect();
+  let releaseError;
   try {
     const { id } = req.params;
     const { from_outlet_id, to_outlet_id, remarks, movement_date, items } =
@@ -415,18 +451,24 @@ router.put("/:id", requireTask("can_edit_stock_transfer"), async (req, res) => {
       message: "Transfer updated successfully",
     });
   } catch (err) {
-    await client.query("ROLLBACK");
+    try {
+      await client.query("ROLLBACK");
+    } catch (rollbackErr) {
+      console.error("❌ Rollback failed, discarding connection:", rollbackErr);
+      releaseError = rollbackErr;
+    }
     if (err.code === "INSUFFICIENT_STOCK") {
-      return res.status(400).json({
+      res.status(400).json({
         error: err.code,
         message: err.message,
         details: err.meta,
       });
+    } else {
+      console.error("❌ Transfer update failed:", err);
+      res.status(500).json({ error: "Failed to update transfer" });
     }
-    console.error("❌ Transfer update failed:", err);
-    res.status(500).json({ error: "Failed to update transfer" });
   } finally {
-    client.release();
+    client.release(releaseError);
   }
 });
 
@@ -438,6 +480,7 @@ router.delete(
   requireTask("can_delete_stock_transfer"),
   async (req, res) => {
     const client = await pool.connect();
+    let releaseError;
     try {
       const { id } = req.params;
 
@@ -470,11 +513,16 @@ router.delete(
         message: "Transfer deleted successfully",
       });
     } catch (err) {
-      await client.query("ROLLBACK");
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackErr) {
+        console.error("❌ Rollback failed, discarding connection:", rollbackErr);
+        releaseError = rollbackErr;
+      }
       console.error("❌ Delete transfer failed:", err);
       res.status(500).json({ error: "Failed to delete transfer" });
     } finally {
-      client.release();
+      client.release(releaseError);
     }
   }
 );

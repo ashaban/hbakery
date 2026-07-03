@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 const { requireTask } = require("../middleware/auth");
+const { getCustomerDebtStatement } = require("../modules/customerDebt");
 
 // GET /customers?search=&page=&limit=&active=true|false
 router.get("/", requireTask("can_see_settings"), async (req, res) => {
@@ -64,6 +65,21 @@ router.get("/", requireTask("can_see_settings"), async (req, res) => {
   } catch (err) {
     console.error("❌ Customer fetch failed", err);
     res.status(500).json({ error: "Failed to fetch customers" });
+  }
+});
+
+// GET /customers/:id/debts - full debt statement (every named debt this
+// customer has ever been given, across all sales, with repayment history)
+router.get("/:id/debts", requireTask("can_see_sales"), async (req, res) => {
+  try {
+    const rows = await getCustomerDebtStatement(pool, req.params.id);
+    res.json({
+      data: rows,
+      totalOwed: rows.reduce((s, r) => s + Number(r.balance), 0),
+    });
+  } catch (err) {
+    console.error("❌ Fetch customer debts failed", err);
+    res.status(500).json({ error: "Failed to fetch customer debts" });
   }
 });
 

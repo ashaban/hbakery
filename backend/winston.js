@@ -2,7 +2,17 @@ const winston = require('winston');
 const moment = require('moment');
 require('winston-daily-rotate-file');
 const fs = require('fs');
-const logDir = '/var/log';
+const path = require('path');
+// /var/log requires root; fall back to a project-local, always-writable
+// directory so a permissions mismatch here can't take the whole server
+// down (this previously crashed the process on startup via an unhandled
+// stream 'error' event from the log rotator).
+const logDir = process.env.LOG_DIR || path.join(__dirname, 'logs');
+try {
+  fs.mkdirSync(logDir, { recursive: true });
+} catch (err) {
+  console.error(`Could not create log directory ${logDir}:`, err);
+}
 const logPrefix = 'IFAD-';
 const maxLogFiles = 10;
 const logDatePattern = 'YYYY-MM-DD-HH';
@@ -24,6 +34,9 @@ if ( process.env.NODE_ENV !== "test" ) {
   });
   transport.on('archive', () => {
     deleteOldLogs();
+  });
+  transport.on('error', (err) => {
+    console.error('Log file transport error (file logging disabled for this run):', err);
   });
   transports.push( transport );
 }

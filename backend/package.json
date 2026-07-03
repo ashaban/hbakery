@@ -4,7 +4,8 @@
   "description": "",
   "main": "app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "check:transfers": "node scripts/checkTransferIntegrity.js"
   },
   "author": "Ally Shaban",
   "license": "ISC",

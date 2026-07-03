@@ -38,6 +38,18 @@ const router = createRouter({
       component: () => import("../components/StockTransfers.vue"),
     },
     {
+      path: "/TransferIntegrityCheck",
+      name: "TransferIntegrityCheck",
+      component: () => import("../components/TransferIntegrityCheck.vue"),
+      meta: { requiresAuth: true, task: "can_transfer_stock" },
+    },
+    {
+      path: "/DebtorsReport",
+      name: "DebtorsReport",
+      component: () => import("../components/DebtorsReport.vue"),
+      meta: { requiresAuth: true, task: "can_see_sales" },
+    },
+    {
       path: "/Sales",
       name: "Sales",
       component: () => import("../components/Sales.vue"),

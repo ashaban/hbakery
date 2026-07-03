@@ -12,40 +12,41 @@ const {
   reverseSaleLedger,
   getProductAvailableQty,
 } = require("../modules/saleLedger");
+const { resolveCustomer } = require("../modules/customer");
+const {
+  reconcileSaleDebts,
+  insertSaleDebts,
+  deleteSaleDebts,
+  getSaleDebtsWithBalance,
+  getOutstandingDebts,
+  addDebtPayment,
+} = require("../modules/customerDebt");
 
 // =========================
 // Helpers
 // =========================
 
-async function resolveCustomer(client, payload) {
-  let { customer_id, customer_name } = payload;
-
-  if (!customer_id && customer_name) {
-    const res = await client.query(
-      `
-      INSERT INTO customer (name, is_active)
-      VALUES ($1, true)
-      RETURNING id;
-      `,
-      [customer_name.trim()]
-    );
-    customer_id = res.rows[0].id;
-  }
-
-  return customer_id || null;
-}
-
-// Compute sale totals: amount, paid, balance
+// Compute sale totals: amount, paid, balance.
+// "Paid" includes both immediate sale_payment rows and any later
+// repayments against this sale's named customer debts — a debt being
+// repaid is still the sale getting paid off, just on a delay.
 async function getSaleMoneySummary(client, saleId) {
   const totalRes = await client.query(
     `SELECT COALESCE(SUM(quantity * unit_price),0) AS total_amount
      FROM sale_item WHERE sale_id = $1`,
-    [saleId]
+    [saleId],
   );
   const paidRes = await client.query(
-    `SELECT COALESCE(SUM(amount),0) AS total_paid
-     FROM sale_payment WHERE sale_id = $1`,
-    [saleId]
+    `SELECT
+       COALESCE((SELECT SUM(amount) FROM sale_payment WHERE sale_id = $1), 0)
+       +
+       COALESCE((
+         SELECT SUM(cdp.amount)
+         FROM customer_debt_payment cdp
+         JOIN sale_customer_debt scd ON scd.id = cdp.debt_id
+         WHERE scd.sale_id = $1
+       ), 0) AS total_paid`,
+    [saleId],
   );
   const total = Number(totalRes.rows[0].total_amount);
   const paid = Number(paidRes.rows[0].total_paid);
@@ -68,7 +69,7 @@ async function getSaleDetail(client, saleId) {
     LEFT JOIN outlet o ON o.id = s.outlet_id
     WHERE s.id = $1
     `,
-    [saleId]
+    [saleId],
   );
 
   if (!sale.rows.length) return null;
@@ -83,7 +84,7 @@ async function getSaleDetail(client, saleId) {
     WHERE si.sale_id = $1
     ORDER BY si.id
     `,
-    [saleId]
+    [saleId],
   );
 
   const payments = await client.query(
@@ -93,10 +94,11 @@ async function getSaleDetail(client, saleId) {
     WHERE sale_id = $1
     ORDER BY payment_date DESC, id DESC
     `,
-    [saleId]
+    [saleId],
   );
 
   const money = await getSaleMoneySummary(client, saleId);
+  const debts = await getSaleDebtsWithBalance(client, saleId);
 
   return {
     sale: {
@@ -105,6 +107,7 @@ async function getSaleDetail(client, saleId) {
     },
     items: items.rows,
     payments: payments.rows,
+    debts,
   };
 }
 
@@ -122,13 +125,21 @@ router.get("/salesanalytics/:id", salesController.getSaleDetails);
  * Deducts stock immediately
  */
 router.post("/", requireTask("can_add_sale"), async (req, res) => {
-  const { outlet_id, sale_date, notes, items = [], payments = [] } = req.body;
+  const {
+    outlet_id,
+    sale_date,
+    notes,
+    items = [],
+    payments = [],
+    debts = [],
+  } = req.body;
 
   if (!outlet_id || !items.length) {
     return res.status(400).json({ error: "Missing outlet or items" });
   }
 
   const client = await pool.connect();
+  let releaseError;
   try {
     await client.query("BEGIN");
     const customer_id = await resolveCustomer(client, req.body);
@@ -136,12 +147,20 @@ router.post("/", requireTask("can_add_sale"), async (req, res) => {
     // 1 Validate availability
     await validateSaleAvailability(client, outlet_id, items);
 
+    // 1b Named customer debts must exactly cover whatever isn't paid now
+    const saleTotal = items.reduce(
+      (s, it) => s + Number(it.quantity) * Number(it.unit_price ?? 0),
+      0,
+    );
+    const paidTotal = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
+    reconcileSaleDebts(saleTotal, paidTotal, debts);
+
     // 2 Create sale header
     const ins = await client.query(
       `INSERT INTO sale (outlet_id, customer_id, sale_date, status, notes)
        VALUES ($1,$2,$3,'POSTED',$4)
        RETURNING id`,
-      [outlet_id, customer_id, sale_date ?? new Date(), notes ?? null]
+      [outlet_id, customer_id, sale_date ?? new Date(), notes ?? null],
     );
     const saleId = ins.rows[0].id;
 
@@ -150,7 +169,7 @@ router.post("/", requireTask("can_add_sale"), async (req, res) => {
       await client.query(
         `INSERT INTO sale_item (sale_id, product_id, quantity, unit_price, quality)
          VALUES ($1,$2,$3,$4,$5)`,
-        [saleId, it.product_id, it.quantity, it.unit_price ?? 0, it.quality]
+        [saleId, it.product_id, it.quantity, it.unit_price ?? 0, it.quality],
       );
     }
 
@@ -165,9 +184,12 @@ router.post("/", requireTask("can_add_sale"), async (req, res) => {
           p.payment_date ?? new Date(),
           p.method ?? null,
           p.reference ?? null,
-        ]
+        ],
       );
     }
+
+    // 4b Insert named customer debts (optional)
+    await insertSaleDebts(client, saleId, debts);
 
     // 5 Ledger outflow
     await recordSaleLedger(client, saleId, outlet_id, items, sale_date, notes);
@@ -177,12 +199,27 @@ router.post("/", requireTask("can_add_sale"), async (req, res) => {
     const detail = await getSaleDetail(client, saleId);
     res.status(201).json({ message: "Sale created", ...detail });
   } catch (err) {
-    await client.query("ROLLBACK");
-    if (err.code === "INSUFFICIENT_STOCK") return res.status(400).json(err);
+    try {
+      await client.query("ROLLBACK");
+    } catch (rollbackErr) {
+      console.error("❌ Rollback failed, discarding connection:", rollbackErr);
+      releaseError = rollbackErr;
+    }
+    if (
+      err.code === "INSUFFICIENT_STOCK" ||
+      err.code === "DEBT_MISMATCH" ||
+      err.code === "INVALID_DEBT"
+    ) {
+      return res.status(400).json({
+        error: err.code,
+        message: err.message,
+        details: err.meta,
+      });
+    }
     console.error("❌ Sale creation failed:", err);
     res.status(500).json({ error: "Failed to create sale" });
   } finally {
-    client.release();
+    client.release(releaseError);
   }
 });
 
@@ -192,19 +229,27 @@ router.post("/", requireTask("can_add_sale"), async (req, res) => {
  */
 router.put("/:id", requireTask("can_edit_sale"), async (req, res) => {
   const { id } = req.params;
-  const { outlet_id, sale_date, notes, items = [], payments = [] } = req.body;
+  const {
+    outlet_id,
+    sale_date,
+    notes,
+    items = [],
+    payments = [],
+    debts = [],
+  } = req.body;
 
   if (!outlet_id || !items.length) {
     return res.status(400).json({ error: "Missing outlet or items" });
   }
 
   const client = await pool.connect();
+  let releaseError;
   try {
     await client.query("BEGIN");
 
     const saleQ = await client.query(
       `SELECT outlet_id FROM sale WHERE id = $1`,
-      [id]
+      [id],
     );
     if (!saleQ.rows.length) {
       await client.query("ROLLBACK");
@@ -214,6 +259,14 @@ router.put("/:id", requireTask("can_edit_sale"), async (req, res) => {
     // Validate new items stock
     await validateSaleAvailability(client, outlet_id, items);
 
+    // Named customer debts must exactly cover whatever isn't paid now
+    const saleTotal = items.reduce(
+      (s, it) => s + Number(it.quantity) * Number(it.unit_price ?? 0),
+      0,
+    );
+    const paidTotal = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
+    reconcileSaleDebts(saleTotal, paidTotal, debts);
+
     // Undo previous ledger
     await undoSaleLedger(client, id);
 
@@ -221,9 +274,9 @@ router.put("/:id", requireTask("can_edit_sale"), async (req, res) => {
 
     // Replace header
     await client.query(
-      `UPDATE sale SET outlet_id=$1, customer_id=$2, sale_date=$3, notes=$4 
+      `UPDATE sale SET outlet_id=$1, customer_id=$2, sale_date=$3, notes=$4
        WHERE id=$5`,
-      [outlet_id, customer_id, sale_date ?? new Date(), notes ?? null, id]
+      [outlet_id, customer_id, sale_date ?? new Date(), notes ?? null, id],
     );
 
     // Replace items
@@ -232,7 +285,7 @@ router.put("/:id", requireTask("can_edit_sale"), async (req, res) => {
       await client.query(
         `INSERT INTO sale_item (sale_id, product_id, quantity, unit_price, quality)
          VALUES ($1,$2,$3,$4,$5)`,
-        [id, it.product_id, it.quantity, it.unit_price ?? 0, it.quality]
+        [id, it.product_id, it.quantity, it.unit_price ?? 0, it.quality],
       );
     }
 
@@ -247,9 +300,13 @@ router.put("/:id", requireTask("can_edit_sale"), async (req, res) => {
           p.payment_date ?? new Date(),
           p.method ?? null,
           p.reference ?? null,
-        ]
+        ],
       );
     }
+
+    // Replace named customer debts (blocked if any already have repayments)
+    await deleteSaleDebts(client, id);
+    await insertSaleDebts(client, id, debts);
 
     // Re-apply ledger
     await recordSaleLedger(client, id, outlet_id, items, sale_date, notes);
@@ -259,14 +316,111 @@ router.put("/:id", requireTask("can_edit_sale"), async (req, res) => {
     const detail = await getSaleDetail(client, id);
     res.json({ message: "Sale updated", ...detail });
   } catch (err) {
-    await client.query("ROLLBACK");
-    if (err.code === "INSUFFICIENT_STOCK") return res.status(400).json(err);
+    try {
+      await client.query("ROLLBACK");
+    } catch (rollbackErr) {
+      console.error("❌ Rollback failed, discarding connection:", rollbackErr);
+      releaseError = rollbackErr;
+    }
+    if (
+      err.code === "INSUFFICIENT_STOCK" ||
+      err.code === "DEBT_MISMATCH" ||
+      err.code === "INVALID_DEBT" ||
+      err.code === "DEBT_HAS_PAYMENTS"
+    ) {
+      return res.status(400).json({
+        error: err.code,
+        message: err.message,
+        details: err.meta,
+      });
+    }
     console.error("❌ Sale update failed:", err);
     res.status(500).json({ error: "Failed to update sale" });
   } finally {
-    client.release();
+    client.release(releaseError);
   }
 });
+
+/**
+ * GET /sales/debts/outstanding
+ * Receivables report: every named customer debt that still has a balance.
+ */
+router.get(
+  "/debts/outstanding",
+  requireTask("can_see_sales"),
+  async (req, res) => {
+    try {
+      const { outlet_id, customer_id, search } = req.query;
+      const rows = await getOutstandingDebts(pool, {
+        outlet_id,
+        customer_id,
+        search,
+      });
+      res.json({
+        data: rows,
+        totalOutstanding: rows.reduce((s, r) => s + Number(r.balance), 0),
+      });
+    } catch (err) {
+      console.error("❌ Fetch outstanding debts failed:", err);
+      res.status(500).json({ error: "Failed to fetch outstanding debts" });
+    }
+  },
+);
+
+/**
+ * POST /sales/debts/:debtId/payments
+ * Record a repayment against a named customer debt.
+ */
+router.post(
+  "/debts/:debtId/payments",
+  requireTask("can_add_sale"),
+  async (req, res) => {
+    const { debtId } = req.params;
+    const { amount, payment_date, method, reference } = req.body;
+
+    const client = await pool.connect();
+    let releaseError;
+    try {
+      await client.query("BEGIN");
+
+      const paymentId = await addDebtPayment(client, debtId, {
+        amount,
+        payment_date,
+        method,
+        reference,
+        received_by: req.user?.id || null,
+      });
+
+      await client.query("COMMIT");
+      res.status(201).json({ id: paymentId, message: "Payment recorded" });
+    } catch (err) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackErr) {
+        console.error(
+          "❌ Rollback failed, discarding connection:",
+          rollbackErr,
+        );
+        releaseError = rollbackErr;
+      }
+      if (
+        err.code === "NOT_FOUND" ||
+        err.code === "OVERPAYMENT" ||
+        err.code === "INVALID_PAYMENT"
+      ) {
+        return res.status(400).json({
+          error: err.code,
+          message: err.message,
+          details: err.meta,
+        });
+      }
+      console.error("❌ Debt payment failed:", err);
+      res.status(500).json({ error: "Failed to record debt payment" });
+    } finally {
+      client.release(releaseError);
+    }
+  },
+);
 
 /**
  * DELETE /sales/:id
@@ -276,6 +430,7 @@ router.delete("/:id", requireTask("can_delete_sale"), async (req, res) => {
   const { id } = req.params;
 
   const client = await pool.connect();
+  let releaseError;
   try {
     await client.query("BEGIN");
 
@@ -288,17 +443,36 @@ router.delete("/:id", requireTask("can_delete_sale"), async (req, res) => {
     // Reverse ledger (restore stock)
     await reverseSaleLedger(client, id, new Date(), "Sale cancelled");
 
+    // Drop the sale's unpaid customer debts too — the goods went back on
+    // the shelf, so nobody should still be shown as owing for them.
+    // Refuses (and aborts the whole cancellation) if a debt already has a
+    // repayment recorded, since deleting it would silently erase that
+    // repayment's history along with it.
+    await deleteSaleDebts(client, id);
+
     // Mark sale cancelled
     await client.query(`UPDATE sale SET status='CANCELLED' WHERE id=$1`, [id]);
 
     await client.query("COMMIT");
     res.json({ id, message: "Sale cancelled" });
   } catch (err) {
-    await client.query("ROLLBACK");
+    try {
+      await client.query("ROLLBACK");
+    } catch (rollbackErr) {
+      console.error("❌ Rollback failed, discarding connection:", rollbackErr);
+      releaseError = rollbackErr;
+    }
+    if (err.code === "DEBT_HAS_PAYMENTS") {
+      return res.status(400).json({
+        error: err.code,
+        message: err.message,
+        details: err.meta,
+      });
+    }
     console.error("❌ Cancel sale failed:", err);
     res.status(500).json({ error: "Failed to cancel sale" });
   } finally {
-    client.release();
+    client.release(releaseError);
   }
 });
 
@@ -321,7 +495,7 @@ router.post(
 
       const saleQ = await client.query(
         `SELECT id FROM sale WHERE id = $1 AND status != 'CANCELLED'`,
-        [id]
+        [id],
       );
       if (!saleQ.rows.length) {
         await client.query("ROLLBACK");
@@ -331,7 +505,7 @@ router.post(
       await client.query(
         `INSERT INTO sale_payment (sale_id, amount, method, reference)
        VALUES ($1,$2,$3,$4)`,
-        [id, amount, method ?? null, reference ?? null]
+        [id, amount, method ?? null, reference ?? null],
       );
 
       await client.query("COMMIT");
@@ -345,7 +519,7 @@ router.post(
     } finally {
       client.release();
     }
-  }
+  },
 );
 
 /**
@@ -407,13 +581,27 @@ router.get("/", requireTask("can_see_sales"), async (req, res) => {
     i++;
     where.push(`s.sale_date <= $${i}`);
   }
+  // "Paid" = immediate sale_payment rows + any later repayments against
+  // this sale's named customer debts. A debt being repaid still counts as
+  // the sale getting paid off, just on a delay.
+  const paidExpr = `(
+    COALESCE((SELECT SUM(amount) FROM sale_payment sp WHERE sp.sale_id = s.id), 0)
+    +
+    COALESCE((
+      SELECT SUM(cdp.amount)
+      FROM customer_debt_payment cdp
+      JOIN sale_customer_debt scd ON scd.id = cdp.debt_id
+      WHERE scd.sale_id = s.id
+    ), 0)
+  )`;
+
   if (req.query.payment_status === "PAID") {
-    where.push(`(SELECT COALESCE(SUM(amount),0) FROM sale_payment sp WHERE sp.sale_id=s.id) >=
+    where.push(`${paidExpr} >=
               (SELECT SUM(quantity * unit_price) FROM sale_item si WHERE si.sale_id=s.id)`);
   }
 
   if (req.query.payment_status === "PART") {
-    where.push(`(SELECT COALESCE(SUM(amount),0) FROM sale_payment sp WHERE sp.sale_id=s.id) <
+    where.push(`${paidExpr} <
               (SELECT SUM(quantity * unit_price) FROM sale_item si WHERE si.sale_id=s.id)`);
   }
 
@@ -421,7 +609,7 @@ router.get("/", requireTask("can_see_sales"), async (req, res) => {
 
   const countRes = await pool.query(
     `SELECT COUNT(*) FROM sale s WHERE ${whereSQL}`,
-    params
+    params,
   );
   const totalRecords = Number(countRes.rows[0].count);
   const totalPages = Math.ceil(totalRecords / limit);
@@ -429,7 +617,7 @@ router.get("/", requireTask("can_see_sales"), async (req, res) => {
   params.push(limit, offset);
 
   const query = `
-    SELECT 
+    SELECT
       s.*,
       o.name AS outlet,
       o.type AS outlet_type,
@@ -437,9 +625,9 @@ router.get("/", requireTask("can_see_sales"), async (req, res) => {
       (SELECT COUNT(*) FROM sale_item si WHERE si.sale_id = s.id) AS items_count,
       (SELECT SUM(quantity) FROM sale_item si WHERE si.sale_id = s.id) AS total_qty,
       (SELECT SUM(quantity * unit_price) FROM sale_item si WHERE si.sale_id = s.id) AS total_amount,
-      (SELECT COALESCE(SUM(amount),0) FROM sale_payment sp WHERE sp.sale_id = s.id) AS paid_amount,
+      ${paidExpr} AS paid_amount,
       ((SELECT SUM(quantity * unit_price) FROM sale_item si WHERE si.sale_id = s.id)
-        - (SELECT COALESCE(SUM(amount),0) FROM sale_payment sp WHERE sp.sale_id = s.id)) AS balance
+        - ${paidExpr}) AS balance
     FROM sale s
     LEFT JOIN outlet o ON s.outlet_id = o.id
     LEFT JOIN customer c ON s.customer_id = c.id

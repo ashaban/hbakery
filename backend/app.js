@@ -1,6 +1,15 @@
 // app.js
 const express = require("express");
 const app = express();
+
+// Last-resort safety net: an unhandled rejection (e.g. a ROLLBACK that
+// itself throws) must never silently crash the server mid-transaction.
+// Route handlers should always catch their own errors; this only fires if
+// one slips through, so we can find out about it instead of the process
+// dying and leaving a DB client in an unknown state.
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled promise rejection:", reason);
+});
 const jwt = require("jsonwebtoken");
 const config = require("./config");
 const usersRoutes = require("./routes/users");

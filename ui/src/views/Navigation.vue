@@ -173,6 +173,28 @@
         </v-list-item>
 
         <v-list-item
+          v-if="can('can_see_sales')"
+          active-class="menu-item--active"
+          class="menu-item rounded-xl"
+          to="DebtorsReport"
+          value="DebtorsReport"
+        >
+          <template #prepend>
+            <v-avatar
+              class="menu-avatar"
+              color="red-lighten-5"
+              rounded="lg"
+              size="42"
+            >
+              <v-icon color="red-darken-2" icon="mdi-account-cash" size="20" />
+            </v-avatar>
+          </template>
+          <v-list-item-title class="font-weight-medium menu-title">
+            Debtors
+          </v-list-item-title>
+        </v-list-item>
+
+        <v-list-item
           v-if="can('can_see_free_releases')"
           active-class="menu-item--active"
           class="menu-item rounded-xl"
@@ -221,6 +243,28 @@
           </template>
           <v-list-item-title class="font-weight-medium menu-title">
             Stock Transfers
+          </v-list-item-title>
+        </v-list-item>
+
+        <v-list-item
+          v-if="can('can_transfer_stock')"
+          active-class="menu-item--active"
+          class="menu-item rounded-xl"
+          to="TransferIntegrityCheck"
+          value="TransferIntegrityCheck"
+        >
+          <template #prepend>
+            <v-avatar
+              class="menu-avatar"
+              color="red-lighten-5"
+              rounded="lg"
+              size="42"
+            >
+              <v-icon color="red-darken-2" icon="mdi-shield-search" size="20" />
+            </v-avatar>
+          </template>
+          <v-list-item-title class="font-weight-medium menu-title">
+            Transfer Integrity
           </v-list-item-title>
         </v-list-item>
       </div>
