@@ -91,6 +91,73 @@ router.get(
 );
 
 /**
+ * GET /outlet-stock - Every product currently in stock at an outlet, with
+ * balance per quality. Powers "load current stock" for bulk return
+ * transfers (e.g. end-of-day shop/car -> despatch), so the whole outlet's
+ * balance can be pre-filled instead of adding items one at a time.
+ */
+router.get(
+  "/outlet-stock",
+  requireTask("can_see_stock_transfers"),
+  async (req, res) => {
+    const { outlet_id } = req.query;
+
+    if (!outlet_id) {
+      return res.status(400).json({ error: "Outlet ID is required" });
+    }
+
+    try {
+      const result = await pool.query(
+        `
+        SELECT
+          pl.product_id,
+          p.name AS product_name,
+          pl.quality,
+          SUM(
+            CASE
+              WHEN pl.movement_type IN ('IN','TRANSFER_IN','QUALITY_CHANGE') THEN pl.quantity
+              WHEN pl.movement_type IN ('OUT','TRANSFER_OUT','SALE') THEN -pl.quantity
+              ELSE 0
+            END
+          ) AS available
+        FROM product_ledger pl
+        JOIN product p ON p.id = pl.product_id
+        WHERE pl.outlet_id = $1
+        GROUP BY pl.product_id, p.name, pl.quality
+        HAVING SUM(
+          CASE
+            WHEN pl.movement_type IN ('IN','TRANSFER_IN','QUALITY_CHANGE') THEN pl.quantity
+            WHEN pl.movement_type IN ('OUT','TRANSFER_OUT','SALE') THEN -pl.quantity
+            ELSE 0
+          END
+        ) > 0
+        ORDER BY p.name, pl.quality
+        `,
+        [outlet_id]
+      );
+
+      // Group into { product_id, product_name, stock: { GOOD, DAMAGED, REJECT } }
+      const byProduct = new Map();
+      for (const row of result.rows) {
+        if (!byProduct.has(row.product_id)) {
+          byProduct.set(row.product_id, {
+            product_id: row.product_id,
+            product_name: row.product_name,
+            stock: { GOOD: 0, DAMAGED: 0, REJECT: 0 },
+          });
+        }
+        byProduct.get(row.product_id).stock[row.quality] = Number(row.available) || 0;
+      }
+
+      res.json({ data: Array.from(byProduct.values()) });
+    } catch (err) {
+      console.error("Error fetching outlet stock:", err);
+      res.status(500).json({ error: "Failed to fetch outlet stock" });
+    }
+  }
+);
+
+/**
  * GET /stock/available - Get available stock for a product in an outlet
  */
 router.get(

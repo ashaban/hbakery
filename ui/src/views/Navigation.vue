@@ -384,6 +384,28 @@
         </v-list-item>
 
         <v-list-item
+          v-if="$store.getters.hasTask('can_see_loans')"
+          active-class="menu-item--active"
+          class="menu-item rounded-xl"
+          to="Loans"
+          value="Loans"
+        >
+          <template #prepend>
+            <v-avatar
+              class="menu-avatar"
+              color="amber-lighten-5"
+              rounded="lg"
+              size="42"
+            >
+              <v-icon color="amber-darken-2" icon="mdi-hand-coin" size="20" />
+            </v-avatar>
+          </template>
+          <v-list-item-title class="font-weight-medium menu-title">
+            Loans
+          </v-list-item-title>
+        </v-list-item>
+
+        <v-list-item
           v-if="$store.getters.hasTask('can_see_users')"
           active-class="menu-item--active"
           class="menu-item rounded-xl"

@@ -322,6 +322,7 @@
                     prepend-inner-icon="mdi-export"
                     required
                     variant="outlined"
+                    @update:model-value="onOutletChange"
                   />
                 </v-col>
                 <v-col cols="12" md="6">
@@ -375,15 +376,28 @@
                   {{ form.items.length }} items
                 </v-chip>
               </div>
-              <v-btn
-                color="green"
-                :disabled="!canAddTransferItem"
-                size="small"
-                @click="addItem"
-              >
-                <v-icon start>mdi-plus</v-icon>
-                Add Item
-              </v-btn>
+              <div class="d-flex ga-2">
+                <v-btn
+                  color="blue-darken-2"
+                  :disabled="!canAddTransferItem"
+                  :loading="loadingOutletStock"
+                  size="small"
+                  variant="tonal"
+                  @click="loadCurrentStock"
+                >
+                  <v-icon start>mdi-tray-arrow-down</v-icon>
+                  Load Current Stock
+                </v-btn>
+                <v-btn
+                  color="green"
+                  :disabled="!canAddTransferItem"
+                  size="small"
+                  @click="addItem"
+                >
+                  <v-icon start>mdi-plus</v-icon>
+                  Add Item
+                </v-btn>
+              </div>
             </v-card-title>
 
             <v-card-text class="pa-4">
@@ -605,16 +619,30 @@
                 >
                 <div class="text-h6 text-grey mb-2">No Items Added</div>
                 <div class="text-body-1 text-grey mb-4">
-                  Click "Add Item" to start adding products to this transfer
+                  Add products one at a time, or load everything currently at
+                  the source outlet — useful for returning all unsold stock
+                  at once.
                 </div>
-                <v-btn
-                  color="primary"
-                  :disabled="!canAddTransferItem"
-                  @click="addItem"
-                >
-                  <v-icon start>mdi-plus</v-icon>
-                  Add Your First Item
-                </v-btn>
+                <div class="d-flex justify-center ga-2">
+                  <v-btn
+                    color="blue-darken-2"
+                    :disabled="!canAddTransferItem"
+                    :loading="loadingOutletStock"
+                    variant="tonal"
+                    @click="loadCurrentStock"
+                  >
+                    <v-icon start>mdi-tray-arrow-down</v-icon>
+                    Load Current Stock
+                  </v-btn>
+                  <v-btn
+                    color="primary"
+                    :disabled="!canAddTransferItem"
+                    @click="addItem"
+                  >
+                    <v-icon start>mdi-plus</v-icon>
+                    Add Your First Item
+                  </v-btn>
+                </div>
               </div>
             </v-card-text>
           </v-card>
@@ -1126,6 +1154,7 @@ const loading = ref(false);
 const saving = ref(false);
 const deleting = ref(false);
 const adjustingQuality = ref(false);
+const loadingOutletStock = ref(false);
 const transfers = ref([]);
 const fromOutlets = ref([]);
 const toOutlets = ref([]);
@@ -1480,6 +1509,66 @@ function addItem() {
   validateForm();
 }
 
+// Bulk-load every product currently in stock at the source outlet, one row
+// per (product, quality) with a positive balance, quantity defaulting to
+// the full balance. Used for end-of-day returns where everything unsold
+// goes back to despatch, so the shopkeeper doesn't add items one by one.
+async function loadCurrentStock() {
+  if (!form.from_outlet_id) return;
+
+  loadingOutletStock.value = true;
+  try {
+    const res = await fetch(
+      `/stocktransfers/outlet-stock?outlet_id=${form.from_outlet_id}`,
+    );
+    if (!res.ok) throw new Error("Failed to load current stock");
+    const data = await res.json();
+    const stockItems = data.data || [];
+
+    // Replace, don't append — a re-load means "give me exactly what's
+    // there right now", and stale rows from a previous outlet/load would
+    // otherwise linger alongside the fresh ones.
+    const freshItems = [];
+    for (const si of stockItems) {
+      for (const quality of ["GOOD", "DAMAGED", "REJECT"]) {
+        const available = si.stock[quality] || 0;
+        if (available <= 0) continue;
+
+        freshItems.push({
+          product_id: si.product_id,
+          from_quality: quality,
+          to_quality: quality,
+          quantity: available,
+          is_replacement: false,
+          replacement_note: "",
+          availableStock: available,
+          stockData: { ...si.stock },
+          originalQuantity: 0,
+        });
+      }
+    }
+    form.items = freshItems;
+
+    store.commit("setMessage", {
+      type: freshItems.length > 0 ? "success" : "info",
+      text:
+        freshItems.length > 0
+          ? `Loaded ${freshItems.length} item(s) from current stock.`
+          : "No stock currently available at this outlet.",
+    });
+
+    validateForm();
+  } catch (error) {
+    console.error("Error loading current stock:", error);
+    store.commit("setMessage", {
+      type: "error",
+      text: "Failed to load current stock",
+    });
+  } finally {
+    loadingOutletStock.value = false;
+  }
+}
+
 // Quality Adjustment Methods
 function openAdjustDialog() {
   // Reset adjustment form
@@ -1724,10 +1813,19 @@ function removeItem(index) {
   validateForm();
 }
 
-async function onOutletChange() {
-  for (const item of form.items) {
-    await fetchAvailableStock(item);
+// Any items already on the form were validated against the *previous*
+// source outlet's stock. Rather than silently re-checking them against a
+// different outlet (where availability, or the products carried at all,
+// may be completely different), clear the list so the user builds it
+// fresh for the newly selected outlet.
+function onOutletChange() {
+  if (form.items.length > 0) {
+    store.commit("setMessage", {
+      type: "info",
+      text: "Source outlet changed — transfer items were cleared.",
+    });
   }
+  form.items = [];
   validateForm();
 }
 

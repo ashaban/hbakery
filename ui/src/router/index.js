@@ -80,6 +80,12 @@ const router = createRouter({
       component: () => import("../components/Staffs.vue"),
     },
     {
+      path: "/Loans",
+      name: "Loans",
+      component: () => import("../components/Loans.vue"),
+      meta: { requiresAuth: true, task: "can_see_loans" },
+    },
+    {
       path: "/Users",
       name: "Users",
       component: () => import("../components/Users.vue"),
