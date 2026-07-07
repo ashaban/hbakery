@@ -1481,6 +1481,7 @@ const form = reactive({
   items: [],
   payments: [],
   debts: [],
+  originalItems: [],
 });
 
 // Validation
@@ -1702,7 +1703,22 @@ function lineTotal(it) {
 }
 function getItemAvailable(it) {
   if (!it.stockData) return 0;
-  return it.stockData[it.quality] || 0;
+  let available = it.stockData[it.quality] || 0;
+
+  // When editing, current stock already reflects this sale's own original
+  // deduction (the backend only undoes it at save time), so an unchanged
+  // or reduced quantity would otherwise look like insufficient stock.
+  // Add back whatever this same product+quality originally took.
+  if (isEditing.value) {
+    const originalItem = form.originalItems.find(
+      (orig) => orig.product_id === it.product_id && orig.quality === it.quality,
+    );
+    if (originalItem) {
+      available += Number(originalItem.quantity);
+    }
+  }
+
+  return available;
 }
 async function onProductChange(it) {
   const prod = products.value.find((p) => p.id === it.product_id);
@@ -1942,6 +1958,11 @@ async function openEditDialog(row) {
     customerSearch.value = data.sale.customer_name || "";
 
     // Items
+    form.originalItems = (data.items || []).map((li) => ({
+      product_id: li.product_id,
+      quality: li.quality,
+      quantity: Number(li.quantity),
+    }));
     form.items = (data.items || []).map((li) => ({
       product_id: li.product_id,
       quality: li.quality,
@@ -2078,6 +2099,7 @@ function resetForm() {
   form.items = [];
   form.payments = [];
   form.debts = [];
+  form.originalItems = [];
   addPayment();
 
   customerSelection.value = null;

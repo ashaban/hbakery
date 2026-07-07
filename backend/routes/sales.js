@@ -256,6 +256,12 @@ router.put("/:id", requireTask("can_edit_sale"), async (req, res) => {
       return res.status(404).json({ error: "Sale not found" });
     }
 
+    // Undo previous ledger *before* validating stock — otherwise this
+    // sale's own original deduction is still counted against it, and
+    // editing a sale to keep the same (or even fewer) items than before
+    // would spuriously fail as "insufficient stock".
+    await undoSaleLedger(client, id);
+
     // Validate new items stock
     await validateSaleAvailability(client, outlet_id, items);
 
@@ -266,9 +272,6 @@ router.put("/:id", requireTask("can_edit_sale"), async (req, res) => {
     );
     const paidTotal = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
     reconcileSaleDebts(saleTotal, paidTotal, debts);
-
-    // Undo previous ledger
-    await undoSaleLedger(client, id);
 
     const customer_id = await resolveCustomer(client, req.body);
 
