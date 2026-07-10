@@ -265,7 +265,7 @@
       </v-data-table-server>
 
       <!-- CREATE/EDIT DIALOG -->
-      <v-dialog v-model="showDialog" max-width="1200" persistent scrollable>
+      <v-dialog v-model="showDialog" fullscreen persistent scrollable>
         <v-card class="rounded-lg">
           <v-toolbar
             :color="isEditing ? 'warning' : 'primary'"
@@ -286,6 +286,45 @@
             <v-spacer />
             <v-btn icon @click="closeDialog"><v-icon>mdi-close</v-icon></v-btn>
           </v-toolbar>
+
+          <!-- Always-visible cash summary: Sales - Debts = cash before any
+               trip spending; for a bulk sale, also show that figure minus
+               Expenditures = what should actually be left in hand -->
+          <v-sheet
+            class="d-flex flex-wrap align-center justify-center pa-3 ga-6"
+            :color="cashIncludingExpenditures >= 0 ? 'green-darken-3' : 'red-darken-3'"
+          >
+            <div class="d-flex align-center">
+              <v-icon class="mr-2" color="white">mdi-cash-multiple</v-icon>
+              <span class="text-white text-body-1 mr-2">
+                {{
+                  form.is_bulk
+                    ? "Cash on Hand (excl. expenditures):"
+                    : "Sales Cash:"
+                }}
+              </span>
+              <span class="text-white text-h5 font-weight-bold">{{
+                money(cashExcludingExpenditures)
+              }}</span>
+              <span class="text-white text-caption ml-3 opacity-80">
+                ({{ fmt(total) }} sold − {{ fmt(debtsTotal) }} debts)
+              </span>
+            </div>
+
+            <div v-if="form.is_bulk" class="d-flex align-center">
+              <v-icon class="mr-2" color="white">mdi-cash-check</v-icon>
+              <span class="text-white text-body-1 mr-2">
+                Cash on Hand (incl. expenditures):
+              </span>
+              <span class="text-white text-h5 font-weight-bold">{{
+                money(cashIncludingExpenditures)
+              }}</span>
+              <span class="text-white text-caption ml-3 opacity-80">
+                ({{ fmt(cashExcludingExpenditures) }} −
+                {{ fmt(expendituresTotal) }} expenditures)
+              </span>
+            </div>
+          </v-sheet>
 
           <v-card-text class="pa-6">
             <!-- Header -->
@@ -347,6 +386,14 @@
                       placeholder="Add any notes about this sale…"
                       rows="2"
                       variant="outlined"
+                    />
+                  </v-col>
+                  <v-col cols="12">
+                    <v-switch
+                      v-model="form.is_bulk"
+                      color="blue-darken-2"
+                      hide-details
+                      label="Bulk sale (car/shop trip — tracks on-the-road expenditures)"
                     />
                   </v-col>
                 </v-row>
@@ -500,15 +547,28 @@
                     Balance: {{ fmt(saleTotals.balance) }}
                   </v-chip>
                 </div>
-                <v-btn
-                  color="green"
-                  :disabled="!form.outlet_id"
-                  size="small"
-                  @click="addItem"
-                >
-                  <v-icon start>mdi-plus</v-icon>
-                  Add Item
-                </v-btn>
+                <div class="d-flex ga-2">
+                  <v-btn
+                    color="blue-darken-2"
+                    :disabled="!form.outlet_id"
+                    :loading="loadingOutletStock"
+                    size="small"
+                    variant="tonal"
+                    @click="loadCurrentStock"
+                  >
+                    <v-icon start>mdi-tray-arrow-down</v-icon>
+                    Load Current Stock
+                  </v-btn>
+                  <v-btn
+                    color="green"
+                    :disabled="!form.outlet_id"
+                    size="small"
+                    @click="addItem"
+                  >
+                    <v-icon start>mdi-plus</v-icon>
+                    Add Item
+                  </v-btn>
+                </div>
               </v-card-title>
 
               <v-card-text class="pa-4">
@@ -649,16 +709,30 @@
                   >
                   <div class="text-h6 text-grey mb-2">No Items Added</div>
                   <div class="text-body-1 text-grey mb-4">
-                    Click "Add Item" or use barcode scanner to add products
+                    Add products one at a time, scan barcodes, or load
+                    everything currently in stock and adjust quantities down
+                    to what was actually sold.
                   </div>
-                  <v-btn
-                    color="primary"
-                    :disabled="!form.outlet_id"
-                    @click="addItem"
-                  >
-                    <v-icon start>mdi-plus</v-icon>
-                    Add Your First Item
-                  </v-btn>
+                  <div class="d-flex justify-center ga-2">
+                    <v-btn
+                      color="blue-darken-2"
+                      :disabled="!form.outlet_id"
+                      :loading="loadingOutletStock"
+                      variant="tonal"
+                      @click="loadCurrentStock"
+                    >
+                      <v-icon start>mdi-tray-arrow-down</v-icon>
+                      Load Current Stock
+                    </v-btn>
+                    <v-btn
+                      color="primary"
+                      :disabled="!form.outlet_id"
+                      @click="addItem"
+                    >
+                      <v-icon start>mdi-plus</v-icon>
+                      Add Your First Item
+                    </v-btn>
+                  </div>
                 </div>
 
                 <v-divider class="my-4" />
@@ -938,6 +1012,130 @@
                         money(Math.max(total - totalPaid, 0))
                       }}</strong>
                     </div>
+                  </div>
+                </div>
+              </v-card-text>
+            </v-card>
+
+            <!-- Trip Expenditures (bulk sales only) -->
+            <v-card v-if="form.is_bulk" class="mt-6" variant="outlined">
+              <v-card-title
+                class="d-flex align-center justify-space-between bg-orange-lighten-5"
+              >
+                <div class="d-flex align-center">
+                  <v-icon class="mr-2" color="orange-darken-2"
+                    >mdi-gas-station</v-icon
+                  >
+                  Trip Expenditures
+                  <v-chip
+                    class="ml-3"
+                    color="orange-darken-2"
+                    size="small"
+                    variant="flat"
+                  >
+                    {{ form.expenditures.length }} row(s)
+                  </v-chip>
+                </div>
+                <v-btn
+                  color="orange-darken-2"
+                  size="small"
+                  @click="addExpenditure"
+                >
+                  <v-icon start>mdi-plus</v-icon>
+                  Add Expenditure
+                </v-btn>
+              </v-card-title>
+
+              <v-card-text class="pa-4">
+                <v-alert class="mb-4" color="info" density="compact" variant="tonal">
+                  Costs incurred while out selling (fuel, wages, tolls,
+                  etc.), paid out of this sale's cash. These don't affect
+                  the payments/debts split above — they're only subtracted
+                  from the Cash on Hand figure.
+                </v-alert>
+
+                <v-alert
+                  v-if="expenditureErrors.length"
+                  class="mb-4"
+                  color="error"
+                  icon="mdi-alert-circle"
+                  variant="tonal"
+                >
+                  <div v-for="err in expenditureErrors" :key="err">
+                    • {{ err }}
+                  </div>
+                </v-alert>
+
+                <div
+                  v-for="(e, eidx) in form.expenditures"
+                  :key="eidx"
+                  class="mb-3"
+                >
+                  <v-row dense>
+                    <v-col cols="12" md="4">
+                      <v-select
+                        v-model="e.type_id"
+                        density="comfortable"
+                        item-title="name"
+                        item-value="id"
+                        :items="costTypes"
+                        label="Cost Type"
+                        variant="outlined"
+                        @update:model-value="validateForm"
+                      />
+                    </v-col>
+                    <v-col cols="12" md="3">
+                      <v-text-field
+                        v-model="e.amount"
+                        autocomplete="off"
+                        autocorrect="off"
+                        density="comfortable"
+                        inputmode="none"
+                        label="Amount"
+                        spellcheck="false"
+                        type="number"
+                        variant="outlined"
+                        @input="validateForm"
+                      />
+                    </v-col>
+                    <v-col cols="12" md="4">
+                      <v-text-field
+                        v-model="e.description"
+                        autocomplete="off"
+                        autocorrect="off"
+                        density="comfortable"
+                        inputmode="none"
+                        label="Description (optional)"
+                        spellcheck="false"
+                        variant="outlined"
+                      />
+                    </v-col>
+                    <v-col class="text-right" cols="12" md="1">
+                      <v-btn
+                        color="error"
+                        icon
+                        size="small"
+                        variant="text"
+                        @click="removeExpenditure(eidx)"
+                      >
+                        <v-icon>mdi-delete-outline</v-icon>
+                      </v-btn>
+                    </v-col>
+                  </v-row>
+                </div>
+
+                <div
+                  v-if="form.expenditures.length === 0"
+                  class="text-center py-6 text-grey"
+                >
+                  No expenditures added for this trip.
+                </div>
+
+                <v-divider class="my-4" />
+                <div class="text-right">
+                  <div>
+                    Expenditures Total:
+                    <strong>{{ money(expendituresTotal) }}</strong>
                   </div>
                 </div>
               </v-card-text>
@@ -1264,6 +1462,50 @@
                 </v-table>
               </v-card-text>
             </v-card>
+
+            <v-card v-if="currentExpenditures.length" class="mb-6 elevation-2">
+              <v-card-title class="d-flex align-center bg-orange-lighten-5">
+                <v-icon class="mr-2" color="orange-darken-2"
+                  >mdi-gas-station</v-icon
+                >
+                Trip Expenditures
+              </v-card-title>
+              <v-card-text class="pa-0">
+                <v-table density="comfortable">
+                  <thead>
+                    <tr class="bg-grey-lighten-4">
+                      <th class="text-left font-weight-bold text-grey">
+                        TYPE
+                      </th>
+                      <th class="text-left font-weight-bold text-grey">
+                        DESCRIPTION
+                      </th>
+                      <th class="text-right font-weight-bold text-grey">
+                        AMOUNT
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="e in currentExpenditures" :key="e.id">
+                      <td class="text-left">{{ e.type_name }}</td>
+                      <td class="text-left">{{ e.description || "—" }}</td>
+                      <td class="text-right">{{ money(e.amount) }}</td>
+                    </tr>
+                  </tbody>
+                </v-table>
+                <div class="text-right pa-4">
+                  Total:
+                  <strong>{{
+                    money(
+                      currentExpenditures.reduce(
+                        (s, e) => s + Number(e.amount),
+                        0,
+                      ),
+                    )
+                  }}</strong>
+                </div>
+              </v-card-text>
+            </v-card>
           </v-card-text>
 
           <v-card-actions class="pa-4 bg-grey-lighten-4">
@@ -1424,10 +1666,12 @@ const itemsPerPage = ref(10);
 const loading = ref(false);
 const saving = ref(false);
 const deleting = ref(false);
+const loadingOutletStock = ref(false);
 const sales = ref([]);
 const outlets = ref([]);
 const customers = ref([]);
 const products = ref([]);
+const costTypes = ref([]);
 const page = ref(1);
 const totalRecords = ref(0);
 
@@ -1448,6 +1692,7 @@ const currentSaleId = ref(null);
 const currentSale = ref(null);
 const currentItems = ref([]);
 const currentDebts = ref([]);
+const currentExpenditures = ref([]);
 
 // Debt repayment dialog state
 const showDebtPaymentDialog = ref(false);
@@ -1482,11 +1727,14 @@ const form = reactive({
   payments: [],
   debts: [],
   originalItems: [],
+  is_bulk: false,
+  expenditures: [],
 });
 
 // Validation
 const validationErrors = ref([]);
 const paymentErrors = ref([]);
+const expenditureErrors = ref([]);
 const debtErrors = ref([]);
 
 // Constants
@@ -1531,6 +1779,32 @@ const debtsReconciled = computed(() => {
   return round2(debtsTotal.value) === round2(balance);
 });
 
+// Expenditures deliberately do NOT feed into debts+payments=total
+// reconciliation — they're money already spent out of collected cash, not
+// money still owed, so they can never block Save the way a debt mismatch
+// does. They only affect the cash-on-hand figure below.
+const expendituresTotal = computed(() =>
+  form.is_bulk
+    ? form.expenditures.reduce((s, e) => s + Number(e.amount || 0), 0)
+    : 0,
+);
+
+// Cash before any trip spending: everything sold, minus whatever was
+// given out as named customer debt instead of collected now. This is the
+// full figure for a normal sale, and the "before expenditures" half of a
+// bulk sale's two-number breakdown.
+const cashExcludingExpenditures = computed(
+  () => total.value - debtsTotal.value,
+);
+
+// What should actually be left in hand after a bulk/trip sale's
+// on-the-road spending comes out of that cash. Shown prominently
+// alongside the "before" figure so nobody has to work either out with a
+// calculator.
+const cashIncludingExpenditures = computed(
+  () => cashExcludingExpenditures.value - expendituresTotal.value,
+);
+
 // Save button rule
 const canSave = computed(() => {
   return (
@@ -1539,7 +1813,8 @@ const canSave = computed(() => {
     form.items.length > 0 &&
     validationErrors.value.length === 0 &&
     paymentErrors.value.length === 0 &&
-    debtErrors.value.length === 0
+    debtErrors.value.length === 0 &&
+    expenditureErrors.value.length === 0
   );
 });
 
@@ -1691,6 +1966,68 @@ function addItem() {
   });
   validateForm();
 }
+// Bulk-load every product currently in stock at the sale's outlet, one row
+// per (product, quality) with a positive balance, quantity defaulting to
+// the full balance. Lets the shopkeeper start from "everything in stock"
+// and adjust quantities down to whatever was actually sold, instead of
+// searching and adding each product one at a time. Replaces the current
+// item list rather than appending, so re-loading always reflects the
+// latest stock snapshot.
+async function loadCurrentStock() {
+  if (!form.outlet_id) return;
+
+  // Loading everything currently in stock is, by definition, the bulk-sale
+  // workflow — auto-enable it so the Trip Expenditures section appears.
+  form.is_bulk = true;
+
+  loadingOutletStock.value = true;
+  try {
+    const res = await fetch(
+      `/stocktransfers/outlet-stock?outlet_id=${form.outlet_id}`,
+    );
+    if (!res.ok) throw new Error("Failed to load current stock");
+    const data = await res.json();
+    const stockItems = data.data || [];
+
+    const freshItems = [];
+    for (const si of stockItems) {
+      const prod = products.value.find((p) => p.id === si.product_id);
+      for (const quality of ["GOOD", "DAMAGED", "REJECT"]) {
+        const available = si.stock[quality] || 0;
+        if (available <= 0) continue;
+
+        freshItems.push({
+          product_id: si.product_id,
+          product_code: prod?.code,
+          quality,
+          quantity: available,
+          unit_price: Number(prod?.price || 0),
+          stockData: { ...si.stock },
+        });
+      }
+    }
+    form.items = freshItems;
+
+    store.commit("setMessage", {
+      type: freshItems.length > 0 ? "success" : "info",
+      text:
+        freshItems.length > 0
+          ? `Loaded ${freshItems.length} item(s) from current stock.`
+          : "No stock currently available at this outlet.",
+    });
+
+    validateForm();
+  } catch (error) {
+    console.error("Error loading current stock:", error);
+    store.commit("setMessage", {
+      type: "error",
+      text: "Failed to load current stock",
+    });
+  } finally {
+    loadingOutletStock.value = false;
+  }
+}
+
 function removeItem(i) {
   form.items.splice(i, 1);
   validateForm();
@@ -1892,6 +2229,29 @@ function validateDebts() {
   }
 
   debtErrors.value = errs;
+  validateExpenditures();
+}
+
+// Expenditures logic (bulk sales only)
+function addExpenditure() {
+  form.expenditures.push({ type_id: null, amount: "", description: "" });
+  validateForm();
+}
+function removeExpenditure(i) {
+  form.expenditures.splice(i, 1);
+  validateForm();
+}
+function validateExpenditures() {
+  const errs = [];
+  if (form.is_bulk) {
+    form.expenditures.forEach((e, idx) => {
+      if (!e.type_id) errs.push(`Expenditure ${idx + 1}: cost type is required.`);
+      if (e.amount === "" || Number(e.amount) <= 0) {
+        errs.push(`Expenditure ${idx + 1}: amount must be > 0, or delete the row.`);
+      }
+    });
+  }
+  expenditureErrors.value = errs;
 }
 
 // API
@@ -1989,6 +2349,14 @@ async function openEditDialog(row) {
       hasRepayments: Number(d.repaid) > 0,
     }));
 
+    // Bulk sale / trip expenditures (existing)
+    form.is_bulk = !!data.sale.is_bulk;
+    form.expenditures = (data.expenditures || []).map((e) => ({
+      type_id: e.type_id,
+      amount: String(e.amount),
+      description: e.description || "",
+    }));
+
     // Stock preload
     for (const it of form.items) await fetchItemAvailability(it);
 
@@ -2016,6 +2384,7 @@ async function openViewDialog(row) {
     };
     currentItems.value = data.items || [];
     currentDebts.value = data.debts || [];
+    currentExpenditures.value = data.expenditures || [];
 
     showViewDialog.value = true;
   } catch (e) {
@@ -2100,6 +2469,8 @@ function resetForm() {
   form.payments = [];
   form.debts = [];
   form.originalItems = [];
+  form.is_bulk = false;
+  form.expenditures = [];
   addPayment();
 
   customerSelection.value = null;
@@ -2108,6 +2479,7 @@ function resetForm() {
   validationErrors.value = [];
   paymentErrors.value = [];
   debtErrors.value = [];
+  expenditureErrors.value = [];
   paymentAutoLinked.value = true;
 
   // Reset scanner state
@@ -2180,6 +2552,14 @@ async function saveSale() {
       amount: Number(d.amount),
       notes: d.notes || null,
     })),
+    is_bulk: form.is_bulk,
+    expenditures: form.is_bulk
+      ? form.expenditures.map((e) => ({
+          type_id: e.type_id,
+          amount: Number(e.amount),
+          description: e.description || null,
+        }))
+      : [],
   };
   if (typeof customerSelection.value === "string") {
     payload.customer_id = null;
@@ -2234,15 +2614,17 @@ async function loadInitialData() {
     } else {
       outletsParams.append("id[]", -1);
     }
-    const [outRes, prodRes, custRes] = await Promise.all([
+    const [outRes, prodRes, custRes, costTypeRes] = await Promise.all([
       fetch(`/outlets?${outletsParams}`),
       fetch("/products?limit=1000"),
       fetch("/customers?limit=1000"),
+      fetch("/expenditures/types?limit=1000"),
     ]);
 
     outlets.value = (await outRes.json()).data || [];
     products.value = (await prodRes.json()).data || [];
     customers.value = (await custRes.json()).data || [];
+    costTypes.value = (await costTypeRes.json()).data || [];
   } catch (e) {
     console.error("Init data load failed:", e);
   }

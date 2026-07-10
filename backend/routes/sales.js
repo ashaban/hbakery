@@ -21,6 +21,11 @@ const {
   getOutstandingDebts,
   addDebtPayment,
 } = require("../modules/customerDebt");
+const {
+  insertSaleExpenditures,
+  deleteSaleExpenditures,
+  getSaleExpenditures,
+} = require("../modules/saleExpenditure");
 
 // =========================
 // Helpers
@@ -99,6 +104,7 @@ async function getSaleDetail(client, saleId) {
 
   const money = await getSaleMoneySummary(client, saleId);
   const debts = await getSaleDebtsWithBalance(client, saleId);
+  const expenditures = await getSaleExpenditures(client, saleId);
 
   return {
     sale: {
@@ -108,6 +114,7 @@ async function getSaleDetail(client, saleId) {
     items: items.rows,
     payments: payments.rows,
     debts,
+    expenditures,
   };
 }
 
@@ -132,6 +139,8 @@ router.post("/", requireTask("can_add_sale"), async (req, res) => {
     items = [],
     payments = [],
     debts = [],
+    is_bulk = false,
+    expenditures = [],
   } = req.body;
 
   if (!outlet_id || !items.length) {
@@ -157,10 +166,10 @@ router.post("/", requireTask("can_add_sale"), async (req, res) => {
 
     // 2 Create sale header
     const ins = await client.query(
-      `INSERT INTO sale (outlet_id, customer_id, sale_date, status, notes)
-       VALUES ($1,$2,$3,'POSTED',$4)
+      `INSERT INTO sale (outlet_id, customer_id, sale_date, status, notes, is_bulk)
+       VALUES ($1,$2,$3,'POSTED',$4,$5)
        RETURNING id`,
-      [outlet_id, customer_id, sale_date ?? new Date(), notes ?? null],
+      [outlet_id, customer_id, sale_date ?? new Date(), notes ?? null, !!is_bulk],
     );
     const saleId = ins.rows[0].id;
 
@@ -191,6 +200,11 @@ router.post("/", requireTask("can_add_sale"), async (req, res) => {
     // 4b Insert named customer debts (optional)
     await insertSaleDebts(client, saleId, debts);
 
+    // 4c Insert bulk-sale expenditures (optional; not part of the
+    // debts+payments=total reconciliation — these are money already
+    // spent, not money still owed)
+    await insertSaleExpenditures(client, saleId, sale_date ?? new Date(), expenditures);
+
     // 5 Ledger outflow
     await recordSaleLedger(client, saleId, outlet_id, items, sale_date, notes);
 
@@ -208,7 +222,8 @@ router.post("/", requireTask("can_add_sale"), async (req, res) => {
     if (
       err.code === "INSUFFICIENT_STOCK" ||
       err.code === "DEBT_MISMATCH" ||
-      err.code === "INVALID_DEBT"
+      err.code === "INVALID_DEBT" ||
+      err.code === "INVALID_EXPENDITURE"
     ) {
       return res.status(400).json({
         error: err.code,
@@ -236,6 +251,8 @@ router.put("/:id", requireTask("can_edit_sale"), async (req, res) => {
     items = [],
     payments = [],
     debts = [],
+    is_bulk = false,
+    expenditures = [],
   } = req.body;
 
   if (!outlet_id || !items.length) {
@@ -277,9 +294,9 @@ router.put("/:id", requireTask("can_edit_sale"), async (req, res) => {
 
     // Replace header
     await client.query(
-      `UPDATE sale SET outlet_id=$1, customer_id=$2, sale_date=$3, notes=$4
-       WHERE id=$5`,
-      [outlet_id, customer_id, sale_date ?? new Date(), notes ?? null, id],
+      `UPDATE sale SET outlet_id=$1, customer_id=$2, sale_date=$3, notes=$4, is_bulk=$5
+       WHERE id=$6`,
+      [outlet_id, customer_id, sale_date ?? new Date(), notes ?? null, !!is_bulk, id],
     );
 
     // Replace items
@@ -311,6 +328,10 @@ router.put("/:id", requireTask("can_edit_sale"), async (req, res) => {
     await deleteSaleDebts(client, id);
     await insertSaleDebts(client, id, debts);
 
+    // Replace bulk-sale expenditures
+    await deleteSaleExpenditures(client, id);
+    await insertSaleExpenditures(client, id, sale_date ?? new Date(), expenditures);
+
     // Re-apply ledger
     await recordSaleLedger(client, id, outlet_id, items, sale_date, notes);
 
@@ -329,7 +350,8 @@ router.put("/:id", requireTask("can_edit_sale"), async (req, res) => {
       err.code === "INSUFFICIENT_STOCK" ||
       err.code === "DEBT_MISMATCH" ||
       err.code === "INVALID_DEBT" ||
-      err.code === "DEBT_HAS_PAYMENTS"
+      err.code === "DEBT_HAS_PAYMENTS" ||
+      err.code === "INVALID_EXPENDITURE"
     ) {
       return res.status(400).json({
         error: err.code,
