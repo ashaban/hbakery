@@ -2,7 +2,18 @@ const formidable = require("formidable");
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
+const moment = require("moment");
 const { authenticateToken, requireTask } = require("../middleware/auth");
+
+// Date filters arrive as DD-MM-YYYY (matching the VueDatePicker fields on
+// the frontend), but this DB's DateStyle is MDY — casting "25-07-2026"
+// straight to ::date errors outright, and day <= 12 silently swaps day
+// and month. Convert to ISO (unambiguous under any DateStyle) first.
+const toISODate = (d) => {
+  if (!d) return null;
+  const m = moment(d, "DD-MM-YYYY", true);
+  return m.isValid() ? m.format("YYYY-MM-DD") : null;
+};
 
 // Get all Purchases with Item info
 router.get("/", requireTask("can_see_ingredients_stock"), async (req, res) => {
@@ -13,7 +24,19 @@ router.get("/", requireTask("can_see_ingredients_stock"), async (req, res) => {
     const offset = (page - 1) * limit;
 
     // Filters
-    const { item_id, date, date_from, date_to, date_gt, date_lt } = req.query;
+    const {
+      item_id,
+      date: dateRaw,
+      date_from: dateFromRaw,
+      date_to: dateToRaw,
+      date_gt: dateGtRaw,
+      date_lt: dateLtRaw,
+    } = req.query;
+    const date = toISODate(dateRaw);
+    const date_from = toISODate(dateFromRaw);
+    const date_to = toISODate(dateToRaw);
+    const date_gt = toISODate(dateGtRaw);
+    const date_lt = toISODate(dateLtRaw);
 
     // Build dynamic WHERE clause
     let whereClauses = [];

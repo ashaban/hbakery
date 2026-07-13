@@ -683,9 +683,15 @@ router.get("/batches", requireTask("can_see_production"), async (req, res) => {
     let batches = listRes.rows;
 
     // 3️⃣ Compute status field
+    // "Completed" means every product in the batch has an actual recorded,
+    // not just the earliest one — MAX(produced_at) is truthy as soon as a
+    // single item is done, which previously marked the whole batch
+    // "completed" after only partial entry.
     batches = batches.map((b) => {
-      let status = "pending";
-      if (b.produced_at) status = "completed";
+      const totalProducts = Number(b.total_products) || 0;
+      const unproducedCount = Number(b.unproduced_count) || 0;
+      const status =
+        totalProducts > 0 && unproducedCount === 0 ? "completed" : "pending";
       return { ...b, status };
     });
 
@@ -805,9 +811,13 @@ router.get(
 
       const batch = batchHdrRes.rows[0];
 
-      // 🧮 Compute status
-      let status = "pending";
-      if (batch.produced_at) status = "completed";
+      // 🧮 Compute status — completed only once every product in the batch
+      // has an actual recorded (see /batches list for why MAX(produced_at)
+      // alone is wrong: it's truthy after just the first item is done).
+      const totalProducts = Number(batch.total_products) || 0;
+      const unproducedCount = Number(batch.unproduced_count) || 0;
+      const status =
+        totalProducts > 0 && unproducedCount === 0 ? "completed" : "pending";
       // 2️⃣ Fetch all product productions in this batch
       const productsRes = await pool.query(
         `

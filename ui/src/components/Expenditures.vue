@@ -85,6 +85,19 @@
     <v-card class="mb-4" elevation="2" rounded="lg">
       <v-card-text>
         <v-row dense>
+          <v-col cols="12" md="3">
+            <v-select
+              v-model="filters.range_preset"
+              item-title="title"
+              item-value="value"
+              :items="dateRangePresets"
+              label="Quick Range"
+              prepend-inner-icon="mdi-calendar-range"
+              variant="outlined"
+              @update:model-value="onRangePresetChange"
+            />
+          </v-col>
+
           <v-col cols="12" md="4">
             <v-autocomplete
               v-model="filters.type_ids"
@@ -104,6 +117,7 @@
             />
           </v-col>
 
+          <template v-if="filters.range_preset === 'custom'">
           <v-col cols="12" md="4">
             <v-card-subtitle class="pl-0 pb-1 text-caption text-grey">
               Start Date Range
@@ -155,6 +169,7 @@
               />
             </div>
           </v-col>
+          </template>
         </v-row>
 
         <div class="d-flex justify-end mt-4">
@@ -793,14 +808,17 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
 import moment from "moment";
+import { DATE_RANGE_PRESETS, getDateRangePreset } from "@/utils/dateRangePresets";
 
 /* STATE */
+const dateRangePresets = DATE_RANGE_PRESETS;
 const itemsPerPage = ref(10);
 const expenditures = ref([]);
 const costTypes = ref([]);
 const singleFormRef = ref(null);
 const filters = reactive({
   type_ids: [],
+  range_preset: "this_month",
   start_from: "",
   start_to: "",
   end_from: "",
@@ -881,15 +899,28 @@ function formatDate(dateString) {
   });
 }
 
+// Presets apply to the Start Date range — most expenditures are single-day
+// (start_date = end_date), so that's the field that actually reflects
+// "when did this happen". "Custom" leaves everything as-is and reveals
+// the manual range pickers instead of computing anything.
+function onRangePresetChange() {
+  const range = getDateRangePreset(filters.range_preset);
+  if (!range) return;
+  filters.start_from = range.from;
+  filters.start_to = range.to;
+  loadData(); // also refreshes the summary cards internally
+}
+
 function clearFilters() {
   Object.assign(filters, {
     type_ids: [],
+    range_preset: "this_month",
     start_from: "",
     start_to: "",
     end_from: "",
     end_to: "",
   });
-  loadData();
+  onRangePresetChange();
 }
 
 function getCategoryColor(category) {
@@ -1470,7 +1501,7 @@ async function deleteExpenditure(item) {
 
 onMounted(async () => {
   await loadCostTypes();
-  await loadData();
+  onRangePresetChange(); // applies the default "This Month" range
 });
 </script>
 

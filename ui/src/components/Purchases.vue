@@ -75,6 +75,19 @@
     <v-card class="mb-4" elevation="2" rounded="lg">
       <v-card-text>
         <v-row dense>
+          <v-col cols="12" md="3">
+            <v-select
+              v-model="filters.range_preset"
+              item-title="title"
+              item-value="value"
+              :items="dateRangePresets"
+              label="Quick Range"
+              prepend-inner-icon="mdi-calendar-range"
+              variant="outlined"
+              @update:model-value="onRangePresetChange"
+            />
+          </v-col>
+
           <v-col cols="12" md="4">
             <v-autocomplete
               v-model="filters.item_id"
@@ -92,6 +105,7 @@
             />
           </v-col>
 
+          <template v-if="filters.range_preset === 'custom'">
           <v-col cols="12" md="3">
             <v-select
               v-model="filters.date_operator"
@@ -148,6 +162,7 @@
               </div>
             </template>
           </v-col>
+          </template>
         </v-row>
 
         <div class="d-flex justify-end mt-4">
@@ -608,10 +623,12 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import { useStore } from "vuex";
 import moment from "moment";
+import { DATE_RANGE_PRESETS, getDateRangePreset } from "@/utils/dateRangePresets";
 
 const store = useStore();
 
 /* STATE */
+const dateRangePresets = DATE_RANGE_PRESETS;
 const itemsPerPage = ref(10);
 const values = ref([]);
 const items = ref([]);
@@ -652,6 +669,7 @@ const snackbar = reactive({
 
 const filters = reactive({
   item_id: "",
+  range_preset: "this_month",
   date_operator: "",
   date: "",
   date_from: "",
@@ -879,16 +897,29 @@ function applyFilters() {
   loadValues();
 }
 
+// Picking a preset drives the same date_operator="in" + date_from/date_to
+// the manual "In Range" picker already uses, so loadValues() doesn't need
+// to know presets exist at all. "Custom" leaves whatever's already there
+// and reveals the manual controls instead of computing anything.
+function onRangePresetChange() {
+  const range = getDateRangePreset(filters.range_preset);
+  if (!range) return;
+  filters.date_operator = "in";
+  filters.date_from = range.from;
+  filters.date_to = range.to;
+  applyFilters();
+}
+
 function resetFilters() {
   Object.assign(filters, {
     item_id: "",
+    range_preset: "this_month",
     date_operator: "",
     date: "",
     date_from: "",
     date_to: "",
   });
-  page.value = 1;
-  loadValues();
+  onRangePresetChange();
 }
 
 /* CRUD OPERATIONS */
@@ -1013,7 +1044,7 @@ async function deletePurchase(item) {
 
 onMounted(async () => {
   await loadItems();
-  await loadValues();
+  onRangePresetChange(); // applies the default "This Month" range
 });
 </script>
 

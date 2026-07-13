@@ -1521,6 +1521,28 @@
                     </div>
                     <v-spacer />
                     <v-chip
+                      class="mr-2"
+                      :color="
+                        product.good_qty !== '' && product.good_qty !== null
+                          ? 'blue'
+                          : 'grey'
+                      "
+                      size="small"
+                      variant="flat"
+                    >
+                      <v-icon size="14" start>{{
+                        product.good_qty !== "" && product.good_qty !== null
+                          ? "mdi-check-circle"
+                          : "mdi-circle-outline"
+                      }}</v-icon>
+                      {{
+                        product.good_qty !== "" && product.good_qty !== null
+                          ? "Recorded"
+                          : "Not Yet Entered"
+                      }}
+                    </v-chip>
+                    <v-chip
+                      v-if="product.good_qty !== '' && product.good_qty !== null"
                       :color="product.hasDiscrepancy ? 'orange' : 'green'"
                       size="small"
                       variant="flat"
@@ -2666,6 +2688,17 @@
                 </div>
               </div>
 
+              <v-alert
+                v-if="hasDuplicateStaff"
+                class="mb-4"
+                color="error"
+                icon="mdi-alert-circle"
+                variant="tonal"
+              >
+                The same staff member is assigned more than once — each
+                person should only appear in one row.
+              </v-alert>
+
               <v-data-table
                 class="elevation-1 rounded-lg"
                 density="comfortable"
@@ -2680,7 +2713,7 @@
                     hide-details
                     item-title="name"
                     item-value="id"
-                    :items="staffList"
+                    :items="getAvailableStaffForRow(item)"
                     placeholder="Select Staff"
                     variant="outlined"
                   />
@@ -3511,26 +3544,43 @@ const addBatchActualProduction = async (batch) => {
     const data = await res.json();
     selectedBatch.value = data.batch;
 
-    // Initialize batch actual form
+    // Initialize batch actual form.
+    //
+    // produced_at is the only reliable signal for "has this item's actual
+    // already been recorded" — good_qty/damaged_qty/reject_qty default to
+    // 0 in the database even for products nobody has entered yet, so they
+    // can't be used to tell "never touched" apart from "recorded as 0".
+    //
+    // Already-produced items show their real (possibly zero) values using
+    // ?? instead of ||, so a legitimately recorded 0 doesn't get wiped
+    // back to a blank field on reopen. Never-produced items start fully
+    // blank so the user has to explicitly type something — even "0" — to
+    // mark that item as ready to save.
     batchActualForm.batch_id = batch.id;
     batchActualForm.produced_at = toDisplay(new Date());
     batchActualForm.notes = "";
-    batchActualForm.products = data.products.map((product) => ({
-      production_id: product.production_id,
-      product_id: product.product_id,
-      product_name: product.product_name,
-      planned_qty: product.qty_product,
-      good_qty: product.good_qty || "",
-      damaged_qty: product.damaged_qty || "",
-      reject_qty: product.reject_qty || "",
-      actual_qty:
-        (product.good_qty || 0) +
-        (product.damaged_qty || 0) +
-        (product.reject_qty || 0),
-      hasDiscrepancy:
-        parseFloat(product.good_qty) !== parseFloat(product.planned_qty),
-      discrepancies: product.discrepancies || [],
-    }));
+    batchActualForm.products = data.products.map((product) => {
+      const alreadyProduced = !!product.produced_at;
+      return {
+        production_id: product.production_id,
+        product_id: product.product_id,
+        product_name: product.product_name,
+        planned_qty: product.qty_product,
+        already_produced: alreadyProduced,
+        good_qty: alreadyProduced ? (product.good_qty ?? "") : "",
+        damaged_qty: alreadyProduced ? (product.damaged_qty ?? "") : "",
+        reject_qty: alreadyProduced ? (product.reject_qty ?? "") : "",
+        actual_qty: alreadyProduced
+          ? (Number(product.good_qty) || 0) +
+            (Number(product.damaged_qty) || 0) +
+            (Number(product.reject_qty) || 0)
+          : "",
+        hasDiscrepancy:
+          alreadyProduced &&
+          parseFloat(product.good_qty) !== parseFloat(product.planned_qty),
+        discrepancies: product.discrepancies || [],
+      };
+    });
 
     batchActualDialog.value = true;
   } catch (err) {
@@ -3547,6 +3597,16 @@ const closeBatchActualDialog = () => {
 };
 
 const updateProductDiscrepancy = (product) => {
+  // An untouched good_qty ("") isn't a real 0 — leave the item alone so it
+  // doesn't get flagged as a discrepancy or counted in totals just because
+  // the field renders blank.
+  if (product.good_qty === "" || product.good_qty === null) {
+    product.actual_qty = "";
+    product.hasDiscrepancy = false;
+    product.discrepancies = [];
+    return;
+  }
+
   // Calculate total actual quantity
   product.actual_qty =
     (Number(product.good_qty) || 0) +
@@ -3600,14 +3660,22 @@ const batchActualTotal = computed(() => {
   return total;
 });
 
+// A product counts as "ready to save" once good_qty has an explicit value
+// — including 0 — typed this session or already recorded from before.
+// Damaged/reject default to 0 if left blank once good_qty is set.
+const isBatchProductTouched = (product) =>
+  product.good_qty !== "" && product.good_qty !== null;
+
 const canSaveBatchActual = computed(() => {
   if (!batchActualForm.produced_at) return false;
   if (batchActualForm.products.length === 0) return false;
 
-  // Check if all products have at least good quantity filled
-  const hasValidQuantities = batchActualForm.products.every(
+  const touched = batchActualForm.products.filter(isBatchProductTouched);
+  if (touched.length === 0) return false;
+
+  const hasValidQuantities = touched.every(
     (product) =>
-      (Number(product.good_qty) || 0) >= 0 &&
+      Number(product.good_qty) >= 0 &&
       (Number(product.damaged_qty) || 0) >= 0 &&
       (Number(product.reject_qty) || 0) >= 0,
   );
@@ -3618,10 +3686,19 @@ const canSaveBatchActual = computed(() => {
 const saveBatchActualProduction = async () => {
   saving.value = true;
   try {
+    // Only submit products the user actually entered a value for this
+    // round (or that were already recorded before) — this is what makes
+    // partial saves possible: an item left blank simply isn't included,
+    // so the backend leaves it untouched (still pending) instead of
+    // force-completing it with a zero.
+    const touchedProducts = batchActualForm.products.filter(
+      isBatchProductTouched,
+    );
+
     const payload = {
       produced_at: toISO(batchActualForm.produced_at),
       notes: batchActualForm.notes,
-      products: batchActualForm.products.map((product) => ({
+      products: touchedProducts.map((product) => ({
         production_id: product.production_id,
         good_qty: Number(product.good_qty) || 0,
         damaged_qty: Number(product.damaged_qty) || 0,
@@ -3730,6 +3807,24 @@ const availableStaff = computed(() => {
   return staffList.value.filter((s) => !selectedIds.includes(s.id));
 });
 
+// Per-row version of availableStaff: excludes staff picked in *other* rows,
+// but keeps this row's own current selection visible so an already-chosen
+// name doesn't disappear from its own dropdown.
+function getAvailableStaffForRow(currentItem) {
+  const selectedIdsElsewhere = form.staff
+    .filter((s) => s !== currentItem)
+    .map((s) => (typeof s.staff_id === "object" ? s.staff_id?.id : s.staff_id))
+    .filter(Boolean);
+  return staffList.value.filter((s) => !selectedIdsElsewhere.includes(s.id));
+}
+
+const hasDuplicateStaff = computed(() => {
+  const ids = form.staff
+    .map((s) => (typeof s.staff_id === "object" ? s.staff_id?.id : s.staff_id))
+    .filter(Boolean);
+  return new Set(ids).size !== ids.length;
+});
+
 const assignedStaffCount = computed(
   () => form.staff.filter((s) => s.staff_id).length,
 );
@@ -3791,6 +3886,10 @@ const canSave = computed(() => {
   if (hasInsufficientStock.value) return false;
   if (!hasValidGroupChoices) return false;
   if (!hasValidStaff) return false;
+  // Belt-and-suspenders: the per-row dropdown already excludes staff
+  // picked elsewhere, but guard Save too in case anything sets staff_id
+  // some other way.
+  if (hasDuplicateStaff.value) return false;
   if (saving.value) return false;
 
   return true;
