@@ -76,48 +76,18 @@ async function performQualityAdjustment(
 
   let remaining = quantity;
   const adjustmentDetails = [];
+  const plannedMoves = [];
 
-  // Process each batch
+  // Plan batch allocation first (audit row is created before the ledger
+  // rows so each QUALITY_CHANGE row can carry its adjustment_id — the
+  // linkage integrity checks rely on).
   for (const batch of batches.rows) {
     if (remaining <= 0) break;
 
     const moveQty = Math.min(remaining, Number(batch.available_qty));
     remaining -= moveQty;
 
-    // Record OUT movement (old quality)
-    await client.query(
-      `INSERT INTO product_ledger
-        (product_id, outlet_id, movement_type, quantity, quality,
-         production_id, movement_date, remarks)
-       VALUES ($1,$2,'QUALITY_CHANGE',$3,$4,$5,$6,$7)`,
-      [
-        product_id,
-        outlet_id,
-        -moveQty,
-        from_quality,
-        batch.production_id,
-        movement_date,
-        remarks,
-      ]
-    );
-
-    // Record IN movement (new quality)
-    await client.query(
-      `INSERT INTO product_ledger
-        (product_id, outlet_id, movement_type, quantity, quality,
-         production_id, movement_date, remarks)
-       VALUES ($1,$2,'QUALITY_CHANGE',$3,$4,$5,$6,$7)`,
-      [
-        product_id,
-        outlet_id,
-        moveQty,
-        to_quality,
-        batch.production_id,
-        movement_date,
-        remarks,
-      ]
-    );
-
+    plannedMoves.push({ production_id: batch.production_id, moveQty });
     adjustmentDetails.push({
       production_id: batch.production_id,
       quantity: moveQty,
@@ -138,9 +108,9 @@ async function performQualityAdjustment(
   // Create audit trail
   const adjustmentResult = await client.query(
     `INSERT INTO stock_quality_adjustment
-      (outlet_id, product_id, from_quality, to_quality, quantity, remarks, 
+      (outlet_id, product_id, from_quality, to_quality, quantity, remarks,
        movement_date, reference_type, reference_id, adjustment_details, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) 
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
      RETURNING id, outlet_id, product_id, from_quality, to_quality, quantity`,
     [
       outlet_id,
@@ -156,6 +126,44 @@ async function performQualityAdjustment(
       created_by,
     ]
   );
+  const adjustmentId = adjustmentResult.rows[0].id;
+
+  // Record the paired ledger movements per batch
+  for (const move of plannedMoves) {
+    await client.query(
+      `INSERT INTO product_ledger
+        (product_id, outlet_id, movement_type, quantity, quality,
+         production_id, movement_date, remarks, adjustment_id)
+       VALUES ($1,$2,'QUALITY_CHANGE',$3,$4,$5,$6,$7,$8)`,
+      [
+        product_id,
+        outlet_id,
+        -move.moveQty,
+        from_quality,
+        move.production_id,
+        movement_date,
+        remarks,
+        adjustmentId,
+      ]
+    );
+
+    await client.query(
+      `INSERT INTO product_ledger
+        (product_id, outlet_id, movement_type, quantity, quality,
+         production_id, movement_date, remarks, adjustment_id)
+       VALUES ($1,$2,'QUALITY_CHANGE',$3,$4,$5,$6,$7,$8)`,
+      [
+        product_id,
+        outlet_id,
+        move.moveQty,
+        to_quality,
+        move.production_id,
+        movement_date,
+        remarks,
+        adjustmentId,
+      ]
+    );
+  }
 
   return {
     adjustmentId: adjustmentResult.rows[0].id,
@@ -191,8 +199,8 @@ async function undoQualityAdjustment(client, adjustmentId) {
     await client.query(
       `INSERT INTO product_ledger
         (product_id, outlet_id, movement_type, quantity, quality,
-         production_id, movement_date, remarks)
-       VALUES ($1,$2,'QUALITY_CHANGE',$3,$4,$5,$6,$7)`,
+         production_id, movement_date, remarks, adjustment_id)
+       VALUES ($1,$2,'QUALITY_CHANGE',$3,$4,$5,$6,$7,$8)`,
       [
         adj.product_id,
         adj.outlet_id,
@@ -201,6 +209,7 @@ async function undoQualityAdjustment(client, adjustmentId) {
         detail.production_id,
         adj.movement_date,
         `REVERSED: ${adj.remarks}`,
+        adjustmentId,
       ]
     );
 
@@ -208,8 +217,8 @@ async function undoQualityAdjustment(client, adjustmentId) {
     await client.query(
       `INSERT INTO product_ledger
         (product_id, outlet_id, movement_type, quantity, quality,
-         production_id, movement_date, remarks)
-       VALUES ($1,$2,'QUALITY_CHANGE',$3,$4,$5,$6,$7)`,
+         production_id, movement_date, remarks, adjustment_id)
+       VALUES ($1,$2,'QUALITY_CHANGE',$3,$4,$5,$6,$7,$8)`,
       [
         adj.product_id,
         adj.outlet_id,
@@ -218,6 +227,7 @@ async function undoQualityAdjustment(client, adjustmentId) {
         detail.production_id,
         adj.movement_date,
         `REVERSED: ${adj.remarks}`,
+        adjustmentId,
       ]
     );
   }

@@ -434,15 +434,15 @@ router.post(
   "/batches/:batch_id/actual",
   requireTask("can_add_actual_production", "can_edit_actual_production"),
   async (req, res) => {
+    const { batch_id } = req.params;
+    const { produced_at, notes, products } = req.body;
+
+    if (!batch_id || !Array.isArray(products) || products.length === 0) {
+      return res.status(400).json({ error: "Invalid or missing payload" });
+    }
+
     const client = await pool.connect();
     try {
-      const { batch_id } = req.params;
-      const { produced_at, notes, products } = req.body;
-
-      if (!batch_id || !Array.isArray(products) || products.length === 0) {
-        return res.status(400).json({ error: "Invalid or missing payload" });
-      }
-
       await client.query("BEGIN");
 
       // 🧾 Fetch all productions in this batch
@@ -502,6 +502,40 @@ router.post(
           produced_at
         );
 
+        // 🛡️ Transfers/sales drawn from this batch survive a re-save now,
+        // so correcting actuals downward below what has already been moved
+        // out of the batch would leave a negative balance. Reject instead.
+        const balCheck = await client.query(
+          `SELECT outlet_id, quality, SUM(
+             CASE
+               WHEN movement_type IN ('IN','TRANSFER_IN') THEN quantity
+               WHEN movement_type IN ('OUT','TRANSFER_OUT','SALE') THEN -quantity
+               WHEN movement_type = 'QUALITY_CHANGE' THEN quantity
+               ELSE 0
+             END
+           ) AS balance
+           FROM product_ledger
+           WHERE production_id = $1
+           GROUP BY outlet_id, quality
+           HAVING SUM(
+             CASE
+               WHEN movement_type IN ('IN','TRANSFER_IN') THEN quantity
+               WHEN movement_type IN ('OUT','TRANSFER_OUT','SALE') THEN -quantity
+               WHEN movement_type = 'QUALITY_CHANGE' THEN quantity
+               ELSE 0
+             END
+           ) < 0`,
+          [production_id]
+        );
+        if (balCheck.rows.length > 0) {
+          const err = new Error(
+            `Actual quantities for production ${production_id} are lower than the stock already transferred or sold from this batch. Increase the actuals or correct the transfers/sales first.`
+          );
+          err.code = "ACTUALS_BELOW_CONSUMED";
+          err.meta = { production_id, negative: balCheck.rows };
+          throw err;
+        }
+
         // ⚙️ Update discrepancies (replace existing ones)
         await client.query(
           `DELETE FROM product_production_discrepancy WHERE production_id=$1`,
@@ -523,12 +557,27 @@ router.post(
         message: "Actual production quantities saved successfully",
       });
     } catch (err) {
-      await client.query("ROLLBACK");
-      console.error("❌ Failed to record actual production:", err);
-      res.status(500).json({ error: "Failed to save actual production" });
-    } finally {
-      client.release();
+      let releaseError;
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackErr) {
+        console.error("❌ Rollback failed, discarding connection:", rollbackErr);
+        releaseError = rollbackErr;
+      }
+      if (err.code === "ACTUALS_BELOW_CONSUMED") {
+        res.status(400).json({
+          error: err.code,
+          message: err.message,
+          details: err.meta,
+        });
+      } else {
+        console.error("❌ Failed to record actual production:", err);
+        res.status(500).json({ error: "Failed to save actual production" });
+      }
+      client.release(releaseError);
+      return;
     }
+    client.release();
   }
 );
 

@@ -81,7 +81,10 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in issues" :key="row.item_id">
+          <tr
+            v-for="row in issues"
+            :key="`${row.transfer_id}-${row.product_id}`"
+          >
             <td>
               <router-link
                 class="font-weight-medium text-primary"
@@ -92,7 +95,7 @@
             </td>
             <td>{{ formatDate(row.transfer_date) }}</td>
             <td>{{ row.product_name }}</td>
-            <td class="text-center">{{ row.quantity }}</td>
+            <td class="text-center">{{ row.expected_qty }}</td>
             <td>
               {{ row.from_outlet_name }}
               <v-icon size="14">mdi-arrow-right</v-icon>

@@ -6,7 +6,7 @@
   "postgres": {
     "username": "hbakery",
     "password": "hbakery",
-    "database": "hbakerylive",
+    "database": "hbakery",
     "host": "127.0.0.1",
     "port": 5432
   },

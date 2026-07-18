@@ -111,9 +111,23 @@ async function recordProductLedger(
 }
 
 async function deleteProductLedgerByProduction(client, productionId) {
-  await client.query(`DELETE FROM product_ledger WHERE production_id = $1`, [
-    productionId,
-  ]);
+  // Only delete the production's own stock-in rows. Every other ledger row
+  // (TRANSFER_OUT/IN, SALE, OUT/give-out, QUALITY_CHANGE) also carries
+  // production_id — it records which batch the stock came from — so an
+  // unscoped delete-by-production destroys the movement history of every
+  // transfer/sale that ever drew from this batch. That was exactly what
+  // happened whenever actual production was re-saved after stock had
+  // already moved: the re-save wiped the transfers'/sales' ledger rows,
+  // leaving documents that say stock moved with no movement behind them.
+  await client.query(
+    `DELETE FROM product_ledger
+     WHERE production_id = $1
+       AND movement_type = 'IN'
+       AND transfer_id IS NULL
+       AND sale_id IS NULL
+       AND product_out_id IS NULL`,
+    [productionId]
+  );
 }
 
 // modules/productLedger.js
