@@ -55,6 +55,7 @@ function requireTask(taskCode) {
         return res.status(403).json({ error: "Forbidden" });
       }
 
+      req.user = user;
       next();
     });
   };

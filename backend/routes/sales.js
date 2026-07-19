@@ -26,6 +26,7 @@ const {
   deleteSaleExpenditures,
   getSaleExpenditures,
 } = require("../modules/saleExpenditure");
+const { recordAudit } = require("../modules/auditLog");
 
 // =========================
 // Helpers
@@ -208,6 +209,16 @@ router.post("/", requireTask("can_add_sale"), async (req, res) => {
     // 5 Ledger outflow
     await recordSaleLedger(client, saleId, outlet_id, items, sale_date, notes);
 
+    await recordAudit(client, {
+      user: req.user,
+      action: "SALE_CREATE",
+      entity_type: "sale",
+      entity_id: saleId,
+      outlet_id,
+      description: `Sold ${items.length} item(s) for ${saleTotal} at outlet #${outlet_id}`,
+      details: { items, saleTotal, paidTotal },
+    });
+
     await client.query("COMMIT");
 
     const detail = await getSaleDetail(client, saleId);
@@ -335,6 +346,16 @@ router.put("/:id", requireTask("can_edit_sale"), async (req, res) => {
     // Re-apply ledger
     await recordSaleLedger(client, id, outlet_id, items, sale_date, notes);
 
+    await recordAudit(client, {
+      user: req.user,
+      action: "SALE_EDIT",
+      entity_type: "sale",
+      entity_id: Number(id),
+      outlet_id,
+      description: `Edited sale #${id} (${items.length} item(s), ${saleTotal})`,
+      details: { items, saleTotal, paidTotal },
+    });
+
     await client.query("COMMIT");
 
     const detail = await getSaleDetail(client, id);
@@ -416,6 +437,15 @@ router.post(
         received_by: req.user?.id || null,
       });
 
+      await recordAudit(client, {
+        user: req.user,
+        action: "DEBT_PAYMENT",
+        entity_type: "sale_customer_debt",
+        entity_id: Number(debtId),
+        description: `Recorded debt payment of ${amount} against debt #${debtId}`,
+        details: { amount, method, reference },
+      });
+
       await client.query("COMMIT");
       res.status(201).json({ id: paymentId, message: "Payment recorded" });
     } catch (err) {
@@ -459,7 +489,7 @@ router.delete("/:id", requireTask("can_delete_sale"), async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    const saleQ = await client.query(`SELECT id FROM sale WHERE id=$1`, [id]);
+    const saleQ = await client.query(`SELECT id, outlet_id FROM sale WHERE id=$1`, [id]);
     if (!saleQ.rows.length) {
       await client.query("ROLLBACK");
       return res.status(404).json({ error: "Sale not found" });
@@ -477,6 +507,15 @@ router.delete("/:id", requireTask("can_delete_sale"), async (req, res) => {
 
     // Mark sale cancelled
     await client.query(`UPDATE sale SET status='CANCELLED' WHERE id=$1`, [id]);
+
+    await recordAudit(client, {
+      user: req.user,
+      action: "SALE_CANCEL",
+      entity_type: "sale",
+      entity_id: Number(id),
+      outlet_id: saleQ.rows[0].outlet_id,
+      description: `Cancelled sale #${id}`,
+    });
 
     await client.query("COMMIT");
     res.json({ id, message: "Sale cancelled" });

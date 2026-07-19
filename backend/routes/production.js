@@ -14,6 +14,7 @@ const {
   recordProductLedger,
   deleteProductLedgerByProduction,
 } = require("../modules/productledger");
+const { recordAudit } = require("../modules/auditLog");
 
 router.get("/discrepancyReasons", async (req, res) => {
   try {
@@ -195,6 +196,15 @@ router.post("/", requireTask("can_schedule_production"), async (req, res) => {
         );
       }
     }
+
+    await recordAudit(client, {
+      user,
+      action: "PRODUCTION_CREATE",
+      entity_type: "production_batch",
+      entity_id: batchId,
+      description: `Scheduled production batch ${batchCode} (${productList.length} product(s))`,
+      details: { batch_code: batchCode, products: productList.map((p) => p.product_id) },
+    });
 
     await client.query("COMMIT");
     res.json({
@@ -550,6 +560,15 @@ router.post(
           );
         }
       }
+
+      await recordAudit(client, {
+        user: req.user,
+        action: "PRODUCTION_ACTUAL_RECORD",
+        entity_type: "production_batch",
+        entity_id: Number(batch_id),
+        description: `Recorded actual production for batch #${batch_id} (${products.length} product(s))`,
+        details: { products },
+      });
 
       await client.query("COMMIT");
       res.json({
@@ -993,9 +1012,18 @@ router.delete(
           `DELETE FROM production_batch WHERE id = $1`,
           [id]
         );
-        await client.query("COMMIT");
-        if (delBatch.rowCount === 0)
+        if (delBatch.rowCount === 0) {
+          await client.query("ROLLBACK");
           return res.status(404).json({ error: "Batch not found" });
+        }
+        await recordAudit(client, {
+          user: req.user,
+          action: "PRODUCTION_DELETE",
+          entity_type: "production_batch",
+          entity_id: Number(id),
+          description: `Deleted empty production batch #${id}`,
+        });
+        await client.query("COMMIT");
         return res.json({ id, message: "Batch deleted successfully" });
       }
 
@@ -1038,6 +1066,14 @@ router.delete(
         `DELETE FROM production_batch WHERE id = $1`,
         [id]
       );
+
+      await recordAudit(client, {
+        user: req.user,
+        action: "PRODUCTION_DELETE",
+        entity_type: "production_batch",
+        entity_id: Number(id),
+        description: `Deleted production batch #${id} (${productions.length} production(s))`,
+      });
 
       await client.query("COMMIT");
 

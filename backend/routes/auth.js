@@ -5,6 +5,7 @@ const jwt = require("jsonwebtoken");
 const pool = require("../db");
 const logger = require("../winston");
 const config = require("../config");
+const { recordAudit } = require("../modules/auditLog");
 
 const router = express.Router();
 const tokenDuration = config.get("auth:tokenDuration");
@@ -90,6 +91,14 @@ router.post("/login", async (req, res) => {
     };
 
     const token = jwt.sign(payload, secret, { expiresIn: tokenDuration });
+
+    await recordAudit(pool, {
+      user: payload,
+      action: "LOGIN",
+      entity_type: "users",
+      entity_id: user.id,
+      description: `${user.name} logged in`,
+    });
 
     res.json({
       username: user.email,

@@ -16,6 +16,7 @@ const {
   processTransferWithQualityAdjustments,
 } = require("../modules/transferProcessor");
 const { checkTransferIntegrity } = require("../scripts/checkTransferIntegrity");
+const { recordAudit } = require("../modules/auditLog");
 
 /**
  * GET /stock-transfers/integrity-check - Find transfer items that were
@@ -377,6 +378,16 @@ router.post(
         created_by: req.user?.id || 1,
       });
 
+      await recordAudit(client, {
+        user: req.user,
+        action: "QUALITY_ADJUSTMENT",
+        entity_type: "stock_quality_adjustment",
+        entity_id: result.adjustmentId,
+        outlet_id,
+        description: `Reclassified ${quantity} unit(s) of product #${product_id} from ${from_quality} to ${to_quality}`,
+        details: { product_id, from_quality, to_quality, quantity, remarks },
+      });
+
       await client.query("COMMIT");
 
       res.json({
@@ -437,6 +448,23 @@ router.post("/", requireTask("can_transfer_stock"), async (req, res) => {
       movement_date,
       req.user?.id || 1
     );
+
+    const outlets = await client.query(
+      `SELECT id, name FROM outlet WHERE id IN ($1, $2)`,
+      [from_outlet_id, to_outlet_id]
+    );
+    const outletName = (id) =>
+      outlets.rows.find((o) => o.id === id)?.name || `Outlet #${id}`;
+
+    await recordAudit(client, {
+      user: req.user,
+      action: "TRANSFER_CREATE",
+      entity_type: "stock_transfer",
+      entity_id: result.transferId,
+      outlet_id: from_outlet_id,
+      description: `Transferred ${items.length} item(s) from ${outletName(from_outlet_id)} to ${outletName(to_outlet_id)}`,
+      details: { from_outlet_id, to_outlet_id, items },
+    });
 
     await client.query("COMMIT");
 
@@ -509,6 +537,23 @@ router.put("/:id", requireTask("can_edit_stock_transfer"), async (req, res) => {
       id
     );
 
+    const outlets = await client.query(
+      `SELECT id, name FROM outlet WHERE id IN ($1, $2)`,
+      [from_outlet_id, to_outlet_id]
+    );
+    const outletName = (oid) =>
+      outlets.rows.find((o) => o.id === oid)?.name || `Outlet #${oid}`;
+
+    await recordAudit(client, {
+      user: req.user,
+      action: "TRANSFER_EDIT",
+      entity_type: "stock_transfer",
+      entity_id: Number(id),
+      outlet_id: from_outlet_id,
+      description: `Edited transfer #${id} (${items.length} item(s), ${outletName(from_outlet_id)} to ${outletName(to_outlet_id)})`,
+      details: { from_outlet_id, to_outlet_id, items },
+    });
+
     await client.query("COMMIT");
 
     res.json({
@@ -553,6 +598,15 @@ router.delete(
 
       await client.query("BEGIN");
 
+      const before = await client.query(
+        `SELECT st.from_outlet_id, st.to_outlet_id, fo.name AS from_name, tof.name AS to_name
+         FROM stock_transfer st
+         JOIN outlet fo ON fo.id = st.from_outlet_id
+         JOIN outlet tof ON tof.id = st.to_outlet_id
+         WHERE st.id = $1`,
+        [id]
+      );
+
       // Undo all adjustments for this transfer
       const undoResults = await undoTransferAdjustments(client, id);
 
@@ -571,6 +625,18 @@ router.delete(
         await client.query("ROLLBACK");
         return res.status(404).json({ error: "Transfer not found" });
       }
+
+      const info = before.rows[0];
+      await recordAudit(client, {
+        user: req.user,
+        action: "TRANSFER_DELETE",
+        entity_type: "stock_transfer",
+        entity_id: Number(id),
+        outlet_id: info?.from_outlet_id || null,
+        description: info
+          ? `Deleted transfer #${id} (${info.from_name} to ${info.to_name})`
+          : `Deleted transfer #${id}`,
+      });
 
       await client.query("COMMIT");
 

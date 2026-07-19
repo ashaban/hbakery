@@ -11,6 +11,7 @@ const {
   getLoanDetail,
   searchBorrowers,
 } = require("../modules/loan");
+const { recordAudit } = require("../modules/auditLog");
 
 /**
  * GET /loans - list loans with balance
@@ -93,6 +94,15 @@ router.post("/", requireTask("can_add_loan"), async (req, res) => {
       created_by: req.user?.id || null,
     });
 
+    await recordAudit(client, {
+      user: req.user,
+      action: "LOAN_CREATE",
+      entity_type: "loan",
+      entity_id: loanId,
+      description: `Recorded loan of ${amount} to ${borrower_name || `staff #${staff_id}`}`,
+      details: { staff_id, borrower_id, borrower_name, amount, reason },
+    });
+
     await client.query("COMMIT");
 
     const detail = await getLoanDetail(pool, loanId);
@@ -137,6 +147,15 @@ router.post(
         received_by: req.user?.id || null,
       });
 
+      await recordAudit(client, {
+        user: req.user,
+        action: "LOAN_REPAYMENT",
+        entity_type: "loan",
+        entity_id: Number(id),
+        description: `Recorded repayment of ${amount} against loan #${id}`,
+        details: { amount, method, reference },
+      });
+
       await client.query("COMMIT");
       res.status(201).json({ id: paymentId, message: "Repayment recorded" });
     } catch (err) {
@@ -179,6 +198,14 @@ router.delete("/:id", requireTask("can_delete_loan"), async (req, res) => {
       await client.query("ROLLBACK");
       return res.status(404).json({ error: "Loan not found" });
     }
+
+    await recordAudit(client, {
+      user: req.user,
+      action: "LOAN_DELETE",
+      entity_type: "loan",
+      entity_id: Number(req.params.id),
+      description: `Deleted loan #${req.params.id}`,
+    });
 
     await client.query("COMMIT");
     res.json({ id: req.params.id, message: "Loan deleted" });

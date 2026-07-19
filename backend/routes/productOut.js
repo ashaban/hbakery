@@ -10,6 +10,7 @@ const {
   undoOutLedger,
   reverseOutLedger,
 } = require("../modules/productOutLedger");
+const { recordAudit } = require("../modules/auditLog");
 
 /** ---------------------------
  * Helpers for detail payloads
@@ -115,6 +116,16 @@ router.post(
 
       // Ledger (FIFO per lot)
       await recordOutLedger(client, outId, outlet_id, items, out_date, notes);
+
+      await recordAudit(client, {
+        user: req.user,
+        action: "GIVEOUT_CREATE",
+        entity_type: "product_out",
+        entity_id: outId,
+        outlet_id,
+        description: `Released ${items.length} item(s) for free at outlet #${outlet_id} (${reason || "N/A"})`,
+        details: { items, reason, notes },
+      });
 
       await client.query("COMMIT");
       const detail = await getOutDetail(client, outId);
@@ -231,6 +242,14 @@ router.delete(
         `UPDATE product_out SET status='CANCELLED' WHERE id=$1`,
         [id]
       );
+
+      await recordAudit(client, {
+        user: req.user,
+        action: "GIVEOUT_CANCEL",
+        entity_type: "product_out",
+        entity_id: Number(id),
+        description: `Cancelled free-release #${id}`,
+      });
 
       await client.query("COMMIT");
       res.json({ id, message: "Product OUT cancelled" });

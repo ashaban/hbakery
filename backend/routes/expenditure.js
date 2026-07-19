@@ -3,6 +3,7 @@ const router = express.Router();
 const moment = require("moment");
 const pool = require("../db");
 const { authenticateToken, requireTask } = require("../middleware/auth");
+const { recordAudit } = require("../modules/auditLog");
 
 /* ------------------------------------------------------------------
    🧾 COST TYPES
@@ -327,6 +328,16 @@ router.post("/", requireTask("can_add_expenditure"), async (req, res) => {
        RETURNING *`,
       [type_id, start_date, end_date, amount, description || null]
     );
+
+    await recordAudit(pool, {
+      user: req.user,
+      action: "EXPENDITURE_CREATE",
+      entity_type: "expenditure",
+      entity_id: rows[0].id,
+      description: `Recorded expenditure of ${amount} (${description || "no description"})`,
+      details: { type_id, start_date, end_date, amount },
+    });
+
     res.json(rows[0]);
   } catch (err) {
     console.error("❌ Failed to add expenditure:", err);
@@ -385,6 +396,14 @@ router.post("/bulk", requireTask("can_add_expenditure"), async (req, res) => {
       }
     }
 
+    await recordAudit(client, {
+      user: req.user,
+      action: "EXPENDITURE_BULK_CREATE",
+      entity_type: "expenditure",
+      description: `Bulk-recorded ${created} expenditure(s) (${failed} failed)`,
+      details: { created, failed },
+    });
+
     await client.query("COMMIT");
 
     res.json({
@@ -438,6 +457,13 @@ router.delete(
     try {
       const { id } = req.params;
       await pool.query("DELETE FROM expenditure WHERE id = $1", [id]);
+      await recordAudit(pool, {
+        user: req.user,
+        action: "EXPENDITURE_DELETE",
+        entity_type: "expenditure",
+        entity_id: Number(id),
+        description: `Deleted expenditure #${id}`,
+      });
       res.json({ message: "Expenditure deleted successfully" });
     } catch (err) {
       console.error("❌ Failed to delete expenditure:", err);

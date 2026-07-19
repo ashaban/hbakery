@@ -343,6 +343,20 @@ const reports = ref([
     ),
     task: "can_see_sales",
   },
+  {
+    title: "Audit Log",
+    description:
+      "Tracks every significant action users take in the system — transfers, sales, production, give-outs, expenditures, loans, purchases, and user management — with who, what, where, and when.",
+    icon: "mdi-clipboard-text-clock",
+    category: "Administration",
+    frequency: "Real-time",
+    format: "PDF",
+    favorite: false,
+    component: defineAsyncComponent(
+      () => import("@/components/reports/AuditLog.vue"),
+    ),
+    task: "can_see_audit_log",
+  },
 ]);
 
 // Computed properties
@@ -418,6 +432,7 @@ function getCategoryColor(category) {
     Finance: "purple",
     Quality: "teal",
     HR: "pink",
+    Administration: "indigo",
   };
   return colors[category] || "grey";
 }

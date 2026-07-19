@@ -30,6 +30,7 @@ const reportRoutes = require("./routes/reports");
 const authRoutes = require("./routes/auth");
 const roleRoutes = require("./routes/roles");
 const taskRoutes = require("./routes/tasks");
+const auditLogRoutes = require("./routes/auditlog");
 
 const jwtValidator = function (req, res, next) {
   let allowedPaths = ["/auth/login", "/auth/refreshToken"];
@@ -64,6 +65,7 @@ const jwtValidator = function (req, res, next) {
           error: "Token expired",
         });
       } else {
+        req.user = decoded;
         if (req.path == "/isTokenActive/") {
           res.set("Access-Control-Allow-Origin", "*");
           res.status(200).send(true);
@@ -89,7 +91,7 @@ const apiPrefixes = [
   "/users", "/items", "/units", "/outlets", "/purchases", "/products",
   "/productions", "/stocktransfers", "/sales", "/productOut", "/expenditures",
   "/staffs", "/loans", "/customers", "/reports", "/auth", "/roles", "/tasks",
-  "/isTokenActive",
+  "/isTokenActive", "/auditlog",
 ];
 app.use((req, res, next) => {
   const isApiRequest = apiPrefixes.some(
@@ -120,6 +122,7 @@ app.use("/reports", reportRoutes);
 app.use("/auth", authRoutes);
 app.use("/roles", roleRoutes);
 app.use("/tasks", taskRoutes);
+app.use("/auditlog", auditLogRoutes);
 
 app.get("/", (req, res) => {
   res.send("PostgreSQL Item Management API");

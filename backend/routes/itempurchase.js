@@ -4,6 +4,7 @@ const router = express.Router();
 const pool = require("../db");
 const moment = require("moment");
 const { authenticateToken, requireTask } = require("../middleware/auth");
+const { recordAudit } = require("../modules/auditLog");
 
 // Date filters arrive as DD-MM-YYYY (matching the VueDatePicker fields on
 // the frontend), but this DB's DateStyle is MDY — casting "25-07-2026"
@@ -160,6 +161,16 @@ router.post("/", requireTask("can_purchase_ingredients"), async (req, res) => {
         req.body.date,
       ]
     );
+
+    await recordAudit(pool, {
+      user: req.user,
+      action: "PURCHASE_CREATE",
+      entity_type: "itempurchase",
+      entity_id: purchaseId,
+      description: `Purchased ${req.body.quantity} unit(s) of item #${req.body.item_id} at ${req.body.price}`,
+      details: { item_id: req.body.item_id, quantity: req.body.quantity, price: req.body.price },
+    });
+
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -265,9 +276,20 @@ router.delete(
         id,
       ]);
 
-      await pool.query("COMMIT");
-      if (del.rowCount === 0)
+      if (del.rowCount === 0) {
+        await pool.query("ROLLBACK");
         return res.status(404).json({ error: "Not found" });
+      }
+
+      await recordAudit(pool, {
+        user: req.user,
+        action: "PURCHASE_DELETE",
+        entity_type: "itempurchase",
+        entity_id: Number(id),
+        description: `Deleted purchase #${id}`,
+      });
+
+      await pool.query("COMMIT");
       res.json({ id, message: "Purchase deleted" });
     } catch (err) {
       await pool.query("ROLLBACK");

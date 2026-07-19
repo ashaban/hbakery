@@ -5,6 +5,7 @@ const bcrypt = require("bcrypt");
 const pool = require("../db");
 const logger = require("../winston");
 const { requireTask } = require("../middleware/auth");
+const { recordAudit } = require("../modules/auditLog");
 
 const router = express.Router();
 
@@ -100,6 +101,15 @@ router.post("/addUser", requireTask("can_add_users"), async (req, res) => {
             await client.query(outletInsertSQL, [userId, outletId]);
           }
         }
+
+        await recordAudit(client, {
+          user: req.user,
+          action: "USER_CREATE",
+          entity_type: "users",
+          entity_id: userId,
+          description: `Created user ${name} (${email})`,
+          details: { name, email, roles, outlets },
+        });
 
         await client.query("COMMIT");
         res.json({ message: "User added successfully" });
@@ -227,6 +237,15 @@ router.post(
             }
           }
 
+          await recordAudit(client, {
+            user: req.user,
+            action: "USER_EDIT",
+            entity_type: "users",
+            entity_id: Number(userId),
+            description: `Edited user ${name} (${email})`,
+            details: { name, email, roles, outlets, passwordChanged: !!(password && password !== "unchangedpassword") },
+          });
+
           await client.query("COMMIT");
           res.json({ message: "User updated successfully" });
         } catch (error) {
@@ -253,6 +272,13 @@ router.delete(
   async (req, res) => {
     try {
       await pool.query(`DELETE FROM users WHERE id = $1`, [req.params.id]);
+      await recordAudit(pool, {
+        user: req.user,
+        action: "USER_DELETE",
+        entity_type: "users",
+        entity_id: Number(req.params.id),
+        description: `Deleted user #${req.params.id}`,
+      });
       res.json({ message: "User deleted successfully" });
     } catch (error) {
       logger.error(error);
