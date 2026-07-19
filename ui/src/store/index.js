@@ -185,7 +185,11 @@ window.fetch = async (...args) => {
   // Update activity on any API call
   store.dispatch("resetIdleTimer");
 
-  if (response.status === 401) {
+  // Only treat this as a session expiry if a token was actually sent and
+  // rejected. A 401 with no token (e.g. the isTokenActive check on
+  // /Landing for a visitor who was never logged in) is expected, not an
+  // expiry, and shouldn't show this message.
+  if (response.status === 401 && token) {
     store.dispatch("logout");
     store.commit("setMessage", {
       type: "error",

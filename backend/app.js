@@ -79,6 +79,28 @@ app.use(express.json());
 
 // Base routes
 app.use("/", express.static(`${__dirname}/gui`));
+
+// SPA fallback: express.static only matches files that exist on disk, so a
+// refresh on a client-side route (e.g. /Purchases) falls through here. Serve
+// the app shell for those instead of letting them reach jwtValidator below,
+// which has no notion of frontend routes and would reject them for having no
+// Authorization header.
+const apiPrefixes = [
+  "/users", "/items", "/units", "/outlets", "/purchases", "/products",
+  "/productions", "/stocktransfers", "/sales", "/productOut", "/expenditures",
+  "/staffs", "/loans", "/customers", "/reports", "/auth", "/roles", "/tasks",
+  "/isTokenActive",
+];
+app.use((req, res, next) => {
+  const isApiRequest = apiPrefixes.some(
+    (prefix) => req.path === prefix || req.path.startsWith(`${prefix}/`)
+  );
+  if (req.method !== "GET" || isApiRequest || !req.accepts("html")) {
+    return next();
+  }
+  res.sendFile(`${__dirname}/gui/index.html`);
+});
+
 app.use(jwtValidator);
 app.use("/users", usersRoutes);
 app.use("/items", itemRoutes);

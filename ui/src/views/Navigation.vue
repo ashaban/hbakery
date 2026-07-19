@@ -323,6 +323,7 @@
         </v-list-item>
 
         <v-list-item
+          v-if="canSeeReports"
           active-class="menu-item--active"
           class="menu-item rounded-xl"
           to="ReportsList"
@@ -487,10 +488,19 @@ export default {
   },
   computed: {
     userName() {
-      return this.$store.state.auth?.user?.name || "Admin User";
+      return this.$store.state.auth?.name || "Guest";
     },
     userRole() {
-      return this.$store.state.auth?.role || "admin";
+      return this.$store.state.auth?.role || "";
+    },
+    canSeeReports() {
+      return [
+        "can_see_ingredients_stock_balances",
+        "can_see_product_stock_balances",
+        "can_see_quality_adjustment_report",
+        "can_see_sales",
+        "can_see_profit_projection_report",
+      ].some((task) => this.$store.getters.hasTask(task));
     },
     userInitials() {
       return this.userName

@@ -89,16 +89,19 @@ const router = createRouter({
       path: "/Users",
       name: "Users",
       component: () => import("../components/Users.vue"),
+      meta: { requiresAuth: true, task: "can_see_users" },
     },
     {
       path: "/DatabaseSettings",
       name: "DatabaseSettings",
       component: () => import("../components/settings/DatabaseSettings.vue"),
+      meta: { requiresAuth: true, task: "can_see_settings" },
     },
     {
       path: "/ReportsList",
       name: "ReportsList",
       component: () => import("../components/reports/ReportsList.vue"),
+      meta: { requiresAuth: true },
     },
     {
       path: "/Login",
