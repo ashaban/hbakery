@@ -130,6 +130,10 @@ export default defineConfig({
         target: "http://localhost:3007/",
         logLevel: "debug",
       },
+      "^/auditlog": {
+        target: "http://localhost:3007/",
+        logLevel: "debug",
+      },
     },
   },
   css: {

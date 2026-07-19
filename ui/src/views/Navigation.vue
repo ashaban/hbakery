@@ -351,6 +351,32 @@
             />
           </template>
         </v-list-item>
+
+        <v-list-item
+          v-if="$store.getters.hasTask('can_see_audit_log')"
+          active-class="menu-item--active"
+          class="menu-item rounded-xl"
+          to="AuditLog"
+          value="auditlog"
+        >
+          <template #prepend>
+            <v-avatar
+              class="menu-avatar"
+              color="blue-grey-lighten-5"
+              rounded="lg"
+              size="42"
+            >
+              <v-icon
+                color="blue-grey-darken-2"
+                icon="mdi-clipboard-text-clock"
+                size="20"
+              />
+            </v-avatar>
+          </template>
+          <v-list-item-title class="font-weight-medium menu-title">
+            Audit Log
+          </v-list-item-title>
+        </v-list-item>
       </div>
 
       <!-- People Management -->
