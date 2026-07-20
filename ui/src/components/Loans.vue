@@ -565,7 +565,7 @@ function resetFilters() {
 
 async function loadStaffList() {
   try {
-    const res = await fetch("/staffs?limit=1000&status=Active");
+    const res = await fetch("/staffs/picker");
     const data = await res.json();
     staffList.value = data.data || [];
   } catch (error) {

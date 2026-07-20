@@ -5,9 +5,11 @@ const formidable = require("formidable");
 const pool = require("../db");
 const { requireTask } = require("../middleware/auth");
 
+// Deliberately not gated by can_see_settings: ingredient names/availability
+// are basic reference data the Purchases and Production pages need,
+// regardless of whether that user manages ingredient configuration.
 router.get(
   "/availableStock",
-  requireTask("can_see_settings"),
   async (req, res) => {
     try {
       const sql = `
@@ -60,7 +62,7 @@ router.post("/", requireTask("can_add_settings"), async (req, res) => {
 });
 
 // Get all Items with Unit name and conversion data
-router.get("/", requireTask("can_see_settings"), async (_, res) => {
+router.get("/", async (_, res) => {
   try {
     const result = await pool.query(`
       SELECT 

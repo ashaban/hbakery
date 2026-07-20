@@ -4223,7 +4223,7 @@ async function loadProducts() {
 
 async function loadStaff() {
   try {
-    const res = await fetch("/staffs?status=Active&limit=1000&page=1");
+    const res = await fetch("/staffs/picker");
     const data = await res.json();
     staffList.value = data.data || [];
   } catch (err) {

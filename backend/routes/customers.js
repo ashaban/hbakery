@@ -5,7 +5,10 @@ const { requireTask } = require("../middleware/auth");
 const { getCustomerDebtStatement } = require("../modules/customerDebt");
 
 // GET /customers?search=&page=&limit=&active=true|false
-router.get("/", requireTask("can_see_settings"), async (req, res) => {
+// Deliberately not gated by can_see_settings: the customer list is basic
+// reference data the Sales page needs to attribute a sale/debt to a
+// customer, regardless of whether that user manages customer records.
+router.get("/", async (req, res) => {
   try {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 20;

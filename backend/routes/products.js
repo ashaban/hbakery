@@ -13,7 +13,7 @@ const { requireTask } = require("../middleware/auth");
  * ✅ GET /products/:id/groups - Get product groups with combinations for production
  * Returns groups with their combinations and ingredient quantities
  */
-router.get("/groups/:id", requireTask("can_see_settings"), async (req, res) => {
+router.get("/groups/:id", async (req, res) => {
   const { id } = req.params;
   const { active } = req.query;
 
@@ -167,7 +167,7 @@ router.get("/groups/:id", requireTask("can_see_settings"), async (req, res) => {
   }
 });
 
-router.get("/:id/groups", requireTask("can_see_settings"), async (req, res) => {
+router.get("/:id/groups", async (req, res) => {
   const { id } = req.params;
   const { active } = req.query;
 
@@ -360,7 +360,11 @@ router.get("/:id/groups", requireTask("can_see_settings"), async (req, res) => {
   }
 });
 
-router.get("/", requireTask("can_see_settings"), async (req, res) => {
+// Deliberately not gated by can_see_settings: the product catalog is basic
+// reference data almost every operational page (Sales, Stock Transfers,
+// Productions, Give Out) needs, regardless of whether that user manages
+// the product catalog itself.
+router.get("/", async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const offset = (page - 1) * limit;
@@ -399,7 +403,7 @@ router.get("/", requireTask("can_see_settings"), async (req, res) => {
 /**
  * ✅ GET /products/:id (with its product_items)
  */
-router.get("/:id", requireTask("can_see_settings"), async (req, res) => {
+router.get("/:id", async (req, res) => {
   const { id } = req.params;
   try {
     // product

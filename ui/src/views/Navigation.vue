@@ -95,7 +95,7 @@
         </v-list-item>
 
         <v-list-item
-          v-if="can('can_see_expenditures')"
+          v-if="can('can_add_expenditure')"
           active-class="menu-item--active"
           class="menu-item rounded-xl"
           to="Expenditures"
@@ -147,7 +147,7 @@
         </v-list-item>
 
         <v-list-item
-          v-if="can('can_see_sales')"
+          v-if="can('can_add_sale')"
           active-class="menu-item--active"
           class="menu-item rounded-xl"
           to="Sales"
@@ -221,7 +221,7 @@
         </v-list-item>
 
         <v-list-item
-          v-if="can('can_see_stock_transfers')"
+          v-if="can('can_transfer_stock')"
           active-class="menu-item--active"
           class="menu-item rounded-xl"
           to="StockTransfers"

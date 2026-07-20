@@ -5,8 +5,13 @@ const { requireTask } = require("../middleware/auth");
 
 /**
  * GET /outlets - Get all outlets with pagination and filtering
+ *
+ * Deliberately not gated by can_see_settings: outlet names/ids are basic
+ * reference data almost every operational page (Sales, Purchases, Stock
+ * Transfers, Give Out) needs to populate its outlet dropdown, regardless
+ * of whether that user manages outlet configuration.
  */
-router.get("/", requireTask("can_see_settings"), async (req, res) => {
+router.get("/", async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const offset = (page - 1) * limit;
@@ -82,7 +87,7 @@ router.get("/", requireTask("can_see_settings"), async (req, res) => {
 /**
  * GET /outlets/:id - Get single outlet by ID
  */
-router.get("/:id", requireTask("can_see_settings"), async (req, res) => {
+router.get("/:id", async (req, res) => {
   const { id } = req.params;
   try {
     const result = await pool.query(

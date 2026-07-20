@@ -22,7 +22,7 @@ router.post("/", requireTask("can_add_settings"), (req, res) => {
 });
 
 // Get all Units
-router.get("/", requireTask("can_see_settings"), async (_, res) => {
+router.get("/", async (_, res) => {
   try {
     const result = await pool.query("SELECT * FROM itemunit ORDER BY id");
     res.json(result.rows);

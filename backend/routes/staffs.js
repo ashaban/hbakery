@@ -60,6 +60,26 @@ router.get("/", requireTask("can_see_staffs"), async (req, res) => {
 });
 
 /**
+ * 🟢 GET /staffs/picker — name-only lookup for dropdowns (assigning a
+ * production team leader, picking a loan borrower, etc). Deliberately not
+ * gated by can_see_staffs and deliberately excludes phone/salary: those
+ * are sensitive payroll fields the full staff list correctly protects,
+ * but a name-only picker is basic reference data lots of unrelated
+ * features need without granting visibility into staff pay.
+ */
+router.get("/picker", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, name FROM staff WHERE status = 'Active' ORDER BY name ASC`
+    );
+    res.json({ data: result.rows });
+  } catch (err) {
+    console.error("Error fetching staff picker list:", err);
+    res.status(500).json({ error: "Failed to load staff" });
+  }
+});
+
+/**
  * 🟢 GET /staff/contracts/history — get all contract history
  */
 router.get(
