@@ -2,7 +2,11 @@ const express = require("express");
 const router = express.Router();
 const moment = require("moment");
 const pool = require("../db");
-const { authenticateToken, requireTask } = require("../middleware/auth");
+const {
+  authenticateToken,
+  requireTask,
+  requireAnyTask,
+} = require("../middleware/auth");
 const { recordAudit } = require("../modules/auditLog");
 
 /* ------------------------------------------------------------------
@@ -11,7 +15,7 @@ const { recordAudit } = require("../modules/auditLog");
 
 router.get(
   "/summary",
-  requireTask("can_see_expenditures"),
+  requireAnyTask(["can_see_expenditures", "can_add_expenditure"]),
   async (req, res) => {
     try {
       const {
@@ -23,6 +27,15 @@ router.get(
       } = req.query;
       const params = [];
       const where = [];
+
+      // Privacy: someone who can only ADD expenditures (not see the
+      // company-wide list) must never see company-wide totals either —
+      // scope everything to their own submissions regardless of what
+      // filters the client sends.
+      if (!req.user?.tasks?.includes("can_see_expenditures")) {
+        params.push(req.user?.id || 0);
+        where.push(`e.created_by = $${params.length}`);
+      }
 
       if (type_id) {
         const typeIds = Array.isArray(type_id) ? type_id : [type_id];
@@ -323,10 +336,10 @@ router.post("/", requireTask("can_add_expenditure"), async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" });
 
     const { rows } = await pool.query(
-      `INSERT INTO expenditure (type_id, start_date, end_date, amount, description)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO expenditure (type_id, start_date, end_date, amount, description, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [type_id, start_date, end_date, amount, description || null]
+      [type_id, start_date, end_date, amount, description || null, req.user?.id || null]
     );
 
     await recordAudit(pool, {
@@ -380,10 +393,10 @@ router.post("/bulk", requireTask("can_add_expenditure"), async (req, res) => {
         await client.query(
           `
             INSERT INTO expenditure
-              (type_id, start_date, end_date, amount, description)
-            VALUES ($1, $2, $3, $4, $5)
+              (type_id, start_date, end_date, amount, description, created_by)
+            VALUES ($1, $2, $3, $4, $5, $6)
           `,
-          [type_id, start_date, end_date, amount, description || null]
+          [type_id, start_date, end_date, amount, description || null, req.user?.id || null]
         );
         created++;
       } catch (err) {
@@ -473,7 +486,10 @@ router.delete(
 );
 
 // 📋 Get All Expenditures (with pagination and join)
-router.get("/", requireTask("can_see_expenditures"), async (req, res) => {
+router.get(
+  "/",
+  requireAnyTask(["can_see_expenditures", "can_add_expenditure"]),
+  async (req, res) => {
   try {
     const page = Math.max(Number(req.query.page) || 1, 1);
     const limit = Math.max(Number(req.query.limit) || 20, 1);
@@ -489,6 +505,15 @@ router.get("/", requireTask("can_see_expenditures"), async (req, res) => {
     } = req.query;
     const params = [];
     const where = [];
+
+    // Privacy: someone who can only ADD expenditures (not see the
+    // company-wide list) must never see anyone else's — scope everything
+    // to their own submissions regardless of what filters the client
+    // sends.
+    if (!req.user?.tasks?.includes("can_see_expenditures")) {
+      params.push(req.user?.id || 0);
+      where.push(`e.created_by = $${params.length}`);
+    }
 
     /* ----------------------------------------------------------
        🏷️ Filter by cost types (multiple)

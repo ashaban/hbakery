@@ -5,10 +5,14 @@
       <v-card-text class="d-flex align-center justify-space-between">
         <div>
           <h2 class="text-h5 font-weight-bold text-primary mb-1">
-            Expenditure Management
+            {{ canSeeAllExpenditures ? "Expenditure Management" : "Your Expenditure Submissions" }}
           </h2>
           <p class="text-body-2 text-grey">
-            Monitor and manage operational and sales costs
+            {{
+              canSeeAllExpenditures
+                ? "Monitor and manage operational and sales costs"
+                : "Expenditures you've added — figures below are yours only, not company-wide"
+            }}
           </p>
         </div>
         <div class="d-flex gap-2">
@@ -807,8 +811,20 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
+import { useStore } from "vuex";
 import moment from "moment";
 import { DATE_RANGE_PRESETS, getDateRangePreset } from "@/utils/dateRangePresets";
+
+const store = useStore();
+
+// The backend transparently scopes the list/summary to a user's own
+// submissions when they lack can_see_expenditures (privacy: someone who
+// can only add expenditures must never see company-wide figures). This
+// just labels the page accordingly, so a narrower view reads as "this is
+// your data" rather than looking like something failed to load.
+const canSeeAllExpenditures = computed(() =>
+  store.getters.hasTask("can_see_expenditures"),
+);
 
 /* STATE */
 const dateRangePresets = DATE_RANGE_PRESETS;

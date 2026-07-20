@@ -10,6 +10,17 @@ const app = express();
 process.on("unhandledRejection", (reason) => {
   console.error("Unhandled promise rejection:", reason);
 });
+
+// Same reasoning, for synchronous/EventEmitter failures: this has
+// concretely happened via the log rotator's internal WriteStream emitting
+// 'error' (e.g. an EACCES on backend/logs after it was created by a
+// different OS user) on an emitter winston's own transport-level 'error'
+// handler doesn't cover, which otherwise kills the whole process over a
+// pure logging failure. Keep the process alive; a logging hiccup should
+// never take sales/transfers/production down with it.
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception (process kept alive):", err);
+});
 const jwt = require("jsonwebtoken");
 const config = require("./config");
 const usersRoutes = require("./routes/users");
