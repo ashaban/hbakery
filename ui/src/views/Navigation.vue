@@ -173,7 +173,7 @@
         </v-list-item>
 
         <v-list-item
-          v-if="can('can_see_sales')"
+          v-if="can('can_see_debtors_report')"
           active-class="menu-item--active"
           class="menu-item rounded-xl"
           to="DebtorsReport"
@@ -524,7 +524,7 @@ export default {
         "can_see_ingredients_stock_balances",
         "can_see_product_stock_balances",
         "can_see_quality_adjustment_report",
-        "can_see_sales",
+        "can_see_sales_report",
         "can_see_profit_projection_report",
       ].some((task) => this.$store.getters.hasTask(task));
     },

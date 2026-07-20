@@ -47,12 +47,13 @@ const router = createRouter({
       path: "/DebtorsReport",
       name: "DebtorsReport",
       component: () => import("../components/DebtorsReport.vue"),
-      meta: { requiresAuth: true, task: "can_see_sales" },
+      meta: { requiresAuth: true, task: "can_see_debtors_report" },
     },
     {
       path: "/Sales",
       name: "Sales",
       component: () => import("../components/Sales.vue"),
+      meta: { requiresAuth: true, task: "can_see_sales" },
     },
     {
       path: "/GiveOut",

@@ -119,9 +119,21 @@ async function getSaleDetail(client, saleId) {
   };
 }
 
-router.get("/salesanalytics/analytics", salesController.getSalesAnalytics);
-router.get("/salesanalytics", salesController.getSales);
-router.get("/salesanalytics/:id", salesController.getSaleDetails);
+router.get(
+  "/salesanalytics/analytics",
+  requireTask("can_see_sales_report"),
+  salesController.getSalesAnalytics
+);
+router.get(
+  "/salesanalytics",
+  requireTask("can_see_sales_report"),
+  salesController.getSales
+);
+router.get(
+  "/salesanalytics/:id",
+  requireTask("can_see_sales_report"),
+  salesController.getSaleDetails
+);
 
 // =========================
 // API Endpoints
@@ -393,7 +405,7 @@ router.put("/:id", requireTask("can_edit_sale"), async (req, res) => {
  */
 router.get(
   "/debts/outstanding",
-  requireTask("can_see_sales"),
+  requireTask("can_see_debtors_report"),
   async (req, res) => {
     try {
       const { outlet_id, customer_id, search } = req.query;

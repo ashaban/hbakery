@@ -1382,7 +1382,7 @@ router.get(
 
 router.get(
   "/salesByProduct",
-  requireTask("can_see_sales"),
+  requireTask("can_see_sales_report"),
   async (req, res) => {
     try {
       const page = parseInt(req.query.page) || 1;

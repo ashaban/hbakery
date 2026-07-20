@@ -70,7 +70,7 @@ router.get("/", requireTask("can_see_settings"), async (req, res) => {
 
 // GET /customers/:id/debts - full debt statement (every named debt this
 // customer has ever been given, across all sales, with repayment history)
-router.get("/:id/debts", requireTask("can_see_sales"), async (req, res) => {
+router.get("/:id/debts", requireTask("can_see_debtors_report"), async (req, res) => {
   try {
     const rows = await getCustomerDebtStatement(pool, req.params.id);
     res.json({

@@ -341,7 +341,7 @@ const reports = ref([
     component: defineAsyncComponent(
       () => import("@/components/reports/SalesReport.vue"),
     ),
-    task: "can_see_sales",
+    task: "can_see_sales_report",
   },
 ]);
 
