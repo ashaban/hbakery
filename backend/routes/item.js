@@ -4,6 +4,7 @@ const router = express.Router();
 const formidable = require("formidable");
 const pool = require("../db");
 const { requireTask } = require("../middleware/auth");
+const { recordAudit } = require("../modules/auditLog");
 
 // Deliberately not gated by can_see_settings: ingredient names/availability
 // are basic reference data the Purchases and Production pages need,
@@ -54,6 +55,13 @@ router.post("/", requireTask("can_add_settings"), async (req, res) => {
           fields.conversion_factor?.[0] || 1,
         ]
       );
+      await recordAudit(pool, {
+        user: req.user,
+        action: "INGREDIENT_CREATE",
+        entity_type: "item",
+        entity_id: result.rows[0].id,
+        description: `Added ingredient ${result.rows[0].name}`,
+      });
       res.json(result.rows[0]);
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -98,6 +106,13 @@ router.put("/:id", requireTask("can_add_settings"), async (req, res) => {
           id,
         ]
       );
+      await recordAudit(pool, {
+        user: req.user,
+        action: "INGREDIENT_EDIT",
+        entity_type: "item",
+        entity_id: Number(id),
+        description: `Edited ingredient ${result.rows[0]?.name || `#${id}`}`,
+      });
       res.json(result.rows[0]);
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -108,7 +123,15 @@ router.put("/:id", requireTask("can_add_settings"), async (req, res) => {
 // Delete Item
 router.delete("/:id", requireTask("can_add_settings"), async (req, res) => {
   try {
+    const existing = await pool.query("SELECT name FROM item WHERE id=$1", [req.params.id]);
     await pool.query("DELETE FROM item WHERE id=$1", [req.params.id]);
+    await recordAudit(pool, {
+      user: req.user,
+      action: "INGREDIENT_DELETE",
+      entity_type: "item",
+      entity_id: Number(req.params.id),
+      description: `Deleted ingredient ${existing.rows[0]?.name || `#${req.params.id}`}`,
+    });
     res.json({ message: "Item deleted" });
   } catch (err) {
     res.status(500).json({ error: err.message });

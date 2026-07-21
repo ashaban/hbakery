@@ -3,6 +3,7 @@ const express = require("express");
 const pool = require("../db");
 const logger = require("../winston");
 const { requireTask } = require("../middleware/auth");
+const { recordAudit } = require("../modules/auditLog");
 
 const router = express.Router();
 
@@ -75,6 +76,13 @@ router.post("/", requireTask("can_add_settings"), async (req, res) => {
         `,
       [name, display]
     );
+    await recordAudit(pool, {
+      user: req.user,
+      action: "ROLE_CREATE",
+      entity_type: "roles",
+      entity_id: result.rows[0].id,
+      description: `Created role ${display || name}`,
+    });
     res.json(result.rows[0]);
   } catch (error) {
     logger.error(error);
@@ -105,6 +113,14 @@ router.put("/:id", requireTask("can_add_settings"), async (req, res) => {
       return res.status(404).json({ error: "Role not found" });
     }
 
+    await recordAudit(pool, {
+      user: req.user,
+      action: "ROLE_EDIT",
+      entity_type: "roles",
+      entity_id: Number(id),
+      description: `Edited role ${result.rows[0].display || result.rows[0].name}`,
+    });
+
     res.json(result.rows[0]);
   } catch (error) {
     logger.error(error);
@@ -118,7 +134,15 @@ router.put("/:id", requireTask("can_add_settings"), async (req, res) => {
 router.delete("/:id", requireTask("can_add_settings"), async (req, res) => {
   try {
     const { id } = req.params;
+    const existing = await pool.query("SELECT name, display FROM roles WHERE id=$1", [id]);
     await pool.query(`DELETE FROM roles WHERE id = $1`, [id]);
+    await recordAudit(pool, {
+      user: req.user,
+      action: "ROLE_DELETE",
+      entity_type: "roles",
+      entity_id: Number(id),
+      description: `Deleted role ${existing.rows[0]?.display || existing.rows[0]?.name || `#${id}`}`,
+    });
     res.json({ message: "Role deleted" });
   } catch (error) {
     logger.error(error);
@@ -150,6 +174,25 @@ router.post("/:id/tasks", requireTask("can_add_settings"), async (req, res) => {
         [id, taskId]
       );
     }
+
+    const roleRes = await client.query("SELECT name, display FROM roles WHERE id=$1", [id]);
+    const taskCodes = tasks.length
+      ? (
+          await client.query(
+            `SELECT code FROM tasks WHERE id = ANY($1::int[]) ORDER BY code`,
+            [tasks]
+          )
+        ).rows.map((r) => r.code)
+      : [];
+
+    await recordAudit(client, {
+      user: req.user,
+      action: "ROLE_PERMISSIONS_CHANGE",
+      entity_type: "roles",
+      entity_id: Number(id),
+      description: `Changed permissions for role ${roleRes.rows[0]?.display || roleRes.rows[0]?.name || `#${id}`} (${taskCodes.length} task(s) granted)`,
+      details: { tasks: taskCodes },
+    });
 
     await client.query("COMMIT");
     res.json({ message: "Role tasks updated successfully" });

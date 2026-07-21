@@ -3,6 +3,7 @@ const formidable = require("formidable");
 const pool = require("../db"); // your configured PostgreSQL pool
 const router = express.Router();
 const { requireTask } = require("../middleware/auth");
+const { recordAudit } = require("../modules/auditLog");
 
 /**
  * ✅ GET /products (with pagination and optional name search)
@@ -642,6 +643,14 @@ router.post("/", requireTask("can_add_settings"), async (req, res) => {
         }
       }
 
+      await recordAudit(client, {
+        user: req.user,
+        action: "PRODUCT_CREATE",
+        entity_type: "product",
+        entity_id: productId,
+        description: `Added product ${fields.name?.[0]}`,
+      });
+
       await client.query("COMMIT");
       res.json({
         message: "Product created successfully",
@@ -831,6 +840,14 @@ router.put("/:id", requireTask("can_add_settings"), async (req, res) => {
         }
       }
 
+      await recordAudit(client, {
+        user: req.user,
+        action: "PRODUCT_EDIT",
+        entity_type: "product",
+        entity_id: Number(productId),
+        description: `Edited product #${productId}`,
+      });
+
       await client.query("COMMIT");
       res.json({ message: "Product updated successfully" });
     } catch (err) {
@@ -852,6 +869,7 @@ router.delete("/:id", requireTask("can_add_settings"), async (req, res) => {
 
   try {
     await client.query("BEGIN");
+    const existing = await client.query("SELECT name FROM product WHERE id=$1", [id]);
 
     // 1️⃣ Check if product exists
     const check = await client.query("SELECT id FROM product WHERE id = $1", [
@@ -903,6 +921,14 @@ router.delete("/:id", requireTask("can_add_settings"), async (req, res) => {
 
     // 4️⃣ Delete product itself
     await client.query(`DELETE FROM product WHERE id = $1`, [id]);
+
+    await recordAudit(client, {
+      user: req.user,
+      action: "PRODUCT_DELETE",
+      entity_type: "product",
+      entity_id: Number(id),
+      description: `Deleted product ${existing.rows[0]?.name || `#${id}`}`,
+    });
 
     await client.query("COMMIT");
     res.json({

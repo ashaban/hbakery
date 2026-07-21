@@ -2,6 +2,7 @@ const express = require("express");
 const pool = require("../db");
 const router = express.Router();
 const { requireTask } = require("../middleware/auth");
+const { recordAudit } = require("../modules/auditLog");
 
 /**
  * GET /outlets - Get all outlets with pagination and filtering
@@ -141,6 +142,15 @@ router.post("/", requireTask("can_add_settings"), async (req, res) => {
       [name, type, location || null, is_main]
     );
 
+    await recordAudit(client, {
+      user: req.user,
+      action: "OUTLET_CREATE",
+      entity_type: "outlet",
+      entity_id: result.rows[0].id,
+      outlet_id: result.rows[0].id,
+      description: `Added outlet ${result.rows[0].name} (${result.rows[0].type})`,
+    });
+
     await client.query("COMMIT");
     res.status(201).json({
       message: "Outlet created successfully",
@@ -205,6 +215,15 @@ router.put("/:id", requireTask("can_add_settings"), async (req, res) => {
       return res.status(404).json({ error: "Outlet not found" });
     }
 
+    await recordAudit(client, {
+      user: req.user,
+      action: "OUTLET_EDIT",
+      entity_type: "outlet",
+      entity_id: Number(id),
+      outlet_id: Number(id),
+      description: `Edited outlet ${result.rows[0].name}`,
+    });
+
     await client.query("COMMIT");
     res.json({
       message: "Outlet updated successfully",
@@ -254,6 +273,15 @@ router.delete("/:id", requireTask("can_add_settings"), async (req, res) => {
     await client.query("UPDATE outlet SET is_active = false WHERE id = $1", [
       id,
     ]);
+
+    await recordAudit(client, {
+      user: req.user,
+      action: "OUTLET_DELETE",
+      entity_type: "outlet",
+      entity_id: Number(id),
+      outlet_id: Number(id),
+      description: `Deactivated outlet #${id}`,
+    });
 
     await client.query("COMMIT");
     res.json({ message: "Outlet deleted successfully" });

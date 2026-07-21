@@ -4,6 +4,7 @@ const moment = require("moment");
 const pool = require("../db");
 const router = express.Router();
 const { requireTask } = require("../middleware/auth");
+const { recordAudit } = require("../modules/auditLog");
 
 /**
  * 🟢 GET /staff — with pagination, search, and status filter
@@ -231,6 +232,15 @@ router.post(
           staff_id,
         ]);
 
+        await recordAudit(pool, {
+          user: req.user,
+          action: "STAFF_CONTRACT_END",
+          entity_type: "staff",
+          entity_id: Number(staff_id),
+          description: `Ended contract for staff #${staff_id} (${end_reason})`,
+          details: { end_date, end_reason, status, notes },
+        });
+
         // Commit transaction
         await pool.query("COMMIT");
 
@@ -286,6 +296,15 @@ router.post(
          VALUES ($1, $2, $3, $4, $5)`,
           [staff_id, rehire_date, position, salary, notes]
         );
+
+        await recordAudit(pool, {
+          user: req.user,
+          action: "STAFF_REHIRE",
+          entity_type: "staff",
+          entity_id: Number(staff_id),
+          description: `Rehired staff #${staff_id} as ${position}`,
+          details: { position, salary, rehire_date, notes },
+        });
 
         // Commit transaction
         await pool.query("COMMIT");
@@ -361,6 +380,15 @@ router.post("/", requireTask("can_add_staffs"), async (req, res) => {
         [newStaff.id, hired_at, position || null, salary]
       );
 
+      await recordAudit(pool, {
+        user: req.user,
+        action: "STAFF_CREATE",
+        entity_type: "staff",
+        entity_id: newStaff.id,
+        description: `Added staff member ${name} (${position || "no position"})`,
+        details: { name, position, salary, status, hired_at },
+      });
+
       // Commit transaction
       await pool.query("COMMIT");
 
@@ -408,13 +436,23 @@ router.put("/:id", requireTask("can_edit_staffs"), async (req, res) => {
       }
 
       await pool.query(
-        `UPDATE staff_contracts 
-           SET position = $1, 
+        `UPDATE staff_contracts
+           SET position = $1,
                salary = $2,
                start_date = $3
            WHERE id = (SELECT id FROM staff_contracts WHERE staff_id = $4 ORDER BY id DESC LIMIT 1)`,
         [position, salary, hired_at, id]
       );
+
+      await recordAudit(pool, {
+        user: req.user,
+        action: "STAFF_EDIT",
+        entity_type: "staff",
+        entity_id: Number(id),
+        description: `Edited staff member ${name} (${position || "no position"})`,
+        details: { name, position, salary, status, hired_at },
+      });
+
       await pool.query("COMMIT");
       res.json({ message: "Staff updated successfully" });
     } catch (err) {
@@ -433,6 +471,8 @@ router.delete("/:id", requireTask("can_delete_staffs"), async (req, res) => {
   try {
     await pool.query("BEGIN");
 
+    const staffRes = await pool.query("SELECT name FROM staff WHERE id = $1", [id]);
+
     // Delete contracts first (due to foreign key)
     await pool.query("DELETE FROM staff_contracts WHERE staff_id = $1", [id]);
 
@@ -441,10 +481,20 @@ router.delete("/:id", requireTask("can_delete_staffs"), async (req, res) => {
       id,
     ]);
 
-    await pool.query("COMMIT");
-
-    if (rowCount === 0)
+    if (rowCount === 0) {
+      await pool.query("ROLLBACK");
       return res.status(404).json({ error: "Staff not found" });
+    }
+
+    await recordAudit(pool, {
+      user: req.user,
+      action: "STAFF_DELETE",
+      entity_type: "staff",
+      entity_id: Number(id),
+      description: `Deleted staff member ${staffRes.rows[0]?.name || `#${id}`}`,
+    });
+
+    await pool.query("COMMIT");
 
     res.json({ message: "Staff deleted successfully" });
   } catch (err) {
