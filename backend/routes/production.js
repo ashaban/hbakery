@@ -713,8 +713,8 @@ router.get("/batches", requireTask("can_see_production"), async (req, res) => {
         SUM(pp.good_qty) AS total_good_qty,
         SUM(pp.damaged_qty) AS total_damaged_qty,
         SUM(pp.reject_qty) AS total_reject_qty,
-        MIN(pp.planned_at) AS planned_at,
-        MAX(pp.produced_at) AS produced_at,
+        TO_CHAR(MIN(pp.planned_at), 'DD-MM-YYYY HH24:MI') AS planned_at,
+        TO_CHAR(MAX(pp.produced_at), 'DD-MM-YYYY HH24:MI') AS produced_at,
         COUNT(*) FILTER (WHERE pp.produced_at IS NULL) AS unproduced_count,
         COUNT(*) FILTER (WHERE pp.produced_at IS NOT NULL) AS produced_count,
         COALESCE(
@@ -841,8 +841,8 @@ router.get(
         SUM(pp.reject_qty) AS total_reject_qty,
         COUNT(*) FILTER (WHERE pp.produced_at IS NULL) AS unproduced_count,
         COUNT(*) FILTER (WHERE pp.produced_at IS NOT NULL) AS produced_count,
-        MIN(pp.planned_at) AS planned_at,
-        MAX(pp.produced_at) AS produced_at,
+        TO_CHAR(MIN(pp.planned_at), 'DD-MM-YYYY HH24:MI') AS planned_at,
+        TO_CHAR(MAX(pp.produced_at), 'DD-MM-YYYY HH24:MI') AS produced_at,
         COALESCE(
           (
             SELECT s.name

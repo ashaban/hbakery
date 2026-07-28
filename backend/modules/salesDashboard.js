@@ -395,7 +395,6 @@ const salesController = {
       const {
         page = 1,
         limit = 10,
-        outlet_id,
         start_date,
         end_date,
         payment_status,
@@ -407,11 +406,17 @@ const salesController = {
       const params = [];
       let p = 0;
 
-      if (outlet_id) {
-        let ids = Array.isArray(outlet_id) ? outlet_id : [outlet_id];
-        ids = ids.map(Number);
+      // The frontend sends this as `outlet_id[]` (array notation); reading
+      // only `req.query.outlet_id` here was always undefined, so this
+      // filter silently never applied and the sales table showed every
+      // outlet regardless of what was selected.
+      if (req.query["outlet_id[]"] || req.query.outlet_id) {
+        let outletIds = req.query["outlet_id[]"] || req.query.outlet_id;
+        outletIds = Array.isArray(outletIds)
+          ? outletIds.map(Number)
+          : outletIds.toString().split(",").map(Number);
         p++;
-        params.push(ids);
+        params.push(outletIds);
         conditions.push(`s.outlet_id = ANY($${p})`);
       }
 

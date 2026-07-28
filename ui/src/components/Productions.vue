@@ -3223,6 +3223,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
+import moment from "moment";
 import { toDisplay, toISO } from "@/utils/date.js";
 
 const itemsPerPage = ref(10);
@@ -3897,13 +3898,11 @@ const canSave = computed(() => {
 
 function formatDate(dateString) {
   if (!dateString) return "";
-  return new Date(dateString).toLocaleString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  // planned_at/produced_at are plain wall-clock values (no timezone) sent
+  // as 'DD-MM-YYYY HH:mm' strings — parse with that explicit format so a
+  // browser in a different timezone than the server can't reinterpret it
+  // as a UTC instant and shift the displayed date.
+  return moment(dateString, "DD-MM-YYYY HH:mm").format("MMM D, YYYY, h:mm A");
 }
 
 function productNameById(id) {
