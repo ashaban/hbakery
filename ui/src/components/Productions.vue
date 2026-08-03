@@ -1287,9 +1287,12 @@
             </v-card-title>
             <v-card-text class="pa-0">
               <v-data-table
+                v-model:expanded="expandedBatchProducts"
                 class="elevation-0"
                 :headers="batchProductHeaders"
+                item-value="production_id"
                 :items="selectedBatch?.products || []"
+                show-expand
               >
                 <template #item.product_name="{ item }">
                   <div class="d-flex align-center">
@@ -1348,6 +1351,69 @@
                     <v-icon size="16">mdi-eye</v-icon>
                     View
                   </v-btn>
+                </template>
+
+                <template #expanded-row="{ columns, item }">
+                  <tr>
+                    <td class="pa-4 bg-grey-lighten-5" :colspan="columns.length">
+                      <div
+                        v-if="!item.ingredients || item.ingredients.length === 0"
+                        class="text-body-2 text-grey"
+                      >
+                        No ingredients recorded for this product.
+                      </div>
+                      <div v-else>
+                        <div class="text-caption text-grey mb-2 font-weight-bold">
+                          INGREDIENTS ({{ item.ingredients.length }})
+                        </div>
+                        <v-row dense>
+                          <v-col
+                            v-for="ing in item.ingredients"
+                            :key="ing.id"
+                            cols="12"
+                            md="4"
+                            sm="6"
+                          >
+                            <div class="d-flex align-center py-1">
+                              <v-icon class="mr-2" color="primary" size="16">
+                                mdi-circle-small
+                              </v-icon>
+                              <span class="font-weight-medium mr-2">{{
+                                ing.item_name
+                              }}</span>
+                              <v-chip color="primary" size="x-small" variant="outlined">
+                                {{ ing.qty_required }} {{ ing.unit || "" }}
+                              </v-chip>
+                              <v-chip
+                                v-if="ing.group_name"
+                                class="ml-1"
+                                color="purple"
+                                size="x-small"
+                                variant="outlined"
+                              >
+                                {{ ing.group_name }}
+                              </v-chip>
+                            </div>
+                          </v-col>
+                        </v-row>
+                        <div
+                          v-if="item.staff && item.staff.length"
+                          class="text-caption text-grey mt-3 mb-1 font-weight-bold"
+                        >
+                          STAFF
+                        </div>
+                        <v-chip
+                          v-for="s in item.staff"
+                          :key="s.staff_id"
+                          class="mr-2 mb-1"
+                          size="small"
+                          variant="tonal"
+                        >
+                          {{ s.staff_name }} ({{ s.role }})
+                        </v-chip>
+                      </div>
+                    </td>
+                  </tr>
                 </template>
               </v-data-table>
             </v-card-text>
@@ -3239,6 +3305,7 @@ const viewDialog = ref(false);
 const batchViewDialog = ref(false);
 const batchActualDialog = ref(false);
 const selectedBatch = ref(null);
+const expandedBatchProducts = ref([]);
 const editEnabled = ref(true);
 const isEditing = ref(false);
 const isAddingActual = ref(false);
@@ -3368,6 +3435,7 @@ const batchProductHeaders = [
   { title: "Status", key: "produced", sortable: true, align: "center" },
   { title: "Actual Output", key: "good_qty", sortable: false },
   { title: "Actions", key: "actions", sortable: false, align: "center" },
+  { title: "", key: "data-table-expand", sortable: false },
 ];
 
 const productionHeaders = [
@@ -3533,6 +3601,7 @@ const viewBatch = async (batch) => {
       data.products.find((prod) => {
         return prod.staff.length;
       })?.staff || [];
+    expandedBatchProducts.value = [];
     batchViewDialog.value = true;
   } catch (err) {
     console.error("Failed to load batch details:", err);

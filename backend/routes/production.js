@@ -280,11 +280,95 @@ router.put(
           throw new Error(`Invalid data for product ${product_id}`);
         }
 
-        // 3️⃣ Remove existing OUT and ledger records
-        await revertProductionOuts(client, production_id);
-        await deleteProductLedgerByProduction(client, production_id);
+        let productionId = production_id;
 
-        // 4️⃣ Stock validation
+        if (!productionId) {
+          // ➕ A product added to the batch during this edit has no
+          // production_id yet — create its row instead of updating one
+          // that doesn't exist. This previously fell through to the
+          // UPDATE/DELETE-by-production_id calls below with a null id,
+          // which violated product_production_item's NOT NULL constraint.
+          //
+          // Stock validation happens after this branch (once we know
+          // whether there's a prior reservation to revert first) — see
+          // below.
+          const hdr = await client.query(
+            `INSERT INTO product_production
+              (batch_id, product_id, mode, qty_product,
+               base_ingredient_id, base_ingredient_qty,
+               notes, planned_at, produced_at,
+               actual_qty, good_qty, damaged_qty, reject_qty,
+               produced_by)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+             RETURNING id`,
+            [
+              batchId,
+              product_id,
+              mode,
+              qty_product,
+              base_ingredient_id || null,
+              base_ingredient_qty || null,
+              notes || null,
+              planned_at || null,
+              produced_at || null,
+              actual_qty || null,
+              good_qty || null,
+              damaged_qty || null,
+              reject_qty || null,
+              user.id,
+            ]
+          );
+          productionId = hdr.rows[0].id;
+        } else {
+          // 3️⃣ Remove existing OUT and ledger records *before* validating
+          // stock — this production's own prior consumption must be given
+          // back first, otherwise re-saving the same (or a slightly
+          // higher) quantity would spuriously fail as "insufficient
+          // stock" against ingredients this same edit is about to free up.
+          await revertProductionOuts(client, productionId);
+          await deleteProductLedgerByProduction(client, productionId);
+
+          // 5️⃣ Update header
+          await client.query(
+            `UPDATE product_production
+           SET product_id = $1,
+               mode = $2,
+               qty_product = $3,
+               base_ingredient_id = $4,
+               base_ingredient_qty = $5,
+               notes = $6,
+               planned_at = $7,
+               produced_at = $8,
+               actual_qty = $9,
+               good_qty = $10,
+               damaged_qty = $11,
+               reject_qty = $12,
+               updated_by = $13,
+               updated_at = NOW()
+           WHERE id = $14`,
+            [
+              product_id,
+              mode,
+              qty_product,
+              base_ingredient_id || null,
+              base_ingredient_qty || null,
+              notes || null,
+              planned_at || null,
+              produced_at || null,
+              actual_qty || null,
+              good_qty || null,
+              damaged_qty || null,
+              reject_qty || null,
+              user.id,
+              productionId,
+            ]
+          );
+        }
+
+        // 4️⃣ Stock validation — after any prior reservation for this
+        // production has been reverted (existing product) or with nothing
+        // reserved yet (new product), so this always checks against
+        // truly-available stock.
         for (const ing of ingredients) {
           const available = await getAvailableQty(client, ing.item_id);
           if (Number(ing.qty_required) > available) {
@@ -294,53 +378,17 @@ router.put(
           }
         }
 
-        // 5️⃣ Update header
-        await client.query(
-          `UPDATE product_production
-         SET product_id = $1,
-             mode = $2,
-             qty_product = $3,
-             base_ingredient_id = $4,
-             base_ingredient_qty = $5,
-             notes = $6,
-             planned_at = $7,
-             produced_at = $8,
-             actual_qty = $9,
-             good_qty = $10,
-             damaged_qty = $11,
-             reject_qty = $12,
-             updated_by = $13,
-             updated_at = NOW()
-         WHERE id = $14`,
-          [
-            product_id,
-            mode,
-            qty_product,
-            base_ingredient_id || null,
-            base_ingredient_qty || null,
-            notes || null,
-            planned_at || null,
-            produced_at || null,
-            actual_qty || null,
-            good_qty || null,
-            damaged_qty || null,
-            reject_qty || null,
-            user.id,
-            production_id,
-          ]
-        );
-
         // 6️⃣ Rebuild group choices
         await client.query(
           `DELETE FROM product_production_group_choice WHERE production_id = $1`,
-          [production_id]
+          [productionId]
         );
         if (Array.isArray(group_choices) && group_choices.length > 0) {
           for (const gc of group_choices) {
             await client.query(
               `INSERT INTO product_production_group_choice (production_id, group_id, combination_id)
              VALUES ($1, $2, $3)`,
-              [production_id, gc.group_id, gc.combination_id]
+              [productionId, gc.group_id, gc.combination_id]
             );
           }
         }
@@ -348,14 +396,14 @@ router.put(
         // 7️⃣ Rebuild ingredients
         await client.query(
           `DELETE FROM product_production_item WHERE production_id = $1`,
-          [production_id]
+          [productionId]
         );
         for (const ing of ingredients) {
           await client.query(
             `INSERT INTO product_production_item (production_id, item_id, qty_required, group_id, combination_id)
            VALUES ($1, $2, $3, $4, $5)`,
             [
-              production_id,
+              productionId,
               ing.item_id,
               ing.qty_required,
               ing.group_id || null,
@@ -367,14 +415,14 @@ router.put(
         // 8️⃣ Rebuild staff
         await client.query(
           `DELETE FROM product_production_staff WHERE production_id = $1`,
-          [production_id]
+          [productionId]
         );
         if (Array.isArray(staffs) && staffs.length > 0) {
           for (const s of staffs) {
             await client.query(
               `INSERT INTO product_production_staff (production_id, staff_id, role, notes)
              VALUES ($1,$2,$3,$4)`,
-              [production_id, s.staff_id, s.role || null, s.notes || null]
+              [productionId, s.staff_id, s.role || null, s.notes || null]
             );
           }
         }
@@ -382,7 +430,7 @@ router.put(
         // 9️⃣ Rebuild discrepancies
         await client.query(
           `DELETE FROM product_production_discrepancy WHERE production_id = $1`,
-          [production_id]
+          [productionId]
         );
         if (Array.isArray(discrepancies) && discrepancies.length > 0) {
           for (const descrepancy of discrepancies) {
@@ -392,7 +440,7 @@ router.put(
             await client.query(
               `INSERT INTO product_production_discrepancy (production_id, reason_id, notes)
              VALUES ($1, $2, $3)`,
-              [production_id, descrepancy.reason_id, descrepancy.notes || null]
+              [productionId, descrepancy.reason_id, descrepancy.notes || null]
             );
           }
         }
@@ -401,7 +449,7 @@ router.put(
         for (const ing of ingredients) {
           await allocateFifoOut(
             client,
-            production_id,
+            productionId,
             ing.item_id,
             ing.qty_required,
             planned_at
@@ -412,7 +460,7 @@ router.put(
         if (actual_qty && produced_at) {
           await recordProductLedger(
             client,
-            production_id,
+            productionId,
             product_id,
             { good_qty, damaged_qty, reject_qty },
             produced_at
