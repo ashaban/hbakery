@@ -46,15 +46,27 @@ router.get(
         params.push(...typeIds);
       }
 
+      // Dates arrive as DD-MM-YYYY (matching the VueDatePicker fields on
+      // the frontend), but this DB's DateStyle is MDY — passing them
+      // straight through errors outright once day > 12 (as "This Month"
+      // always does, e.g. day 31 isn't a valid month), and silently swaps
+      // day/month for day <= 12. Convert to ISO first, same as the list
+      // endpoint below already does.
       if (start_date_from && start_date_to) {
-        params.push(start_date_from, start_date_to);
+        params.push(
+          moment(start_date_from, "DD-MM-YYYY").format("YYYY-MM-DD"),
+          moment(start_date_to, "DD-MM-YYYY").format("YYYY-MM-DD")
+        );
         where.push(
           `e.start_date BETWEEN $${params.length - 1} AND $${params.length}`
         );
       }
 
       if (end_date_from && end_date_to) {
-        params.push(end_date_from, end_date_to);
+        params.push(
+          moment(end_date_from, "DD-MM-YYYY").format("YYYY-MM-DD"),
+          moment(end_date_to, "DD-MM-YYYY").format("YYYY-MM-DD")
+        );
         where.push(
           `e.end_date BETWEEN $${params.length - 1} AND $${params.length}`
         );
