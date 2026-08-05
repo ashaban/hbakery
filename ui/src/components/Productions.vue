@@ -292,7 +292,7 @@
                         <VueDatePicker
                           v-model="batchFilters.planned_at"
                           auto-apply
-                          format="dd-MM-yyyy"
+                          format="dd/MM/yyyy"
                           model-type="format"
                           placeholder="Start Date"
                           :teleport="true"
@@ -306,7 +306,7 @@
                         <VueDatePicker
                           v-model="batchFilters.planned_end"
                           auto-apply
-                          format="dd-MM-yyyy"
+                          format="dd/MM/yyyy"
                           model-type="format"
                           placeholder="End Date"
                           :teleport="true"
@@ -883,7 +883,7 @@
                         <VueDatePicker
                           v-model="filters.planned_at"
                           auto-apply
-                          format="dd-MM-yyyy"
+                          format="dd/MM/yyyy"
                           model-type="format"
                           placeholder="Start Date"
                           :teleport="true"
@@ -897,7 +897,7 @@
                         <VueDatePicker
                           v-model="filters.planned_end"
                           auto-apply
-                          format="dd-MM-yyyy"
+                          format="dd/MM/yyyy"
                           model-type="format"
                           placeholder="End Date"
                           :teleport="true"
@@ -1173,6 +1173,22 @@
             Batch Details - {{ selectedBatch?.batch_code }}
           </v-toolbar-title>
           <v-spacer />
+          <!-- Only offered while something in the batch is still an
+               uncancelled, unproduced plan — matching what the backend
+               will actually accept. -->
+          <v-btn
+            v-if="
+              batchHasCancellableItems &&
+              $store.getters.hasTask('can_cancel_production')
+            "
+            class="mr-2"
+            color="white"
+            variant="outlined"
+            @click="openCancelDialog(null)"
+          >
+            <v-icon start>mdi-cancel</v-icon>
+            Cancel Batch
+          </v-btn>
           <v-btn
             color="white"
             icon="mdi-close"
@@ -1316,7 +1332,25 @@
                 </template>
 
                 <template #item.produced="{ item }">
+                  <v-tooltip
+                    v-if="item.cancelled_at"
+                    location="top"
+                    :text="`Cancelled ${item.cancelled_at}${item.cancelled_by_name ? ' by ' + item.cancelled_by_name : ''}${item.cancel_reason ? ' — ' + item.cancel_reason : ''}`"
+                  >
+                    <template #activator="{ props }">
+                      <v-chip
+                        v-bind="props"
+                        color="grey"
+                        size="small"
+                        variant="flat"
+                      >
+                        <v-icon size="14" start>mdi-cancel</v-icon>
+                        Cancelled
+                      </v-chip>
+                    </template>
+                  </v-tooltip>
                   <v-chip
+                    v-else
                     :color="item.produced_at ? 'green' : 'orange'"
                     size="small"
                     variant="flat"
@@ -1351,19 +1385,44 @@
                     <v-icon size="16">mdi-eye</v-icon>
                     View
                   </v-btn>
+                  <!-- Cancelling is only for plans that never happened:
+                       once actual output is recorded the item is hidden
+                       here, matching the backend's refusal. -->
+                  <v-btn
+                    v-if="
+                      item.production_id &&
+                      !item.cancelled_at &&
+                      !item.produced_at &&
+                      $store.getters.hasTask('can_cancel_production')
+                    "
+                    color="error"
+                    size="small"
+                    variant="text"
+                    @click="openCancelDialog(item)"
+                  >
+                    <v-icon size="16">mdi-cancel</v-icon>
+                    Cancel
+                  </v-btn>
                 </template>
 
                 <template #expanded-row="{ columns, item }">
                   <tr>
-                    <td class="pa-4 bg-grey-lighten-5" :colspan="columns.length">
+                    <td
+                      class="pa-4 bg-grey-lighten-5"
+                      :colspan="columns.length"
+                    >
                       <div
-                        v-if="!item.ingredients || item.ingredients.length === 0"
+                        v-if="
+                          !item.ingredients || item.ingredients.length === 0
+                        "
                         class="text-body-2 text-grey"
                       >
                         No ingredients recorded for this product.
                       </div>
                       <div v-else>
-                        <div class="text-caption text-grey mb-2 font-weight-bold">
+                        <div
+                          class="text-caption text-grey mb-2 font-weight-bold"
+                        >
                           INGREDIENTS ({{ item.ingredients.length }})
                         </div>
                         <v-row dense>
@@ -1381,7 +1440,11 @@
                               <span class="font-weight-medium mr-2">{{
                                 ing.item_name
                               }}</span>
-                              <v-chip color="primary" size="x-small" variant="outlined">
+                              <v-chip
+                                color="primary"
+                                size="x-small"
+                                variant="outlined"
+                              >
                                 {{ ing.qty_required }} {{ ing.unit || "" }}
                               </v-chip>
                               <v-chip
@@ -1474,6 +1537,87 @@
       </v-card>
     </v-dialog>
 
+    <!-- CANCEL PRODUCTION DIALOG -->
+    <v-dialog v-model="cancelDialog" max-width="520" persistent>
+      <v-card class="rounded-xl">
+        <v-toolbar color="error" density="comfortable">
+          <v-avatar class="mr-3" color="white" size="36">
+            <v-icon color="error">mdi-cancel</v-icon>
+          </v-avatar>
+          <v-toolbar-title class="text-h6 font-weight-bold text-white">
+            {{ cancelTarget ? "Cancel Product" : "Cancel Whole Batch" }}
+          </v-toolbar-title>
+        </v-toolbar>
+
+        <v-card-text class="pa-6">
+          <v-alert
+            class="mb-4"
+            color="warning"
+            density="compact"
+            variant="tonal"
+          >
+            <span v-if="cancelTarget">
+              <strong>{{ cancelTarget.product_name }}</strong> will be marked
+              cancelled and all ingredients reserved for it will be released
+              back to stock.
+            </span>
+            <span v-else>
+              All
+              <strong>{{ cancellableItemCount }}</strong>
+              remaining product(s) in
+              <strong>{{ selectedBatch?.batch_code }}</strong>
+              will be marked cancelled and their ingredients released back to
+              stock.
+            </span>
+          </v-alert>
+
+          <div class="text-body-2 text-grey mb-2">
+            This can't be undone. The record stays visible in the batch for
+            history.
+          </div>
+
+          <v-textarea
+            v-model="cancelReason"
+            auto-grow
+            density="comfortable"
+            label="Reason (optional)"
+            rows="2"
+            variant="outlined"
+          />
+
+          <v-alert
+            v-if="cancelError"
+            class="mt-3"
+            color="error"
+            density="compact"
+            icon="mdi-alert-circle"
+            variant="tonal"
+          >
+            {{ cancelError }}
+          </v-alert>
+        </v-card-text>
+
+        <v-card-actions class="px-6 pb-4">
+          <v-spacer />
+          <v-btn
+            :disabled="cancelling"
+            variant="text"
+            @click="closeCancelDialog"
+          >
+            Keep it
+          </v-btn>
+          <v-btn
+            color="error"
+            :loading="cancelling"
+            variant="flat"
+            @click="confirmCancel"
+          >
+            Cancel &amp; release ingredients
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <!-- BATCH ACTUAL PRODUCTION DIALOG -->
     <v-dialog
       v-model="batchActualDialog"
@@ -1522,7 +1666,7 @@
                       auto-apply
                       class="rounded-lg border px-4 py-2 w-100"
                       :enable-time-picker="true"
-                      format="dd-MM-yyyy HH:mm"
+                      format="dd/MM/yyyy HH:mm"
                       model-type="format"
                       placeholder="Select Actual Production Date & Time"
                       :teleport="true"
@@ -1608,7 +1752,9 @@
                       }}
                     </v-chip>
                     <v-chip
-                      v-if="product.good_qty !== '' && product.good_qty !== null"
+                      v-if="
+                        product.good_qty !== '' && product.good_qty !== null
+                      "
                       :color="product.hasDiscrepancy ? 'orange' : 'green'"
                       size="small"
                       variant="flat"
@@ -1873,7 +2019,7 @@
                       auto-apply
                       class="rounded-lg border px-4 py-2 w-100"
                       :enable-time-picker="true"
-                      format="dd-MM-yyyy HH:mm"
+                      format="dd/MM/yyyy HH:mm"
                       model-type="format"
                       placeholder="Select Planned Production Date & Time"
                       :teleport="true"
@@ -1890,7 +2036,7 @@
                       auto-apply
                       class="rounded-lg border px-4 py-2 w-100"
                       :enable-time-picker="true"
-                      format="dd-MM-yyyy HH:mm"
+                      format="dd/MM/yyyy HH:mm"
                       model-type="format"
                       placeholder="Select Actual Production Date & Time"
                       :teleport="true"
@@ -1959,8 +2105,21 @@
                           {{ productLabel(p) }}
                         </span>
                         <v-spacer />
+                        <!-- Hidden once actual production is recorded — the
+                             server refuses to remove it anyway (edit the
+                             actual quantities instead), so don't offer a
+                             button that can only fail. -->
+                        <v-chip
+                          v-if="p.produced_at"
+                          color="green"
+                          size="x-small"
+                          variant="tonal"
+                        >
+                          <v-icon size="12" start>mdi-check-circle</v-icon>
+                          Produced
+                        </v-chip>
                         <v-btn
-                          v-if="form.products.length > 1"
+                          v-else-if="form.products.length > 1"
                           color="error"
                           icon
                           size="x-small"
@@ -2761,8 +2920,8 @@
                 icon="mdi-alert-circle"
                 variant="tonal"
               >
-                The same staff member is assigned more than once — each
-                person should only appear in one row.
+                The same staff member is assigned more than once — each person
+                should only appear in one row.
               </v-alert>
 
               <v-data-table
@@ -3289,7 +3448,6 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
-import moment from "moment";
 import { toDisplay, toISO } from "@/utils/date.js";
 
 const itemsPerPage = ref(10);
@@ -3306,6 +3464,24 @@ const batchViewDialog = ref(false);
 const batchActualDialog = ref(false);
 const selectedBatch = ref(null);
 const expandedBatchProducts = ref([]);
+
+// Cancellation (production plans that won't be made). cancelTarget null
+// means "the whole batch"; otherwise it's the single product row.
+const cancelDialog = ref(false);
+const cancelTarget = ref(null);
+const cancelReason = ref("");
+const cancelError = ref("");
+const cancelling = ref(false);
+
+// A product can only be cancelled while it's still an unproduced,
+// uncancelled plan — same rule the backend enforces.
+const cancellableItemCount = computed(
+  () =>
+    (selectedBatch.value?.products || []).filter(
+      (p) => !p.cancelled_at && !p.produced_at,
+    ).length,
+);
+const batchHasCancellableItems = computed(() => cancellableItemCount.value > 0);
 const editEnabled = ref(true);
 const isEditing = ref(false);
 const isAddingActual = ref(false);
@@ -3357,6 +3533,12 @@ const form = reactive({
   discrepancies: [],
   staff: [],
   products: [],
+  // production_ids the user removed from an existing batch during this
+  // edit. Sent explicitly so the backend cancels exactly these and
+  // releases their ingredients — a product simply being absent from the
+  // payload is NOT treated as a removal, so a partial payload from
+  // anywhere else can never silently cancel productions.
+  removed_production_ids: [],
 });
 
 const batchActualForm = reactive({
@@ -3608,6 +3790,56 @@ const viewBatch = async (batch) => {
   }
 };
 
+function openCancelDialog(item) {
+  cancelTarget.value = item;
+  cancelReason.value = "";
+  cancelError.value = "";
+  cancelDialog.value = true;
+}
+
+function closeCancelDialog() {
+  cancelDialog.value = false;
+  cancelTarget.value = null;
+  cancelReason.value = "";
+  cancelError.value = "";
+}
+
+async function confirmCancel() {
+  cancelling.value = true;
+  cancelError.value = "";
+  try {
+    const url = cancelTarget.value
+      ? `/productions/${cancelTarget.value.production_id}/cancel`
+      : `/productions/batches/${selectedBatch.value.id}/cancel`;
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason: cancelReason.value || null }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      // Surface the backend's specific reason (already produced, output
+      // already transferred/sold, ...) rather than a generic failure.
+      cancelError.value = data.message || "Failed to cancel. Please try again.";
+      return;
+    }
+
+    const batchId = selectedBatch.value.id;
+    closeCancelDialog();
+    // Reload both the open dialog and the list behind it so released
+    // ingredients and the new status show up immediately.
+    await viewBatch({ id: batchId });
+    await loadBatches();
+  } catch (err) {
+    console.error("Failed to cancel production:", err);
+    cancelError.value = "Failed to cancel. Please try again.";
+  } finally {
+    cancelling.value = false;
+  }
+}
+
 const addBatchActualProduction = async (batch) => {
   try {
     const res = await fetch(`/productions/batches/${batch.id}`);
@@ -3629,28 +3861,33 @@ const addBatchActualProduction = async (batch) => {
     batchActualForm.batch_id = batch.id;
     batchActualForm.produced_at = toDisplay(new Date());
     batchActualForm.notes = "";
-    batchActualForm.products = data.products.map((product) => {
-      const alreadyProduced = !!product.produced_at;
-      return {
-        production_id: product.production_id,
-        product_id: product.product_id,
-        product_name: product.product_name,
-        planned_qty: product.qty_product,
-        already_produced: alreadyProduced,
-        good_qty: alreadyProduced ? (product.good_qty ?? "") : "",
-        damaged_qty: alreadyProduced ? (product.damaged_qty ?? "") : "",
-        reject_qty: alreadyProduced ? (product.reject_qty ?? "") : "",
-        actual_qty: alreadyProduced
-          ? (Number(product.good_qty) || 0) +
-            (Number(product.damaged_qty) || 0) +
-            (Number(product.reject_qty) || 0)
-          : "",
-        hasDiscrepancy:
-          alreadyProduced &&
-          parseFloat(product.good_qty) !== parseFloat(product.planned_qty),
-        discrepancies: product.discrepancies || [],
-      };
-    });
+    // Cancelled products are left out entirely — they were never made, hold
+    // no ingredients, and the backend refuses actuals against them, so
+    // offering them here would only lead to a save that fails.
+    batchActualForm.products = data.products
+      .filter((product) => !product.cancelled_at)
+      .map((product) => {
+        const alreadyProduced = !!product.produced_at;
+        return {
+          production_id: product.production_id,
+          product_id: product.product_id,
+          product_name: product.product_name,
+          planned_qty: product.qty_product,
+          already_produced: alreadyProduced,
+          good_qty: alreadyProduced ? (product.good_qty ?? "") : "",
+          damaged_qty: alreadyProduced ? (product.damaged_qty ?? "") : "",
+          reject_qty: alreadyProduced ? (product.reject_qty ?? "") : "",
+          actual_qty: alreadyProduced
+            ? (Number(product.good_qty) || 0) +
+              (Number(product.damaged_qty) || 0) +
+              (Number(product.reject_qty) || 0)
+            : "",
+          hasDiscrepancy:
+            alreadyProduced &&
+            parseFloat(product.good_qty) !== parseFloat(product.planned_qty),
+          discrepancies: product.discrepancies || [],
+        };
+      });
 
     batchActualDialog.value = true;
   } catch (err) {
@@ -3819,8 +4056,18 @@ const deleteBatch = async (batch) => {
   )
     return;
   try {
-    await fetch(`/productions/batches/${batch.id}`, { method: "DELETE" });
+    const res = await fetch(`/productions/batches/${batch.id}`, {
+      method: "DELETE",
+    });
+    // The response was previously ignored entirely, so a refused delete
+    // looked like it had worked. Surface the server's reason instead.
+    if (!res.ok) {
+      const result = await res.json().catch(() => ({}));
+      alert(result.message || "Failed to delete batch.");
+      return;
+    }
     await loadBatches();
+    await loadAvailableStock();
   } catch (err) {
     console.error("Failed to delete batch:", err);
     alert("Failed to delete batch. Please try again.");
@@ -3968,10 +4215,10 @@ const canSave = computed(() => {
 function formatDate(dateString) {
   if (!dateString) return "";
   // planned_at/produced_at are plain wall-clock values (no timezone) sent
-  // as 'DD-MM-YYYY HH:mm' strings — parse with that explicit format so a
-  // browser in a different timezone than the server can't reinterpret it
-  // as a UTC instant and shift the displayed date.
-  return moment(dateString, "DD-MM-YYYY HH:mm").format("MMM D, YYYY, h:mm A");
+  // as 'DD-MM-YYYY HH:mm' strings — toDisplay parses with that explicit
+  // format so a browser in a different timezone than the server can't
+  // reinterpret it as a UTC instant and shift the displayed date.
+  return toDisplay(dateString);
 }
 
 function productNameById(id) {
@@ -4040,6 +4287,10 @@ function createEmptyProduct() {
     expandedGroups: [],
     ingredients: [],
     innerTab: "ingredients",
+    // Only meaningful once loaded from an existing production — see
+    // editBatch below for why this (not good/damaged/reject_qty) is the
+    // reliable signal for "already produced".
+    produced_at: null,
   };
 }
 
@@ -4052,6 +4303,28 @@ function addProductRow() {
 }
 
 function removeProductRow(index) {
+  const product = form.products[index];
+
+  // A row that was already saved is a real production holding an ingredient
+  // reservation — removing it has to cancel it on the server, not just drop
+  // it from this form. Warn first, because that's destructive.
+  if (product?.production_id) {
+    if (
+      !confirm(
+        `Remove ${product.product_name || "this product"} from the plan?\n\n` +
+          `When you save, it will be cancelled and its ingredients released ` +
+          `back to stock. This cannot be undone.\n\n` +
+          `If actual production has already been recorded for it, the save ` +
+          `will be refused.`,
+      )
+    ) {
+      return;
+    }
+    if (!form.removed_production_ids.includes(product.production_id)) {
+      form.removed_production_ids.push(product.production_id);
+    }
+  }
+
   form.products.splice(index, 1);
   if (
     typeof ingredientTabs.value === "number" &&
@@ -4225,6 +4498,7 @@ function resetForm() {
     discrepancies: [],
     staff: [],
     products: [],
+    removed_production_ids: [],
   });
   ingredientTabs.value = 0;
   deprecated_groups.value = [];
@@ -4481,48 +4755,57 @@ const editBatch = async (id) => {
     form.planned_at = toDisplay(data.batch.planned_at);
     form.produced_at = toDisplay(data.batch.produced_at);
 
-    // Products
+    // Products — cancelled ones are left out of the edit form entirely.
+    // They hold no ingredient reservation any more, and the backend
+    // refuses to edit them, so loading them here would only invite a
+    // save that fails.
     form.products = [];
-    (data.products || []).forEach((prod) => {
-      for (const product of products.value) {
-        if (product.id === prod.product_id) {
-          product.editing = true;
+    (data.products || [])
+      .filter((prod) => !prod.cancelled_at)
+      .forEach((prod) => {
+        for (const product of products.value) {
+          if (product.id === prod.product_id) {
+            product.editing = true;
+          }
         }
-      }
-      const p = createEmptyProduct();
-      p.production_id = prod.production_id;
-      p.product_id = prod.product_id;
-      p.product_name = prod.product_name;
-      p.planned_qty = prod.qty_product || "";
-      p.good_qty = prod.good_qty || "";
-      p.damaged_qty = prod.damaged_qty || "";
-      p.reject_qty = prod.reject_qty || "";
-      p.actual_qty = prod.actual_qty || "";
-      p.hasDiscrepancy = prod.discrepancies.length > 0;
-      p.discrepancies = prod.discrepancies || [];
-      p.mode = prod.mode || "by_product";
-      form.staff = prod.staff || [];
-      if (prod.good_qty || prod.damaged_qty || prod.reject_qty) {
-        actualAdded.value = true;
-      }
+        const p = createEmptyProduct();
+        p.production_id = prod.production_id;
+        p.product_id = prod.product_id;
+        p.product_name = prod.product_name;
+        p.planned_qty = prod.qty_product || "";
+        p.good_qty = prod.good_qty || "";
+        p.damaged_qty = prod.damaged_qty || "";
+        p.reject_qty = prod.reject_qty || "";
+        p.actual_qty = prod.actual_qty || "";
+        p.produced_at = prod.produced_at || null;
+        p.hasDiscrepancy = prod.discrepancies.length > 0;
+        p.discrepancies = prod.discrepancies || [];
+        p.mode = prod.mode || "by_product";
+        form.staff = prod.staff || [];
+        if (prod.good_qty || prod.damaged_qty || prod.reject_qty) {
+          actualAdded.value = true;
+        }
 
-      if (p.mode === "by_product") {
-        p.qty_product_input = Number(prod.qty_product || 0);
-      } else {
-        p.base_ingredient_id = prod.base_ingredient_id || null;
-        p.base_ingredient_qty = prod.base_ingredient_qty || null;
-      }
+        if (p.mode === "by_product") {
+          p.qty_product_input = Number(prod.qty_product || 0);
+        } else {
+          p.base_ingredient_id = prod.base_ingredient_id || null;
+          p.base_ingredient_qty = prod.base_ingredient_qty || null;
+        }
 
-      p.computed_qty_product = Number(prod.qty_product || 0) || 0;
-      form.products.push(p);
-    });
+        p.computed_qty_product = Number(prod.qty_product || 0) || 0;
+        form.products.push(p);
+      });
 
     if (!form.products.length) {
       addProductRow();
     }
 
-    // Load metadata + attach ingredients/group choices
-    for (const prod of data.products || []) {
+    // Load metadata + attach ingredients/group choices. Cancelled products
+    // are skipped here too — otherwise the product_id fallback lookup below
+    // could match a cancelled row onto an active row of the same product
+    // and overwrite its ingredients.
+    for (const prod of (data.products || []).filter((x) => !x.cancelled_at)) {
       //get groups that are not active and manually get them, as the onProductChange will only load active groups
       deprecated_groups.value = prod.ingredients
         .filter((i) => i.group_active === false && i.group_id !== null)
@@ -4648,6 +4931,7 @@ async function saveProduction() {
       produced_at: form.produced_at ? toISO(form.produced_at) : null,
       notes: form.notes,
       products: productsPayload,
+      removed_production_ids: form.removed_production_ids,
       staffs: form.staff
         .filter((s) => s.staff_id)
         .map((s) => ({

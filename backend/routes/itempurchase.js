@@ -6,13 +6,16 @@ const moment = require("moment");
 const { authenticateToken, requireTask } = require("../middleware/auth");
 const { recordAudit } = require("../modules/auditLog");
 
-// Date filters arrive as DD-MM-YYYY (matching the VueDatePicker fields on
+// Date filters arrive as DD/MM/YYYY (matching the VueDatePicker fields on
 // the frontend), but this DB's DateStyle is MDY — casting "25-07-2026"
 // straight to ::date errors outright, and day <= 12 silently swaps day
 // and month. Convert to ISO (unambiguous under any DateStyle) first.
+// Accepts the older DD-MM-YYYY shape too, so this keeps working through a
+// rollout that updates the frontend and backend at slightly different
+// times either way round.
 const toISODate = (d) => {
   if (!d) return null;
-  const m = moment(d, "DD-MM-YYYY", true);
+  const m = moment(d, ["DD/MM/YYYY", "DD-MM-YYYY"], true);
   return m.isValid() ? m.format("YYYY-MM-DD") : null;
 };
 
@@ -89,7 +92,7 @@ router.get("/", requireTask("can_see_ingredients_stock"), async (req, res) => {
         p.quantity AS quantity,
         p.price AS price,
         p.quantity * p.price AS total,
-        TO_CHAR(p.date::date, 'DD-MM-YYYY') AS date
+        TO_CHAR(p.date::date, 'DD/MM/YYYY') AS date
       FROM itempurchase p
       LEFT JOIN item i ON p.item_id = i.id
       ${whereSQL}

@@ -284,16 +284,13 @@
             type="number"
             variant="outlined"
           />
-          <v-text-field
+          <VueDatePicker
             v-model="newLoan.loan_date"
-            autocomplete="off"
-            autocorrect="off"
-            density="comfortable"
-            label="Date"
-            prepend-inner-icon="mdi-calendar"
-            spellcheck="false"
-            type="date"
-            variant="outlined"
+            auto-apply
+            format="dd/MM/yyyy"
+            model-type="format"
+            placeholder="Date"
+            :teleport="true"
           />
           <v-textarea
             v-model="newLoan.reason"
@@ -370,15 +367,13 @@
             spellcheck="false"
             variant="outlined"
           />
-          <v-text-field
+          <VueDatePicker
             v-model="paymentForm.repayment_date"
-            autocomplete="off"
-            autocorrect="off"
-            density="comfortable"
-            label="Date"
-            spellcheck="false"
-            type="date"
-            variant="outlined"
+            auto-apply
+            format="dd/MM/yyyy"
+            model-type="format"
+            placeholder="Date"
+            :teleport="true"
           />
         </v-card-text>
         <v-card-actions class="pa-4 bg-grey-lighten-4">
@@ -453,6 +448,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
 import { useStore } from "vuex";
+import { formatDMY, toISODateOnly } from "@/utils/date.js";
 
 const store = useStore();
 
@@ -470,7 +466,7 @@ const search = ref("");
 const type = ref("");
 const onlyOutstanding = ref(true);
 
-const today = new Date().toISOString().split("T")[0];
+const todayDisplay = formatDMY(new Date());
 const paymentMethods = ["CASH", "SALARY_DEDUCTION", "MOBILE", "BANK"];
 
 const showAddDialog = ref(false);
@@ -480,7 +476,7 @@ const newLoan = reactive({
   borrowerSelection: null,
   borrower_phone: "",
   amount: "",
-  loan_date: today,
+  loan_date: todayDisplay,
   reason: "",
 });
 
@@ -513,7 +509,7 @@ const paymentForm = reactive({
   amount: "",
   method: "CASH",
   reference: "",
-  repayment_date: today,
+  repayment_date: todayDisplay,
 });
 
 const showDeleteConfirm = ref(false);
@@ -528,12 +524,7 @@ function money(v) {
 }
 
 function formatDate(dateString) {
-  if (!dateString) return "";
-  return new Date(dateString).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  return formatDMY(dateString);
 }
 
 async function loadLoans() {
@@ -608,7 +599,7 @@ function openAddDialog() {
   newLoan.borrowerSelection = null;
   newLoan.borrower_phone = "";
   newLoan.amount = "";
-  newLoan.loan_date = today;
+  newLoan.loan_date = todayDisplay;
   newLoan.reason = "";
   showAddDialog.value = true;
 }
@@ -619,7 +610,7 @@ async function submitLoan() {
 
   const payload = {
     amount: Number(newLoan.amount),
-    loan_date: newLoan.loan_date,
+    loan_date: toISODateOnly(newLoan.loan_date),
     reason: newLoan.reason || null,
   };
 
@@ -665,7 +656,7 @@ function openPaymentDialog(loan) {
   paymentForm.amount = String(loan.balance);
   paymentForm.method = loan.type === "staff" ? "SALARY_DEDUCTION" : "CASH";
   paymentForm.reference = "";
-  paymentForm.repayment_date = today;
+  paymentForm.repayment_date = todayDisplay;
   showPaymentDialog.value = true;
 }
 
@@ -680,7 +671,9 @@ async function submitPayment() {
         amount: Number(paymentForm.amount),
         method: paymentForm.method || null,
         reference: paymentForm.reference || null,
-        repayment_date: paymentForm.repayment_date || today,
+        repayment_date:
+          toISODateOnly(paymentForm.repayment_date) ||
+          new Date().toISOString().split("T")[0],
       }),
     });
     const result = await res.json();

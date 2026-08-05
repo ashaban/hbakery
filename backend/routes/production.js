@@ -15,6 +15,10 @@ const {
   deleteProductLedgerByProduction,
 } = require("../modules/productledger");
 const { recordAudit } = require("../modules/auditLog");
+const {
+  cancelProduction,
+  assertProductionRemovable,
+} = require("../modules/productionCancel");
 
 router.get("/discrepancyReasons", async (req, res) => {
   try {
@@ -234,8 +238,15 @@ router.put(
     const client = await pool.connect();
     try {
       const { batchId } = req.params;
-      const { notes, ingredients, staffs, products, planned_at, produced_at } =
-        req.body;
+      const {
+        notes,
+        ingredients,
+        staffs,
+        products,
+        planned_at,
+        produced_at,
+        removed_production_ids,
+      } = req.body;
 
       if (!batchId) {
         return res.status(400).json({ error: "Missing production ID" });
@@ -251,6 +262,37 @@ router.put(
       }
 
       await client.query("BEGIN");
+
+      // 1️⃣ Products the user removed from the plan during this edit.
+      //
+      // Only ids listed explicitly here are removed — a product merely being
+      // absent from `products` is NOT treated as a removal, so a partial
+      // payload can never silently cancel productions.
+      //
+      // These are cancelled (not deleted) through the same guarded path as
+      // the Cancel button: ingredients go back to stock, the record stays
+      // for history, and an already-produced item is refused. Done before
+      // the updates below so the freed ingredients are available to the
+      // remaining products in this same save.
+      if (Array.isArray(removed_production_ids) && removed_production_ids.length) {
+        for (const removedId of removed_production_ids) {
+          const owns = await client.query(
+            `SELECT 1 FROM product_production WHERE id = $1 AND batch_id = $2`,
+            [removedId, batchId]
+          );
+          if (owns.rowCount === 0) {
+            const err = new Error(
+              `Production ${removedId} is not part of batch ${batchId}.`
+            );
+            err.code = "PRODUCTION_NOT_IN_BATCH";
+            throw err;
+          }
+          await cancelProduction(client, Number(removedId), {
+            userId: user?.id,
+            reason: "Removed from the plan while editing the batch",
+          });
+        }
+      }
 
       // 2️⃣ Handle each product update (single product per PUT)
       for (const prod of productList) {
@@ -320,6 +362,25 @@ router.put(
           );
           productionId = hdr.rows[0].id;
         } else {
+          // A cancelled product holds no ingredient reservation and is no
+          // longer part of the plan. Editing it would silently re-reserve
+          // stock against a row still marked cancelled, so refuse instead
+          // of ending up in that inconsistent state.
+          const stateRes = await client.query(
+            `SELECT pp.cancelled_at, p.name
+               FROM product_production pp
+               JOIN product p ON p.id = pp.product_id
+              WHERE pp.id = $1`,
+            [productionId]
+          );
+          if (stateRes.rows[0]?.cancelled_at) {
+            const err = new Error(
+              `${stateRes.rows[0].name} was cancelled in this batch and can no longer be edited.`
+            );
+            err.code = "PRODUCTION_CANCELLED";
+            throw err;
+          }
+
           // 3️⃣ Remove existing OUT and ledger records *before* validating
           // stock — this production's own prior consumption must be given
           // back first, otherwise re-saving the same (or a slightly
@@ -481,6 +542,18 @@ router.put(
           .status(400)
           .json({ error: "INSUFFICIENT_STOCK", message: err.message });
       }
+      if (
+        err.code === "PRODUCTION_CANCELLED" ||
+        err.code === "PRODUCTION_NOT_IN_BATCH" ||
+        err.code === "ALREADY_PRODUCED" ||
+        err.code === "ALREADY_CANCELLED" ||
+        err.code === "OUTPUT_ALREADY_USED" ||
+        err.code === "NOT_FOUND"
+      ) {
+        return res
+          .status(400)
+          .json({ error: err.code, message: err.message, details: err.meta });
+      }
       res.status(500).json({ error: "Failed to update production" });
     } finally {
       client.release();
@@ -503,14 +576,37 @@ router.post(
     try {
       await client.query("BEGIN");
 
-      // 🧾 Fetch all productions in this batch
+      // 🧾 Fetch all productions in this batch. Cancelled ones are excluded:
+      // they hold no ingredients and were never made, so recording actual
+      // output against them would resurrect them by the back door.
       const batchRes = await client.query(
-        `SELECT id, product_id FROM product_production WHERE batch_id = $1`,
+        `SELECT id, product_id FROM product_production
+          WHERE batch_id = $1 AND cancelled_at IS NULL`,
         [batch_id]
       );
       const existingProductions = batchRes.rows;
       if (existingProductions.length === 0) {
         throw new Error(`No productions found for batch_id=${batch_id}`);
+      }
+
+      const cancelledRes = await client.query(
+        `SELECT pp.id, p.name
+           FROM product_production pp
+           JOIN product p ON p.id = pp.product_id
+          WHERE pp.batch_id = $1 AND pp.cancelled_at IS NOT NULL`,
+        [batch_id]
+      );
+      const cancelledIds = new Map(
+        cancelledRes.rows.map((r) => [r.id, r.name])
+      );
+      for (const prod of products) {
+        if (cancelledIds.has(prod.production_id)) {
+          const err = new Error(
+            `${cancelledIds.get(prod.production_id)} was cancelled in this batch — actual production can't be recorded against it.`
+          );
+          err.code = "PRODUCTION_CANCELLED";
+          throw err;
+        }
       }
 
       // 🕓 Update production header(s)
@@ -631,7 +727,10 @@ router.post(
         console.error("❌ Rollback failed, discarding connection:", rollbackErr);
         releaseError = rollbackErr;
       }
-      if (err.code === "ACTUALS_BELOW_CONSUMED") {
+      if (
+        err.code === "ACTUALS_BELOW_CONSUMED" ||
+        err.code === "PRODUCTION_CANCELLED"
+      ) {
         res.status(400).json({
           error: err.code,
           message: err.message,
@@ -645,6 +744,156 @@ router.post(
       return;
     }
     client.release();
+  }
+);
+
+/**
+ * POST /productions/:id/cancel — cancel one planned product in a batch,
+ * releasing its reserved ingredients back to stock.
+ */
+router.post(
+  "/:id/cancel",
+  requireTask("can_cancel_production"),
+  async (req, res) => {
+    const { id } = req.params;
+    const { reason } = req.body || {};
+    const client = await pool.connect();
+    let releaseError;
+    try {
+      await client.query("BEGIN");
+
+      const result = await cancelProduction(client, Number(id), {
+        userId: req.user?.id,
+        reason,
+      });
+
+      await recordAudit(client, {
+        user: req.user,
+        action: "PRODUCTION_ITEM_CANCEL",
+        entity_type: "product_production",
+        entity_id: Number(id),
+        description: `Cancelled ${result.product_name} in batch #${result.batch_id}, releasing its ingredients${reason ? ` (${reason})` : ""}`,
+        details: { batch_id: result.batch_id, reason: reason || null },
+      });
+
+      await client.query("COMMIT");
+      res.json({ ...result, message: "Production cancelled and ingredients released" });
+    } catch (err) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackErr) {
+        console.error("❌ Rollback failed, discarding connection:", rollbackErr);
+        releaseError = rollbackErr;
+      }
+      if (
+        err.code === "NOT_FOUND" ||
+        err.code === "ALREADY_CANCELLED" ||
+        err.code === "ALREADY_PRODUCED" ||
+        err.code === "OUTPUT_ALREADY_USED"
+      ) {
+        return res
+          .status(err.code === "NOT_FOUND" ? 404 : 400)
+          .json({ error: err.code, message: err.message, details: err.meta });
+      }
+      console.error("❌ Failed to cancel production:", err);
+      res.status(500).json({ error: "Failed to cancel production" });
+    } finally {
+      client.release(releaseError);
+    }
+  }
+);
+
+/**
+ * POST /productions/batches/:id/cancel — cancel every still-active product
+ * in a batch. All-or-nothing: if any one of them can't be cancelled (its
+ * output already moved), nothing is cancelled, so the batch can't be left
+ * half-done.
+ */
+router.post(
+  "/batches/:id/cancel",
+  requireTask("can_cancel_production"),
+  async (req, res) => {
+    const { id } = req.params;
+    const { reason } = req.body || {};
+    const client = await pool.connect();
+    let releaseError;
+    try {
+      await client.query("BEGIN");
+
+      const batchRes = await client.query(
+        `SELECT id FROM production_batch WHERE id = $1`,
+        [id]
+      );
+      if (batchRes.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ error: "Batch not found" });
+      }
+
+      const activeRes = await client.query(
+        `SELECT id FROM product_production
+          WHERE batch_id = $1 AND cancelled_at IS NULL
+          ORDER BY id`,
+        [id]
+      );
+
+      if (activeRes.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          error: "NOTHING_TO_CANCEL",
+          message: "Every product in this batch is already cancelled.",
+        });
+      }
+
+      const cancelled = [];
+      for (const row of activeRes.rows) {
+        cancelled.push(
+          await cancelProduction(client, row.id, {
+            userId: req.user?.id,
+            reason,
+          })
+        );
+      }
+
+      await recordAudit(client, {
+        user: req.user,
+        action: "PRODUCTION_BATCH_CANCEL",
+        entity_type: "production_batch",
+        entity_id: Number(id),
+        description: `Cancelled batch #${id} (${cancelled.length} product(s)), releasing their ingredients${reason ? ` (${reason})` : ""}`,
+        details: {
+          reason: reason || null,
+          products: cancelled.map((c) => c.product_name),
+        },
+      });
+
+      await client.query("COMMIT");
+      res.json({
+        batch_id: Number(id),
+        cancelled_count: cancelled.length,
+        message: "Batch cancelled and ingredients released",
+      });
+    } catch (err) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackErr) {
+        console.error("❌ Rollback failed, discarding connection:", rollbackErr);
+        releaseError = rollbackErr;
+      }
+      if (
+        err.code === "NOT_FOUND" ||
+        err.code === "ALREADY_CANCELLED" ||
+        err.code === "ALREADY_PRODUCED" ||
+        err.code === "OUTPUT_ALREADY_USED"
+      ) {
+        return res
+          .status(400)
+          .json({ error: err.code, message: err.message, details: err.meta });
+      }
+      console.error("❌ Failed to cancel batch:", err);
+      res.status(500).json({ error: "Failed to cancel batch" });
+    } finally {
+      client.release(releaseError);
+    }
   }
 );
 
@@ -725,16 +974,26 @@ router.get("/batches", requireTask("can_see_production"), async (req, res) => {
       )`);
     }
 
-    // ⚙️ Status filter
+    // ⚙️ Status filter (cancelled products don't count towards a batch
+    // being pending or completed — they're no longer part of the plan)
     if (status?.toLowerCase() === "pending") {
       where.push(`EXISTS (
         SELECT 1 FROM product_production pp
         WHERE pp.batch_id = pb.id AND pp.produced_at IS NULL
+          AND pp.cancelled_at IS NULL
       )`);
     } else if (status?.toLowerCase() === "completed") {
       where.push(`NOT EXISTS (
         SELECT 1 FROM product_production pp
         WHERE pp.batch_id = pb.id AND pp.produced_at IS NULL
+          AND pp.cancelled_at IS NULL
+      )`);
+    } else if (status?.toLowerCase() === "cancelled") {
+      where.push(`NOT EXISTS (
+        SELECT 1 FROM product_production pp
+        WHERE pp.batch_id = pb.id AND pp.cancelled_at IS NULL
+      ) AND EXISTS (
+        SELECT 1 FROM product_production pp WHERE pp.batch_id = pb.id
       )`);
     }
 
@@ -763,8 +1022,12 @@ router.get("/batches", requireTask("can_see_production"), async (req, res) => {
         SUM(pp.reject_qty) AS total_reject_qty,
         TO_CHAR(MIN(pp.planned_at), 'DD-MM-YYYY HH24:MI') AS planned_at,
         TO_CHAR(MAX(pp.produced_at), 'DD-MM-YYYY HH24:MI') AS produced_at,
-        COUNT(*) FILTER (WHERE pp.produced_at IS NULL) AS unproduced_count,
-        COUNT(*) FILTER (WHERE pp.produced_at IS NOT NULL) AS produced_count,
+        COUNT(pp.id) FILTER (WHERE pp.produced_at IS NULL) AS unproduced_count,
+        COUNT(pp.id) FILTER (WHERE pp.produced_at IS NOT NULL) AS produced_count,
+        (
+          SELECT COUNT(*) FROM product_production ppc
+          WHERE ppc.batch_id = pb.id AND ppc.cancelled_at IS NOT NULL
+        ) AS cancelled_count,
         COALESCE(
           (
             SELECT s.name
@@ -788,7 +1051,11 @@ router.get("/batches", requireTask("can_see_production"), async (req, res) => {
           'N/A'
         ) AS team_leader_name
       FROM production_batch pb
-      LEFT JOIN product_production pp ON pb.id = pp.batch_id
+      -- Cancelled products are excluded from every aggregate here (counts,
+      -- quantities, planned/produced dates) so a cancelled item can't skew
+      -- a batch's totals or keep it looking permanently "pending".
+      LEFT JOIN product_production pp
+        ON pb.id = pp.batch_id AND pp.cancelled_at IS NULL
       LEFT JOIN users u ON u.id = pb.created_by
       ${whereSQL}
       GROUP BY pb.id, pb.batch_code, pb.created_at, u.name
@@ -806,8 +1073,17 @@ router.get("/batches", requireTask("can_see_production"), async (req, res) => {
     batches = batches.map((b) => {
       const totalProducts = Number(b.total_products) || 0;
       const unproducedCount = Number(b.unproduced_count) || 0;
+      const cancelledCount = Number(b.cancelled_count) || 0;
+      // total_products counts only non-cancelled products, so zero of them
+      // alongside at least one cancellation means the whole batch was
+      // called off — otherwise it'd read as a permanently "pending" batch
+      // with nothing left in it.
       const status =
-        totalProducts > 0 && unproducedCount === 0 ? "completed" : "pending";
+        totalProducts === 0 && cancelledCount > 0
+          ? "cancelled"
+          : totalProducts > 0 && unproducedCount === 0
+            ? "completed"
+            : "pending";
       return { ...b, status };
     });
 
@@ -830,6 +1106,7 @@ router.get("/batches", requireTask("can_see_production"), async (req, res) => {
         FROM product_production pp
         JOIN product p ON p.id = pp.product_id
         WHERE pp.batch_id = ANY($1::int[])
+          AND pp.cancelled_at IS NULL
         ORDER BY p.name
       `,
         [batchIds]
@@ -887,8 +1164,12 @@ router.get(
         SUM(pp.good_qty) AS total_good_qty,
         SUM(pp.damaged_qty) AS total_damaged_qty,
         SUM(pp.reject_qty) AS total_reject_qty,
-        COUNT(*) FILTER (WHERE pp.produced_at IS NULL) AS unproduced_count,
-        COUNT(*) FILTER (WHERE pp.produced_at IS NOT NULL) AS produced_count,
+        COUNT(pp.id) FILTER (WHERE pp.produced_at IS NULL) AS unproduced_count,
+        COUNT(pp.id) FILTER (WHERE pp.produced_at IS NOT NULL) AS produced_count,
+        (
+          SELECT COUNT(*) FROM product_production ppc
+          WHERE ppc.batch_id = pb.id AND ppc.cancelled_at IS NOT NULL
+        ) AS cancelled_count,
         TO_CHAR(MIN(pp.planned_at), 'DD-MM-YYYY HH24:MI') AS planned_at,
         TO_CHAR(MAX(pp.produced_at), 'DD-MM-YYYY HH24:MI') AS produced_at,
         COALESCE(
@@ -914,7 +1195,10 @@ router.get(
           'N/A'
         ) AS team_leader_name
       FROM production_batch pb
-      LEFT JOIN product_production pp ON pp.batch_id = pb.id
+      -- Cancelled products excluded from the header aggregates, same as
+      -- the /batches list, so they can't skew totals or status.
+      LEFT JOIN product_production pp
+        ON pp.batch_id = pb.id AND pp.cancelled_at IS NULL
       LEFT JOIN users u ON u.id = pb.created_by
       WHERE pb.id = $1
       GROUP BY pb.id, pb.batch_code, pb.created_at, u.name
@@ -932,8 +1216,13 @@ router.get(
       // alone is wrong: it's truthy after just the first item is done).
       const totalProducts = Number(batch.total_products) || 0;
       const unproducedCount = Number(batch.unproduced_count) || 0;
+      const cancelledCount = Number(batch.cancelled_count) || 0;
       const status =
-        totalProducts > 0 && unproducedCount === 0 ? "completed" : "pending";
+        totalProducts === 0 && cancelledCount > 0
+          ? "cancelled"
+          : totalProducts > 0 && unproducedCount === 0
+            ? "completed"
+            : "pending";
       // 2️⃣ Fetch all product productions in this batch
       const productsRes = await pool.query(
         `
@@ -948,9 +1237,16 @@ router.get(
         pp.reject_qty,
         TO_CHAR(pp.planned_at, 'DD-MM-YYYY HH24:MI') AS planned_at,
         TO_CHAR(pp.produced_at, 'DD-MM-YYYY HH24:MI') AS produced_at,
-        COALESCE(pp.notes, '') AS notes
+        COALESCE(pp.notes, '') AS notes,
+        -- Cancelled products are still listed here (deliberately: the plan's
+        -- history stays visible and auditable) but carry these flags so the
+        -- UI can label them and keep them out of edits/actuals.
+        TO_CHAR(pp.cancelled_at, 'DD-MM-YYYY HH24:MI') AS cancelled_at,
+        pp.cancel_reason,
+        cu.name AS cancelled_by_name
       FROM product_production pp
       JOIN product p ON p.id = pp.product_id
+      LEFT JOIN users cu ON cu.id = pp.cancelled_by
       WHERE pp.batch_id = $1
       ORDER BY p.name
       `,
@@ -1075,6 +1371,22 @@ router.delete(
         return res.json({ id, message: "Batch deleted successfully" });
       }
 
+      // 1️⃣b Safety check before destroying anything.
+      //
+      // Deleting a batch whose output has already been produced and moved
+      // leaves the transfers/sales that drew on it pointing at stock-in
+      // rows that no longer exist — the source outlet's balance goes
+      // negative and the destination holds stock from nowhere. Apply the
+      // same rules as cancelling, and refuse the whole delete up front so
+      // nothing is half-removed. Already-cancelled productions are fine to
+      // delete: they hold no ingredients and produced nothing.
+      for (const prod of productions) {
+        await assertProductionRemovable(client, prod.id, {
+          verb: "deleted",
+          allowCancelled: true,
+        });
+      }
+
       // 2️⃣ Loop through each production to revert its movements and delete its data
       for (const prod of productions) {
         const productionId = prod.id;
@@ -1134,6 +1446,15 @@ router.delete(
       });
     } catch (err) {
       await client.query("ROLLBACK");
+      if (
+        err.code === "ALREADY_PRODUCED" ||
+        err.code === "OUTPUT_ALREADY_USED" ||
+        err.code === "NOT_FOUND"
+      ) {
+        return res
+          .status(400)
+          .json({ error: err.code, message: err.message, details: err.meta });
+      }
       console.error("❌ Failed to delete batch:", err);
       res.status(500).json({ error: "Failed to delete batch" });
     } finally {
@@ -1164,6 +1485,11 @@ router.get("/", requireTask("can_see_production"), async (req, res) => {
     const where = [];
     const params = [];
 
+    // Cancelled productions are no longer part of the plan, so they're kept
+    // out of this list (and its counts) entirely. The batch detail view is
+    // where they stay visible, flagged, for history.
+    where.push(`pp.cancelled_at IS NULL`);
+
     // 🔎 Product name search
     if (search) {
       params.push(`%${search}%`);
@@ -1183,11 +1509,11 @@ router.get("/", requireTask("can_see_production"), async (req, res) => {
       } else if (planned_end) {
         planned_end += " 23:59";
       }
-      planned_at = moment(planned_at, "DD-MM-YYYY HH:mm").format(
+      planned_at = moment(planned_at, ["DD/MM/YYYY HH:mm", "DD-MM-YYYY HH:mm"]).format(
         "YYYY-MM-DD HH:mm"
       );
       if (planned_at_op === "in" && planned_end) {
-        planned_end = moment(planned_end, "DD-MM-YYYY HH:mm").format(
+        planned_end = moment(planned_end, ["DD/MM/YYYY HH:mm", "DD-MM-YYYY HH:mm"]).format(
           "YYYY-MM-DD HH:mm"
         );
         params.push(planned_at, planned_end);
@@ -1208,11 +1534,11 @@ router.get("/", requireTask("can_see_production"), async (req, res) => {
       } else if (produced_end) {
         produced_end += " 23:59";
       }
-      produced_at = moment(produced_at, "DD-MM-YYYY HH:mm").format(
+      produced_at = moment(produced_at, ["DD/MM/YYYY HH:mm", "DD-MM-YYYY HH:mm"]).format(
         "YYYY-MM-DD HH:mm"
       );
       if (produced_at_op === "in" && produced_end) {
-        produced_end = moment(produced_end, "DD-MM-YYYY HH:mm").format(
+        produced_end = moment(produced_end, ["DD/MM/YYYY HH:mm", "DD-MM-YYYY HH:mm"]).format(
           "YYYY-MM-DD HH:mm"
         );
         params.push(produced_at, produced_end);
@@ -1499,6 +1825,13 @@ router.delete(
       const { id } = req.params;
       await client.query("BEGIN");
 
+      // Same safety rules as cancelling — see the batch delete above for why
+      // removing a produced/consumed production corrupts the stock ledger.
+      await assertProductionRemovable(client, Number(id), {
+        verb: "deleted",
+        allowCancelled: true,
+      });
+
       // Remove ledger OUT movements for this production first
       await revertProductionOuts(client, id);
 
@@ -1533,6 +1866,15 @@ router.delete(
       res.json({ id, message: "Production deleted" });
     } catch (err) {
       await client.query("ROLLBACK");
+      if (
+        err.code === "ALREADY_PRODUCED" ||
+        err.code === "OUTPUT_ALREADY_USED" ||
+        err.code === "NOT_FOUND"
+      ) {
+        return res
+          .status(400)
+          .json({ error: err.code, message: err.message, details: err.meta });
+      }
       console.error("Delete production failed", err);
       res.status(500).json({ error: "Failed to delete production" });
     } finally {

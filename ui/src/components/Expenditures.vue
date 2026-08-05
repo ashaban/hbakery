@@ -131,7 +131,7 @@
                 v-model="filters.start_from"
                 auto-apply
                 class="flex-1 border rounded-lg px-2 py-1"
-                format="dd-MM-yyyy"
+                format="dd/MM/yyyy"
                 model-type="format"
                 placeholder="From"
                 :teleport="true"
@@ -140,7 +140,7 @@
                 v-model="filters.start_to"
                 auto-apply
                 class="flex-1 border rounded-lg px-2 py-1"
-                format="dd-MM-yyyy"
+                format="dd/MM/yyyy"
                 model-type="format"
                 placeholder="To"
                 :teleport="true"
@@ -157,7 +157,7 @@
                 v-model="filters.end_from"
                 auto-apply
                 class="flex-1 border rounded-lg px-2 py-1"
-                format="dd-MM-yyyy"
+                format="dd/MM/yyyy"
                 model-type="format"
                 placeholder="From"
                 :teleport="true"
@@ -166,7 +166,7 @@
                 v-model="filters.end_to"
                 auto-apply
                 class="flex-1 border rounded-lg px-2 py-1"
-                format="dd-MM-yyyy"
+                format="dd/MM/yyyy"
                 model-type="format"
                 placeholder="To"
                 :teleport="true"
@@ -333,7 +333,7 @@
                       'w-100',
                       singleErrors.start_date ? 'error-field' : '',
                     ]"
-                    format="dd-MM-yyyy"
+                    format="dd/MM/yyyy"
                     model-type="format"
                     placeholder="Start Date"
                     :teleport="true"
@@ -364,7 +364,7 @@
                       'w-100',
                       singleErrors.end_date ? 'error-field' : '',
                     ]"
-                    format="dd-MM-yyyy"
+                    format="dd/MM/yyyy"
                     model-type="format"
                     placeholder="End Date"
                     :teleport="true"
@@ -470,7 +470,7 @@
                             v-model="bulkOptions.commonStartDate"
                             auto-apply
                             class="border rounded-lg px-2 py-1 w-100"
-                            format="dd-MM-yyyy"
+                            format="dd/MM/yyyy"
                             model-type="format"
                             placeholder="Start Date"
                             :teleport="true"
@@ -487,7 +487,7 @@
                             v-model="bulkOptions.commonEndDate"
                             auto-apply
                             class="border rounded-lg px-2 py-1 w-100"
-                            format="dd-MM-yyyy"
+                            format="dd/MM/yyyy"
                             model-type="format"
                             placeholder="End Date"
                             :teleport="true"
@@ -609,7 +609,7 @@
                             ? 'error-field'
                             : '',
                         ]"
-                        format="dd-MM-yyyy"
+                        format="dd/MM/yyyy"
                         model-type="format"
                         placeholder="Start Date"
                         :teleport="true"
@@ -641,7 +641,7 @@
                             ? 'error-field'
                             : '',
                         ]"
-                        format="dd-MM-yyyy"
+                        format="dd/MM/yyyy"
                         model-type="format"
                         placeholder="End Date"
                         :teleport="true"
@@ -814,6 +814,7 @@ import { computed, onMounted, reactive, ref } from "vue";
 import { useStore } from "vuex";
 import moment from "moment";
 import { DATE_RANGE_PRESETS, getDateRangePreset } from "@/utils/dateRangePresets";
+import { formatDMY } from "@/utils/date.js";
 
 const store = useStore();
 
@@ -907,12 +908,7 @@ function formatCurrency(val) {
 }
 
 function formatDate(dateString) {
-  if (!dateString) return "";
-  return new Date(dateString).toLocaleString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  return formatDMY(dateString);
 }
 
 // Presets apply to the Start Date range — most expenditures are single-day
@@ -990,8 +986,8 @@ function validateSingleField(field) {
 
 function validateSingleDateRange() {
   if (singleForm.start_date && singleForm.end_date) {
-    const start = moment(singleForm.start_date, "DD-MM-YYYY");
-    const end = moment(singleForm.end_date, "DD-MM-YYYY");
+    const start = moment(singleForm.start_date, "DD/MM/YYYY");
+    const end = moment(singleForm.end_date, "DD/MM/YYYY");
     if (end.isBefore(start)) {
       singleErrors.end_date = "End date cannot be before start date";
     } else {
@@ -1189,8 +1185,8 @@ function validateBulkDateRange(rowIndex) {
   const errors = bulkErrors.value[rowIndex];
 
   if (row.start_date && row.end_date) {
-    const start = moment(row.start_date, "DD-MM-YYYY");
-    const end = moment(row.end_date, "DD-MM-YYYY");
+    const start = moment(row.start_date, "DD/MM/YYYY");
+    const end = moment(row.end_date, "DD/MM/YYYY");
 
     if (end.isBefore(start)) {
       errors.end_date = "End date cannot be before start date";
@@ -1221,8 +1217,8 @@ function validateAllBulkRows() {
     }
 
     // Validate date range for common dates
-    const start = moment(bulkOptions.commonStartDate, "DD-MM-YYYY");
-    const end = moment(bulkOptions.commonEndDate, "DD-MM-YYYY");
+    const start = moment(bulkOptions.commonStartDate, "DD/MM/YYYY");
+    const end = moment(bulkOptions.commonEndDate, "DD/MM/YYYY");
     if (end.isBefore(start)) {
       showSnackbar("End date cannot be before start date", "error");
       return false;
@@ -1352,8 +1348,8 @@ function openSingleDialog(edit = false, item = null) {
     Object.assign(singleForm, {
       id: item.id,
       type_id: item.type_id,
-      start_date: moment(item.start_date).format("DD-MM-YYYY"),
-      end_date: moment(item.end_date).format("DD-MM-YYYY"),
+      start_date: moment(item.start_date).format("DD/MM/YYYY"),
+      end_date: moment(item.end_date).format("DD/MM/YYYY"),
       amount: item.amount,
       description: item.description,
     });
@@ -1404,10 +1400,10 @@ async function saveSingleExpenditure() {
 
     const payload = {
       ...singleForm,
-      start_date: moment(singleForm.start_date, "DD-MM-YYYY").format(
+      start_date: moment(singleForm.start_date, "DD/MM/YYYY").format(
         "YYYY-MM-DD",
       ),
-      end_date: moment(singleForm.end_date, "DD-MM-YYYY").format("YYYY-MM-DD"),
+      end_date: moment(singleForm.end_date, "DD/MM/YYYY").format("YYYY-MM-DD"),
     };
 
     const res = await fetch(url, {
@@ -1453,13 +1449,13 @@ async function saveBulkExpenditures() {
       expenditures: bulkForm.value.map((row) => ({
         type_id: row.type_id,
         start_date: bulkOptions.sameDates
-          ? moment(bulkOptions.commonStartDate, "DD-MM-YYYY").format(
+          ? moment(bulkOptions.commonStartDate, "DD/MM/YYYY").format(
               "YYYY-MM-DD",
             )
-          : moment(row.start_date, "DD-MM-YYYY").format("YYYY-MM-DD"),
+          : moment(row.start_date, "DD/MM/YYYY").format("YYYY-MM-DD"),
         end_date: bulkOptions.sameDates
-          ? moment(bulkOptions.commonEndDate, "DD-MM-YYYY").format("YYYY-MM-DD")
-          : moment(row.end_date, "DD-MM-YYYY").format("YYYY-MM-DD"),
+          ? moment(bulkOptions.commonEndDate, "DD/MM/YYYY").format("YYYY-MM-DD")
+          : moment(row.end_date, "DD/MM/YYYY").format("YYYY-MM-DD"),
         amount: parseFloat(row.amount),
         description: row.description || null,
       })),

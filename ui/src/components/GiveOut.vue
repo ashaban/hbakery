@@ -83,33 +83,25 @@
             />
           </v-col>
           <v-col cols="12" sm="2">
-            <v-text-field
+            <VueDatePicker
               v-model="filters.start_date"
-              autocomplete="off"
-              autocorrect="off"
+              auto-apply
               clearable
-              density="comfortable"
-              inputmode="none"
-              label="Start Date"
-              prepend-inner-icon="mdi-calendar"
-              spellcheck="false"
-              type="date"
-              variant="outlined"
+              format="dd/MM/yyyy"
+              model-type="format"
+              placeholder="Start Date"
+              :teleport="true"
             />
           </v-col>
           <v-col cols="12" sm="2">
-            <v-text-field
+            <VueDatePicker
               v-model="filters.end_date"
-              autocomplete="off"
-              autocorrect="off"
+              auto-apply
               clearable
-              density="comfortable"
-              inputmode="none"
-              label="End Date"
-              prepend-inner-icon="mdi-calendar"
-              spellcheck="false"
-              type="date"
-              variant="outlined"
+              format="dd/MM/yyyy"
+              model-type="format"
+              placeholder="End Date"
+              :teleport="true"
             />
           </v-col>
           <v-col class="d-flex justify-end" cols="12" sm="12">
@@ -325,17 +317,13 @@
                   />
                 </v-col>
                 <v-col cols="12" md="4">
-                  <v-text-field
+                  <VueDatePicker
                     v-model="form.out_date"
-                    autocomplete="off"
-                    autocorrect="off"
-                    inputmode="none"
-                    label="Date *"
-                    prepend-inner-icon="mdi-calendar"
-                    required
-                    spellcheck="false"
-                    type="date"
-                    variant="outlined"
+                    auto-apply
+                    format="dd/MM/yyyy"
+                    model-type="format"
+                    placeholder="Date *"
+                    :teleport="true"
                   />
                 </v-col>
                 <v-col cols="12" md="4">
@@ -766,6 +754,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useStore } from "vuex";
+import { formatDMY, toISODateOnly } from "@/utils/date.js";
 
 const store = useStore();
 
@@ -798,10 +787,10 @@ const filters = reactive({
 });
 
 // Form
-const today = new Date().toISOString().split("T")[0];
+const todayDisplay = formatDMY(new Date());
 const form = reactive({
   outlet_id: "",
-  out_date: today,
+  out_date: todayDisplay,
   reason: "CHARITY",
   notes: "",
   items: [],
@@ -864,12 +853,7 @@ function money(v) {
 }
 
 function formatDate(dateString) {
-  if (!dateString) return "";
-  return new Date(dateString).toLocaleString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  return formatDMY(dateString);
 }
 
 function getOutletIcon(type) {
@@ -1011,8 +995,10 @@ async function loadGiveaways() {
   }
   if (filters.status) params.append("status", filters.status);
   if (filters.reason) params.append("reason", filters.reason);
-  if (filters.start_date) params.append("start_date", filters.start_date);
-  if (filters.end_date) params.append("end_date", filters.end_date);
+  if (filters.start_date)
+    params.append("start_date", toISODateOnly(filters.start_date));
+  if (filters.end_date)
+    params.append("end_date", toISODateOnly(filters.end_date));
 
   try {
     const res = await fetch(`/productOut?${params}`);
@@ -1055,7 +1041,7 @@ async function openEditDialog(row) {
 
     // Header
     form.outlet_id = data.out.outlet_id;
-    form.out_date = data.out.out_date?.split("T")[0] || today;
+    form.out_date = formatDMY(data.out.out_date) || todayDisplay;
     form.reason = data.out.reason;
     form.notes = data.out.notes || "";
 
@@ -1110,7 +1096,7 @@ function closeDialog() {
 
 function resetForm() {
   form.outlet_id = "";
-  form.out_date = today;
+  form.out_date = todayDisplay;
   form.reason = "CHARITY";
   form.notes = "";
   form.items = [];
@@ -1159,7 +1145,7 @@ async function saveGiveaway() {
 
   const payload = {
     outlet_id: form.outlet_id,
-    out_date: form.out_date,
+    out_date: toISODateOnly(form.out_date),
     reason: form.reason,
     notes: form.notes || null,
     items: form.items.map((it) => ({

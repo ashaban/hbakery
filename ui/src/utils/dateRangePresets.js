@@ -2,7 +2,7 @@ import moment from "moment";
 
 // Shared "quick range" options for report-style filters (Purchases,
 // Expenditures, ...) that default to the current month instead of loading
-// every record ever entered. All ranges use dd-MM-yyyy to match the
+// every record ever entered. All ranges use dd/MM/yyyy to match the
 // VueDatePicker fields and backend query params already in use.
 export const DATE_RANGE_PRESETS = [
   { title: "Today", value: "today" },
@@ -13,10 +13,10 @@ export const DATE_RANGE_PRESETS = [
   { title: "Custom", value: "custom" },
 ];
 
-const FORMAT = "DD-MM-YYYY";
+const FORMAT = "DD/MM/YYYY";
 
 /**
- * Returns { from, to } strings in DD-MM-YYYY for a preset key, or null for
+ * Returns { from, to } strings in DD/MM/YYYY for a preset key, or null for
  * "custom" (meaning: leave whatever the user already has in place).
  */
 export function getDateRangePreset(preset) {

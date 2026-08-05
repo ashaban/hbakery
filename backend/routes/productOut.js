@@ -19,6 +19,11 @@ async function getOutDetail(client, outId) {
   const hdr = await client.query(
     `
     SELECT po.*,
+           -- out_date is a plain DATE; TO_CHAR keeps it exactly what's
+           -- stored instead of letting node-postgres parse it via the
+           -- server's local timezone and shift it a day — same fix as
+           -- sale.sale_date.
+           TO_CHAR(po.out_date, 'YYYY-MM-DD') AS out_date,
            o.name AS outlet_name,
            o.type AS outlet_type,
            u.name  AS created_by_name
@@ -347,6 +352,7 @@ router.get("/", requireTask("can_see_free_releases"), async (req, res) => {
     `
     SELECT
       po.*,
+      TO_CHAR(po.out_date, 'YYYY-MM-DD') AS out_date,
       o.name AS outlet_name,
       o.type AS outlet_type,
       -- value the OUT using ledger (so matches FIFO cost)

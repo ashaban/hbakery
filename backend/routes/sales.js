@@ -65,8 +65,16 @@ async function getSaleMoneySummary(client, saleId) {
 async function getSaleDetail(client, saleId) {
   const sale = await client.query(
     `
-    SELECT 
-      s.*, 
+    SELECT
+      s.*,
+      -- sale_date is a plain DATE (no time/timezone), but node-postgres
+      -- parses it via new Date(y, m, d) in the SERVER's local timezone
+      -- (EAT), then serializes to UTC — shifting it a day back once
+      -- reinterpreted. Re-emitting it as a plain string here (it overrides
+      -- the raw column from s.* above, since pg keeps the last duplicate
+      -- column name) keeps it exactly what's stored, same fix as
+      -- production's planned_at.
+      TO_CHAR(s.sale_date, 'YYYY-MM-DD') AS sale_date,
       c.name AS customer_name,
       o.name AS outlet_name,
       o.type AS outlet_type
@@ -95,10 +103,12 @@ async function getSaleDetail(client, saleId) {
 
   const payments = await client.query(
     `
-    SELECT *
-    FROM sale_payment
-    WHERE sale_id = $1
-    ORDER BY payment_date DESC, id DESC
+    SELECT sp.*,
+      -- Same DATE-column fix as sale_date above.
+      TO_CHAR(sp.payment_date, 'YYYY-MM-DD') AS payment_date
+    FROM sale_payment sp
+    WHERE sp.sale_id = $1
+    ORDER BY sp.payment_date DESC, sp.id DESC
     `,
     [saleId],
   );
@@ -695,6 +705,9 @@ router.get("/", requireTask("can_see_sales"), async (req, res) => {
   const query = `
     SELECT
       s.*,
+      -- Same DATE-column fix as getSaleDetail's sale_date, applied here too
+      -- so the list and the edit dialog can never disagree on the date.
+      TO_CHAR(s.sale_date, 'YYYY-MM-DD') AS sale_date,
       o.name AS outlet,
       o.type AS outlet_type,
       c.name AS customer_name,

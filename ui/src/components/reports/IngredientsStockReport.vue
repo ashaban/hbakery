@@ -41,7 +41,7 @@
                 v-model="dateRange.start"
                 auto-apply
                 class="rounded-lg border px-4 py-2 w-100"
-                format="dd-MM-yyyy"
+                format="dd/MM/yyyy"
                 placeholder="From date"
                 :teleport="true"
               />
@@ -49,7 +49,7 @@
                 v-model="dateRange.end"
                 auto-apply
                 class="rounded-lg border px-4 py-2 w-100"
-                format="dd-MM-yyyy"
+                format="dd/MM/yyyy"
                 placeholder="To date"
                 :teleport="true"
               />

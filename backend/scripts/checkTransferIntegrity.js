@@ -18,7 +18,7 @@ async function checkTransfers(db) {
   const { rows } = await db.query(`
     SELECT
       sti.transfer_id,
-      st.transfer_date,
+      TO_CHAR(st.transfer_date, 'YYYY-MM-DD') AS transfer_date,
       fo.name AS from_outlet_name,
       too.name AS to_outlet_name,
       sti.product_id,

@@ -201,7 +201,7 @@ async function getLoans(
       l.borrower_id, b.name AS borrower_name, b.phone AS borrower_phone,
       ${BORROWER_NAME_SQL} AS party_name,
       CASE WHEN l.staff_id IS NOT NULL THEN 'staff' ELSE 'external' END AS type,
-      l.amount, l.loan_date, l.reason, l.created_at,
+      l.amount, TO_CHAR(l.loan_date, 'YYYY-MM-DD') AS loan_date, l.reason, l.created_at,
       COALESCE(SUM(lr.amount), 0) AS repaid,
       l.amount - COALESCE(SUM(lr.amount), 0) AS balance
     FROM loan l
@@ -227,7 +227,8 @@ async function getLoanDetail(client, loanId) {
   if (!loan) return null;
 
   const repayments = await client.query(
-    `SELECT * FROM loan_repayment WHERE loan_id = $1 ORDER BY repayment_date DESC, id DESC`,
+    `SELECT lr.*, TO_CHAR(lr.repayment_date, 'YYYY-MM-DD') AS repayment_date
+     FROM loan_repayment lr WHERE lr.loan_id = $1 ORDER BY lr.repayment_date DESC, lr.id DESC`,
     [loanId]
   );
 

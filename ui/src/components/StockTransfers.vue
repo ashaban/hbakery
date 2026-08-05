@@ -75,18 +75,14 @@
             />
           </v-col>
           <v-col cols="12" sm="3">
-            <v-text-field
+            <VueDatePicker
               v-model="filters.date"
-              autocomplete="off"
-              autocorrect="off"
+              auto-apply
               clearable
-              density="comfortable"
-              inputmode="none"
-              label="Transfer Date"
-              prepend-inner-icon="mdi-calendar"
-              spellcheck="false"
-              type="date"
-              variant="outlined"
+              format="dd/MM/yyyy"
+              model-type="format"
+              placeholder="Transfer Date"
+              :teleport="true"
             />
           </v-col>
           <v-col class="d-flex justify-end" cols="12" sm="3">
@@ -338,17 +334,13 @@
                   />
                 </v-col>
                 <v-col cols="12" md="6">
-                  <v-text-field
+                  <VueDatePicker
                     v-model="form.movement_date"
-                    autocomplete="off"
-                    autocorrect="off"
-                    inputmode="none"
-                    label="Transfer Date"
-                    prepend-inner-icon="mdi-calendar"
-                    required
-                    spellcheck="false"
-                    type="date"
-                    variant="outlined"
+                    auto-apply
+                    format="dd/MM/yyyy"
+                    model-type="format"
+                    placeholder="Transfer Date"
+                    :teleport="true"
                   />
                 </v-col>
                 <v-col cols="12">
@@ -1145,6 +1137,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
 import { useStore } from "vuex";
+import { formatDMY, toISODateOnly } from "@/utils/date.js";
 
 const store = useStore();
 
@@ -1183,7 +1176,7 @@ const filters = reactive({
 const form = reactive({
   from_outlet_id: "",
   to_outlet_id: "",
-  movement_date: new Date().toISOString().split("T")[0],
+  movement_date: formatDMY(new Date()),
   remarks: "",
   items: [],
   originalItems: [],
@@ -1331,12 +1324,7 @@ function getQualityColor(quality) {
 }
 
 function formatDate(dateString) {
-  if (!dateString) return "";
-  return new Date(dateString).toLocaleString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  return formatDMY(dateString);
 }
 
 // Enhanced Item Methods
@@ -1658,7 +1646,7 @@ async function saveTransfer() {
     const payload = {
       from_outlet_id: form.from_outlet_id,
       to_outlet_id: form.to_outlet_id,
-      movement_date: form.movement_date,
+      movement_date: toISODateOnly(form.movement_date),
       remarks: form.remarks,
       items: form.items.map((item) => ({
         product_id: item.product_id,
@@ -1721,9 +1709,11 @@ async function openEditDialog(transfer) {
 
     form.from_outlet_id = data.transfer.from_outlet_id;
     form.to_outlet_id = data.transfer.to_outlet_id;
+    // Bug fix: the API returns this field as `transfer_date`, not
+    // `movement_date` — this was always falling through to "today" instead
+    // of the transfer's real date when editing.
     form.movement_date =
-      data.transfer.movement_date?.split("T")[0] ||
-      new Date().toISOString().split("T")[0];
+      formatDMY(data.transfer.transfer_date) || formatDMY(new Date());
     form.remarks = data.transfer.remarks;
     form.originalItems = data.items.map((item) => ({
       product_id: item.product_id,
@@ -1867,7 +1857,7 @@ function closeDialog() {
 function resetForm() {
   form.from_outlet_id = "";
   form.to_outlet_id = "";
-  form.movement_date = new Date().toISOString().split("T")[0];
+  form.movement_date = formatDMY(new Date());
   form.remarks = "";
   form.items = [];
   form.originalItems = [];
@@ -1890,7 +1880,7 @@ async function loadTransfers() {
     );
   }
   if (filters.to_outlet_id) params.append("to_outlet_id", filters.to_outlet_id);
-  if (filters.date) params.append("date", filters.date);
+  if (filters.date) params.append("date", toISODateOnly(filters.date));
 
   try {
     const res = await fetch(`/stocktransfers?${params}`);

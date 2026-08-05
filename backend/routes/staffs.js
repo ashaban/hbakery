@@ -40,7 +40,7 @@ router.get("/", requireTask("can_see_staffs"), async (req, res) => {
     const dataSql = `
       SELECT 
         s.id, s.name, s.phone, s.position,
-        s.salary, TO_CHAR(s.hired_at, 'DD-MM-YYYY') AS hired_at,
+        s.salary, TO_CHAR(s.hired_at, 'DD/MM/YYYY') AS hired_at,
         s.status
       FROM staff s
       ${whereSQL}
@@ -94,8 +94,8 @@ router.get(
         s.name AS staff_name,
         sc.position,
         sc.salary,
-        TO_CHAR(sc.start_date, 'DD-MM-YYYY') AS start_date,
-        TO_CHAR(sc.end_date, 'DD-MM-YYYY') AS end_date,
+        TO_CHAR(sc.start_date, 'DD/MM/YYYY') AS start_date,
+        TO_CHAR(sc.end_date, 'DD/MM/YYYY') AS end_date,
         sc.end_reason,
         sc.notes,
         s.status
@@ -138,12 +138,12 @@ router.get(
       const sql = `
       SELECT 
         id,
-        TO_CHAR(start_date, 'DD-MM-YYYY') AS start_date,
-        TO_CHAR(end_date, 'DD-MM-YYYY') AS end_date,
+        TO_CHAR(start_date, 'DD/MM/YYYY') AS start_date,
+        TO_CHAR(end_date, 'DD/MM/YYYY') AS end_date,
         CASE 
           WHEN end_date IS NULL AND id = $2 THEN 'Current'
           WHEN end_date IS NULL THEN 'N/A'
-          ELSE TO_CHAR(end_date, 'DD-MM-YYYY')
+          ELSE TO_CHAR(end_date, 'DD/MM/YYYY')
         END as display_end_date,
         end_reason,
         position,
@@ -183,7 +183,7 @@ router.post(
 
       const staff_id = fields.staff_id?.[0] || fields.staff_id;
       let end_date = fields.end_date?.[0] || fields.end_date;
-      end_date = moment(end_date, "DD-MM-YYYY").format("YYYY-MM-DD");
+      end_date = moment(end_date, ["DD/MM/YYYY", "DD-MM-YYYY"]).format("YYYY-MM-DD");
       const end_reason = fields.end_reason?.[0] || fields.end_reason;
       const notes = fields.notes?.[0] || "";
       const status = fields.status?.[0] || fields.status || "Resigned";
@@ -270,7 +270,7 @@ router.post(
       const position = fields.position?.[0] || fields.position;
       const salary = Number(fields.salary?.[0] || fields.salary || 0);
       let rehire_date = fields.rehire_date?.[0] || fields.rehire_date;
-      rehire_date = moment(rehire_date, "DD-MM-YYYY").format("YYYY-MM-DD");
+      rehire_date = moment(rehire_date, ["DD/MM/YYYY", "DD-MM-YYYY"]).format("YYYY-MM-DD");
       const notes = fields.notes?.[0] || "";
       if (!staff_id || !position || !salary || !rehire_date) {
         return res.status(400).json({
@@ -327,7 +327,7 @@ router.get("/:id", requireTask("can_see_staffs"), async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT s.*, 
-              TO_CHAR(s.hired_at, 'DD-MM-YYYY') AS hired_at_formatted,
+              TO_CHAR(s.hired_at, 'DD/MM/YYYY') AS hired_at_formatted,
               (SELECT COUNT(*) FROM staff_contracts WHERE staff_id = s.id) as contract_count
        FROM staff s 
        WHERE s.id = $1`,
@@ -351,7 +351,7 @@ router.post("/", requireTask("can_add_staffs"), async (req, res) => {
 
     const name = fields.name?.[0] || fields.name;
     let hired_at = fields.hired_at?.[0] || fields.hired_at;
-    hired_at = moment(hired_at, "DD-MM-YYYY").format("YYYY-MM-DD");
+    hired_at = moment(hired_at, ["DD/MM/YYYY", "DD-MM-YYYY"]).format("YYYY-MM-DD");
     const phone = fields.phone?.[0] || "";
     const position = fields.position?.[0] || "";
     const salary = Number(fields.salary?.[0] || fields.salary || 0);
@@ -413,7 +413,7 @@ router.put("/:id", requireTask("can_edit_staffs"), async (req, res) => {
 
     const name = fields.name?.[0] || fields.name;
     let hired_at = fields.hired_at?.[0] || fields.hired_at;
-    hired_at = moment(hired_at, "DD-MM-YYYY").format("YYYY-MM-DD");
+    hired_at = moment(hired_at, ["DD/MM/YYYY", "DD-MM-YYYY"]).format("YYYY-MM-DD");
     const phone = fields.phone?.[0] || "";
     const position = fields.position?.[0] || "";
     const salary = Number(fields.salary?.[0] || fields.salary || 0);

@@ -51,33 +51,25 @@
             />
           </v-col>
           <v-col cols="12" sm="3">
-            <v-text-field
+            <VueDatePicker
               v-model="filters.start_date"
-              autocomplete="off"
-              autocorrect="off"
+              auto-apply
               clearable
-              density="comfortable"
-              inputmode="none"
-              label="Start Date"
-              prepend-inner-icon="mdi-calendar"
-              spellcheck="false"
-              type="date"
-              variant="outlined"
+              format="dd/MM/yyyy"
+              model-type="format"
+              placeholder="Start Date"
+              :teleport="true"
             />
           </v-col>
           <v-col cols="12" sm="3">
-            <v-text-field
+            <VueDatePicker
               v-model="filters.end_date"
-              autocomplete="off"
-              autocorrect="off"
+              auto-apply
               clearable
-              density="comfortable"
-              inputmode="none"
-              label="End Date"
-              prepend-inner-icon="mdi-calendar"
-              spellcheck="false"
-              type="date"
-              variant="outlined"
+              format="dd/MM/yyyy"
+              model-type="format"
+              placeholder="End Date"
+              :teleport="true"
             />
           </v-col>
           <v-col cols="12" sm="3">
@@ -366,17 +358,13 @@
                     />
                   </v-col>
                   <v-col cols="12" md="4">
-                    <v-text-field
+                    <VueDatePicker
                       v-model="form.sale_date"
-                      autocomplete="off"
-                      autocorrect="off"
-                      inputmode="none"
-                      label="Sale Date"
-                      prepend-inner-icon="mdi-calendar"
-                      required
-                      spellcheck="false"
-                      type="date"
-                      variant="outlined"
+                      auto-apply
+                      format="dd/MM/yyyy"
+                      model-type="format"
+                      placeholder="Sale Date"
+                      :teleport="true"
                     />
                   </v-col>
                   <v-col cols="12">
@@ -846,16 +834,13 @@
                       />
                     </v-col>
                     <v-col cols="12" md="2">
-                      <v-text-field
+                      <VueDatePicker
                         v-model="p.payment_date"
-                        autocomplete="off"
-                        autocorrect="off"
-                        density="comfortable"
-                        inputmode="none"
-                        label="Payment Date"
-                        spellcheck="false"
-                        type="date"
-                        variant="outlined"
+                        auto-apply
+                        format="dd/MM/yyyy"
+                        model-type="format"
+                        placeholder="Payment Date"
+                        :teleport="true"
                       />
                     </v-col>
                     <v-col class="text-right" cols="12" md="1">
@@ -1569,15 +1554,13 @@
               spellcheck="false"
               variant="outlined"
             />
-            <v-text-field
+            <VueDatePicker
               v-model="debtPaymentForm.payment_date"
-              autocomplete="off"
-              autocorrect="off"
-              density="comfortable"
-              label="Payment Date"
-              spellcheck="false"
-              type="date"
-              variant="outlined"
+              auto-apply
+              format="dd/MM/yyyy"
+              model-type="format"
+              placeholder="Payment Date"
+              :teleport="true"
             />
           </v-card-text>
           <v-card-actions class="pa-4 bg-grey-lighten-4">
@@ -1655,6 +1638,7 @@
 <script setup>
 import { computed, nextTick, onMounted, reactive, ref, watch } from "vue";
 import { useStore } from "vuex";
+import { formatDMY, toISODateOnly } from "@/utils/date.js";
 import { useRoute, useRouter } from "vue-router";
 
 const store = useStore();
@@ -1719,9 +1703,10 @@ const customerSearch = ref("");
 
 // Form
 const today = new Date().toISOString().split("T")[0];
+const todayDisplay = formatDMY(new Date());
 const form = reactive({
   outlet_id: "",
-  sale_date: today,
+  sale_date: todayDisplay,
   notes: "",
   items: [],
   payments: [],
@@ -1935,12 +1920,7 @@ function fmt(v) {
   return new Intl.NumberFormat().format(n);
 }
 function formatDate(dateString) {
-  if (!dateString) return "";
-  return new Date(dateString).toLocaleString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  return formatDMY(dateString);
 }
 function getOutletIcon(type) {
   const icons = { MAIN: "mdi-home", SHOP: "mdi-store", CAR: "mdi-truck" };
@@ -2119,7 +2099,7 @@ function addPayment() {
     amount: "",
     method: "CASH",
     reference: "",
-    payment_date: today,
+    payment_date: todayDisplay,
   });
   if (form.payments.length === 1) {
     paymentAutoLinked.value = true;
@@ -2268,8 +2248,10 @@ async function loadSales() {
       params.append("outlet_id[]", outlet.outlet_id),
     );
   }
-  if (filters.start_date) params.append("start_date", filters.start_date);
-  if (filters.end_date) params.append("end_date", filters.end_date);
+  if (filters.start_date)
+    params.append("start_date", toISODateOnly(filters.start_date));
+  if (filters.end_date)
+    params.append("end_date", toISODateOnly(filters.end_date));
   if (filters.payment_status)
     params.append("payment_status", filters.payment_status);
 
@@ -2310,7 +2292,7 @@ async function openEditDialog(row) {
 
     // Header
     form.outlet_id = data.sale.outlet_id;
-    form.sale_date = data.sale.sale_date?.split("T")[0] || today;
+    form.sale_date = formatDMY(data.sale.sale_date) || todayDisplay;
     form.notes = data.sale.notes || "";
 
     // Customer
@@ -2336,7 +2318,7 @@ async function openEditDialog(row) {
       amount: String(p.amount),
       method: p.method || "CASH",
       reference: p.reference || "",
-      payment_date: p.payment_date?.split("T")[0] || today,
+      payment_date: formatDMY(p.payment_date) || todayDisplay,
     }));
     paymentAutoLinked.value = false;
 
@@ -2415,7 +2397,7 @@ function openDebtPaymentDialog(debt) {
   debtPaymentForm.amount = String(debt.balance);
   debtPaymentForm.method = "CASH";
   debtPaymentForm.reference = "";
-  debtPaymentForm.payment_date = today;
+  debtPaymentForm.payment_date = todayDisplay;
   showDebtPaymentDialog.value = true;
 }
 
@@ -2432,7 +2414,7 @@ async function submitDebtPayment() {
           amount: Number(debtPaymentForm.amount),
           method: debtPaymentForm.method || null,
           reference: debtPaymentForm.reference || null,
-          payment_date: debtPaymentForm.payment_date || today,
+          payment_date: toISODateOnly(debtPaymentForm.payment_date) || today,
         }),
       },
     );
@@ -2463,7 +2445,7 @@ function closeDialog() {
 
 function resetForm() {
   form.outlet_id = "";
-  form.sale_date = today;
+  form.sale_date = todayDisplay;
   form.notes = "";
   form.items = [];
   form.payments = [];
@@ -2530,9 +2512,10 @@ async function saveSale() {
 
   saving.value = true;
 
+  const isoSaleDate = toISODateOnly(form.sale_date);
   const payload = {
     outlet_id: form.outlet_id,
-    sale_date: form.sale_date,
+    sale_date: isoSaleDate,
     notes: form.notes || null,
     items: form.items.map((it) => ({
       product_id: it.product_id,
@@ -2544,7 +2527,7 @@ async function saveSale() {
       amount: Number(p.amount),
       method: p.method || null,
       reference: p.reference || null,
-      payment_date: p.payment_date || form.sale_date,
+      payment_date: toISODateOnly(p.payment_date) || isoSaleDate,
     })),
     debts: form.debts.map((d) => ({
       customer_id: debtCustomerId(d),

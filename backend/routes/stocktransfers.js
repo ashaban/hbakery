@@ -269,7 +269,11 @@ router.get("/", requireTask("can_see_stock_transfers"), async (req, res) => {
         st.to_outlet_id,
         dstn.name as to_outlet,
         dstn.type as to_outlet_type,
-        st.transfer_date as transfer_date,
+        -- transfer_date is a plain DATE (no time/timezone); TO_CHAR keeps
+        -- it exactly what's stored instead of letting node-postgres parse
+        -- it via the server's local timezone and shift it a day — same
+        -- fix as sale.sale_date.
+        TO_CHAR(st.transfer_date, 'YYYY-MM-DD') as transfer_date,
         st.remarks,
         (SELECT COUNT(*) FROM stock_transfer_item WHERE transfer_id = st.id) as items_count,
         (SELECT SUM(quantity) FROM stock_transfer_item WHERE transfer_id = st.id) as total_quantity
@@ -305,7 +309,9 @@ router.get("/:id", requireTask("can_see_stock_transfers"), async (req, res) => {
   try {
     // Get transfer header
     const transferResult = await pool.query(
-      `SELECT st.*, src.name as from_outlet, src.type as from_outlet_type,
+      `SELECT st.*,
+              TO_CHAR(st.transfer_date, 'YYYY-MM-DD') AS transfer_date,
+              src.name as from_outlet, src.type as from_outlet_type,
               dstn.name as to_outlet, dstn.type as to_outlet_type
        FROM stock_transfer st
        LEFT JOIN outlet src ON st.from_outlet_id = src.id

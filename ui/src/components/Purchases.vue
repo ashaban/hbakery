@@ -129,7 +129,7 @@
                 v-model="filters.date"
                 auto-apply
                 class="border rounded-lg px-4 py-2"
-                format="dd-MM-yyyy"
+                format="dd/MM/yyyy"
                 model-type="format"
                 placeholder="Select Date"
                 :teleport="true"
@@ -145,7 +145,7 @@
                   v-model="filters.date_from"
                   auto-apply
                   class="flex-1 border rounded-lg px-2 py-1"
-                  format="dd-MM-yyyy"
+                  format="dd/MM/yyyy"
                   model-type="format"
                   placeholder="From"
                   :teleport="true"
@@ -154,7 +154,7 @@
                   v-model="filters.date_to"
                   auto-apply
                   class="flex-1 border rounded-lg px-2 py-1"
-                  format="dd-MM-yyyy"
+                  format="dd/MM/yyyy"
                   model-type="format"
                   placeholder="To"
                   :teleport="true"
@@ -411,7 +411,7 @@
                   'w-100',
                   errors.date ? 'error-field' : '',
                 ]"
-                format="dd-MM-yyyy"
+                format="dd/MM/yyyy"
                 model-type="format"
                 placeholder="Purchase Date"
                 :teleport="true"
@@ -579,7 +579,7 @@
                   'w-100',
                   errors.date ? 'error-field' : '',
                 ]"
-                format="dd-MM-yyyy"
+                format="dd/MM/yyyy"
                 model-type="format"
                 placeholder="Purchase Date"
                 :teleport="true"
@@ -740,11 +740,6 @@ function formatCurrency(val) {
   return Number(val || 0).toLocaleString(undefined, {
     minimumFractionDigits: 2,
   });
-}
-
-function formatDate(date) {
-  if (!date) return "";
-  return moment(date, "YYYY-MM-DD").format("DD-MM-YYYY");
 }
 
 function showSnackbar(message, color = "success") {
@@ -966,7 +961,7 @@ async function createPurchase() {
   try {
     const payload = {
       ...form,
-      date: moment(form.date, "DD-MM-YYYY").format("YYYY-MM-DD"),
+      date: moment(form.date, "DD/MM/YYYY").format("YYYY-MM-DD"),
     };
 
     const res = await fetch("/purchases", {
@@ -998,7 +993,7 @@ async function updatePurchase() {
   try {
     const payload = {
       ...form,
-      date: moment(form.date, "DD-MM-YYYY").format("YYYY-MM-DD"),
+      date: moment(form.date, "DD/MM/YYYY").format("YYYY-MM-DD"),
     };
 
     const res = await fetch(`/purchases/${currentItem.value.id}`, {

@@ -111,7 +111,11 @@ async function getCustomerDebtStatement(client, customerId) {
   const { rows } = await client.query(
     `
     SELECT
-      scd.id, scd.sale_id, s.sale_date, o.name AS outlet_name,
+      scd.id, scd.sale_id,
+      -- sale_date is a plain DATE; TO_CHAR keeps it exactly what's stored
+      -- instead of letting node-postgres parse it via the server's local
+      -- timezone and shift it a day — same fix as sale.sale_date elsewhere.
+      TO_CHAR(s.sale_date, 'YYYY-MM-DD') AS sale_date, o.name AS outlet_name,
       scd.amount, scd.notes, scd.created_at,
       COALESCE(SUM(cdp.amount), 0) AS repaid,
       scd.amount - COALESCE(SUM(cdp.amount), 0) AS balance
@@ -160,7 +164,8 @@ async function getOutstandingDebts(
   const { rows } = await client.query(
     `
     SELECT
-      scd.id, scd.sale_id, s.sale_date, o.name AS outlet_name,
+      scd.id, scd.sale_id,
+      TO_CHAR(s.sale_date, 'YYYY-MM-DD') AS sale_date, o.name AS outlet_name,
       scd.customer_id, c.name AS customer_name,
       scd.amount, scd.notes,
       COALESCE(SUM(cdp.amount), 0) AS repaid,

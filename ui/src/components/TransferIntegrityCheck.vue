@@ -135,6 +135,7 @@
 <script setup>
 import { computed, onMounted, ref } from "vue";
 import { useStore } from "vuex";
+import { formatDMY } from "@/utils/date.js";
 
 const store = useStore();
 
@@ -145,12 +146,7 @@ const issues = ref([]);
 const hasIssues = computed(() => issues.value.length > 0);
 
 function formatDate(dateString) {
-  if (!dateString) return "";
-  return new Date(dateString).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  return formatDMY(dateString);
 }
 
 async function runCheck() {

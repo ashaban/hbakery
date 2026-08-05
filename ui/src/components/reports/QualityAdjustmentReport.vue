@@ -447,6 +447,7 @@ import {
 } from "vue";
 import { useStore } from "vuex";
 import * as echarts from "echarts";
+import { formatDMY } from "@/utils/date.js";
 
 const store = useStore();
 
@@ -584,12 +585,7 @@ const filterParams = computed(() => {
 
 // Methods
 function formatDateDDMMYYYY(dateString) {
-  if (!dateString) return "";
-  const date = new Date(dateString);
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const year = date.getFullYear();
-  return `${day}-${month}-${year}`;
+  return formatDMY(dateString);
 }
 
 function getQualityColor(quality) {

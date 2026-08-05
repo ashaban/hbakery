@@ -161,6 +161,7 @@
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useStore } from "vuex";
+import { formatDMY } from "@/utils/date.js";
 
 const store = useStore();
 const router = useRouter();
@@ -181,12 +182,7 @@ function money(v) {
 }
 
 function formatDate(dateString) {
-  if (!dateString) return "";
-  return new Date(dateString).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  return formatDMY(dateString);
 }
 
 function openSale(saleId) {

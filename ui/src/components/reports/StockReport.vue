@@ -78,23 +78,25 @@
             />
           </v-col>
           <v-col cols="12" sm="2">
-            <v-text-field
+            <VueDatePicker
               v-model="filters.start_date"
-              density="comfortable"
-              label="Start Date"
-              :max="filters.end_date"
-              type="date"
-              variant="outlined"
+              auto-apply
+              format="dd/MM/yyyy"
+              :max-date="parseFlexibleDMY(filters.end_date)"
+              model-type="format"
+              placeholder="Start Date"
+              :teleport="true"
             />
           </v-col>
           <v-col cols="12" sm="2">
-            <v-text-field
+            <VueDatePicker
               v-model="filters.end_date"
-              density="comfortable"
-              label="End Date"
-              :min="filters.start_date"
-              type="date"
-              variant="outlined"
+              auto-apply
+              format="dd/MM/yyyy"
+              :min-date="parseFlexibleDMY(filters.start_date)"
+              model-type="format"
+              placeholder="End Date"
+              :teleport="true"
             />
           </v-col>
           <v-col class="d-flex justify-end">
@@ -545,6 +547,7 @@ import {
 } from "vue";
 import { useStore } from "vuex";
 import * as echarts from "echarts";
+import { formatDMY, parseFlexibleDMY, toISODateOnly } from "@/utils/date.js";
 
 const store = useStore();
 const qualityChart = ref(null);
@@ -598,8 +601,8 @@ const filters = reactive({
   product_id: "",
   outlet_id: "",
   quality: "GOOD", // Default to GOOD
-  start_date: new Date().toISOString().split("T")[0],
-  end_date: new Date().toISOString().split("T")[0],
+  start_date: formatDMY(new Date()),
+  end_date: formatDMY(new Date()),
 });
 
 // Enhanced Headers with Quality Breakdown
@@ -636,8 +639,10 @@ const filterParams = computed(() => {
   if (filters.product_id) params.append("product_id", filters.product_id);
   if (filters.outlet_id) params.append("outlet_id", filters.outlet_id);
   if (filters.quality) params.append("quality", filters.quality);
-  if (filters.start_date) params.append("start_date", filters.start_date);
-  if (filters.end_date) params.append("end_date", filters.end_date);
+  if (filters.start_date)
+    params.append("start_date", toISODateOnly(filters.start_date));
+  if (filters.end_date)
+    params.append("end_date", toISODateOnly(filters.end_date));
   params.append("page", pagination.currentPage);
   params.append("limit", pagination.limit);
   return params;
@@ -993,8 +998,9 @@ async function exportToExcel() {
     // Remove filters for full data export
     const exportParams = new URLSearchParams();
     if (filters.start_date)
-      exportParams.append("start_date", filters.start_date);
-    if (filters.end_date) exportParams.append("end_date", filters.end_date);
+      exportParams.append("start_date", toISODateOnly(filters.start_date));
+    if (filters.end_date)
+      exportParams.append("end_date", toISODateOnly(filters.end_date));
 
     const res = await fetch(`/reports/stock-balance/export?${exportParams}`);
     const blob = await res.blob();
@@ -1027,14 +1033,10 @@ async function exportToExcel() {
 function resetFilters() {
   filters.product_id = "";
   filters.outlet_id = "";
-  filters.start_date = new Date(
-    new Date().getFullYear(),
-    new Date().getMonth(),
-    1,
-  )
-    .toISOString()
-    .split("T")[0];
-  filters.end_date = new Date().toISOString().split("T")[0];
+  filters.start_date = formatDMY(
+    new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+  );
+  filters.end_date = formatDMY(new Date());
   pagination.currentPage = 1;
   loadReport();
 }

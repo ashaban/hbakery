@@ -51,7 +51,7 @@
                 <VueDatePicker
                   v-model="filters.start_date"
                   auto-apply
-                  format="yyyy-MM-dd"
+                  format="dd/MM/yyyy"
                   model-type="format"
                   placeholder="Start Date"
                   :teleport="true"
@@ -74,7 +74,7 @@
                 <VueDatePicker
                   v-model="filters.end_date"
                   auto-apply
-                  format="yyyy-MM-dd"
+                  format="dd/MM/yyyy"
                   model-type="format"
                   placeholder="End Date"
                   :teleport="true"
@@ -725,6 +725,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
 import { useStore } from "vuex";
+import { formatDMY, parseFlexibleDMY } from "@/utils/date.js";
 import { use } from "echarts/core";
 import VChart from "vue-echarts";
 import { CanvasRenderer } from "echarts/renderers";
@@ -760,12 +761,11 @@ const productionData = ref({});
 const productLossData = ref({});
 
 // Filters
+const startOfMonth = new Date();
+startOfMonth.setDate(1);
 const filters = ref({
-  start_date: new Date()
-    .toISOString()
-    .split("T")[0]
-    .replace(/(\d{4})-(\d{2})-(\d{2})/, "$1-$2-01"),
-  end_date: new Date().toISOString().split("T")[0],
+  start_date: formatDMY(startOfMonth),
+  end_date: formatDMY(new Date()),
   product_id: null,
   outlet_id: null,
 });
@@ -1388,12 +1388,11 @@ function getPaymentRateColor(rate) {
 }
 
 function resetFilters() {
+  const resetStartOfMonth = new Date();
+  resetStartOfMonth.setDate(1);
   filters.value = {
-    start_date: new Date()
-      .toISOString()
-      .split("T")[0]
-      .replace(/(\d{4})-(\d{2})-(\d{2})/, "$1-$2-01"),
-    end_date: new Date().toISOString().split("T")[0],
+    start_date: formatDMY(resetStartOfMonth),
+    end_date: formatDMY(new Date()),
     product_id: null,
     outlet_id: null,
   };
@@ -1410,7 +1409,21 @@ async function loadDashboardData() {
       );
     }
     Object.entries(filters.value).forEach(([key, value]) => {
-      if (value) params.append(key, value);
+      if (!value) return;
+      // Filter pickers display DD/MM/YYYY, but these report endpoints cast
+      // the raw query param straight to ::date under the DB's MDY
+      // DateStyle — convert to unambiguous ISO before sending.
+      if (key === "start_date" || key === "end_date") {
+        const parsed = parseFlexibleDMY(value);
+        if (parsed) {
+          const y = parsed.getFullYear();
+          const m = String(parsed.getMonth() + 1).padStart(2, "0");
+          const d = String(parsed.getDate()).padStart(2, "0");
+          params.append(key, `${y}-${m}-${d}`);
+          return;
+        }
+      }
+      params.append(key, value);
     });
 
     // Load all data in parallel

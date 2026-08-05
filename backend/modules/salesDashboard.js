@@ -474,7 +474,7 @@ const salesController = {
         `
         SELECT
           s.id,
-          s.sale_date,
+          TO_CHAR(s.sale_date, 'YYYY-MM-DD') AS sale_date,
           o.name AS outlet,
           o.type AS outlet_type,
           c.name AS customer_name,
@@ -520,6 +520,7 @@ const salesController = {
         `
         SELECT
           s.*,
+          TO_CHAR(s.sale_date, 'YYYY-MM-DD') AS sale_date,
           o.name AS outlet_name,
           o.type AS outlet_type,
           c.name AS customer_name,
@@ -552,10 +553,10 @@ const salesController = {
 
       const payments = await pool.query(
         `
-        SELECT *
-        FROM sale_payment
-        WHERE sale_id=$1
-        ORDER BY payment_date, id
+        SELECT sp.*, TO_CHAR(sp.payment_date, 'YYYY-MM-DD') AS payment_date
+        FROM sale_payment sp
+        WHERE sp.sale_id=$1
+        ORDER BY sp.payment_date, sp.id
       `,
         [id]
       );

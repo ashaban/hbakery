@@ -25,7 +25,7 @@
             v-model="filters.hiredDate"
             auto-apply
             class="flex-1 border rounded-lg px-2 py-1"
-            format="dd-MM-yyyy"
+            format="dd/MM/yyyy"
             model-type="format"
             placeholder="From"
             :teleport="true"
@@ -193,7 +193,7 @@
                 :class="{ 'datepicker-error': !isValidHireDate() }"
                 :clearable="false"
                 :enable-time-picker="false"
-                format="dd-MM-yyyy"
+                format="dd/MM/yyyy"
                 :max-date="new Date()"
                 model-type="format"
                 placeholder="Select Hire Date"
@@ -265,7 +265,7 @@
                 :class="{ 'datepicker-error': !isValidEndDate() }"
                 :clearable="false"
                 :enable-time-picker="false"
-                format="dd-MM-yyyy"
+                format="dd/MM/yyyy"
                 :max-date="new Date()"
                 :min-date="getLastStartDate()"
                 model-type="format"
@@ -357,7 +357,7 @@
                 :class="{ 'datepicker-error': !isValidRehireDate() }"
                 :clearable="false"
                 :enable-time-picker="false"
-                format="dd-MM-yyyy"
+                format="dd/MM/yyyy"
                 :max-date="new Date()"
                 :min-date="getLastEndDate()"
                 model-type="format"
@@ -562,6 +562,7 @@ import { computed, onMounted, reactive, ref } from "vue";
 import { useVuelidate } from "@vuelidate/core";
 import { minValue, required } from "@vuelidate/validators";
 import { useStore } from "vuex";
+import { formatDMY, parseFlexibleDMY } from "@/utils/date.js";
 
 // store
 const itemsPerPage = ref(10);
@@ -632,12 +633,12 @@ const state = reactive({
   position: "",
   salary: "",
   status: "Active",
-  hired_at: new Date().toISOString().split("T")[0], // Default to today
+  hired_at: formatDMY(new Date()), // Default to today
 });
 
 // contract state for ending contract
 const contractState = reactive({
-  end_date: new Date().toISOString().split("T")[0],
+  end_date: formatDMY(new Date()),
   end_reason: "Resignation",
   notes: "",
 });
@@ -646,7 +647,7 @@ const contractState = reactive({
 const rehireState = reactive({
   position: "",
   salary: "",
-  rehire_date: new Date().toISOString().split("T")[0],
+  rehire_date: formatDMY(new Date()),
   notes: "",
 });
 
@@ -725,62 +726,9 @@ const formatCurrency = (val) =>
     ? Number(val).toLocaleString("en-US", { minimumFractionDigits: 0 }) + " TSh"
     : "0 TSh";
 
-const formatDate = (dateInput) => {
-  if (!dateInput) return "";
+const formatDate = (dateInput) => formatDMY(dateInput);
 
-  let date;
-  if (dateInput instanceof Date) {
-    date = dateInput;
-  } else if (typeof dateInput === "string") {
-    // Parse DD-MM-YYYY format
-    const parts = dateInput.split("-");
-    if (parts.length === 3) {
-      const [day, month, year] = parts;
-      date = new Date(year, month - 1, day);
-    } else {
-      // Try parsing as ISO string
-      date = new Date(dateInput);
-    }
-  }
-
-  if (date && !isNaN(date.getTime())) {
-    return date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  }
-
-  return String(dateInput);
-};
-
-const parseDateString = (dateString) => {
-  if (!dateString) return null;
-
-  if (dateString instanceof Date) {
-    return dateString;
-  }
-
-  if (typeof dateString === "string") {
-    // Try DD-MM-YYYY format
-    const parts = dateString.split("-");
-    if (parts.length === 3) {
-      const [day, month, year] = parts;
-      const date = new Date(year, month - 1, day);
-      if (!isNaN(date.getTime())) {
-        return date;
-      }
-    }
-
-    // Try parsing as ISO string
-    const date = new Date(dateString);
-    if (!isNaN(date.getTime())) {
-      return date;
-    }
-  }
-
-  return null;
-};
+const parseDateString = (dateString) => parseFlexibleDMY(dateString);
 
 const statusColor = (status) => {
   switch (status) {
@@ -951,7 +899,7 @@ function activateEditDialog(item) {
   editingId.value = item.id;
   Object.assign(state, {
     ...item,
-    hired_at: item.hired_at || new Date().toISOString().split("T")[0],
+    hired_at: item.hired_at || formatDMY(new Date()),
   });
   dialog.value = true;
   v$.value.$reset();
@@ -960,7 +908,7 @@ function activateEditDialog(item) {
 async function activateEndContractDialog(item) {
   selectedStaff.value = item;
   Object.assign(contractState, {
-    end_date: new Date().toISOString().split("T")[0],
+    end_date: formatDMY(new Date()),
     end_reason: "Resignation",
     notes: "",
   });
@@ -972,7 +920,7 @@ async function activateRehireDialog(item) {
   Object.assign(rehireState, {
     position: item.position || "",
     salary: item.salary || "",
-    rehire_date: new Date().toISOString().split("T")[0],
+    rehire_date: formatDMY(new Date()),
     notes: "",
   });
 

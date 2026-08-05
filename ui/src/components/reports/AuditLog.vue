@@ -195,6 +195,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
 import { useStore } from "vuex";
+import { formatDMY, formatDMYHM } from "@/utils/date.js";
 
 const store = useStore();
 
@@ -253,22 +254,11 @@ const headers = [
 ];
 
 function formatDate(d) {
-  if (!d) return "";
-  const date = new Date(d);
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  return `${day}-${month}-${date.getFullYear()}`;
+  return formatDMY(d);
 }
 
 function formatDateTime(d) {
-  if (!d) return "";
-  return new Date(d).toLocaleString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatDMYHM(d);
 }
 
 function formatNumber(n) {

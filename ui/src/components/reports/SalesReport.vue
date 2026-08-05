@@ -162,33 +162,25 @@
             />
           </v-col>
           <v-col cols="12" sm="2">
-            <v-text-field
+            <VueDatePicker
               v-model="filters.start_date"
-              autocomplete="off"
-              autocorrect="off"
+              auto-apply
               clearable
-              density="comfortable"
-              inputmode="none"
-              label="Start Date"
-              prepend-inner-icon="mdi-calendar"
-              spellcheck="false"
-              type="date"
-              variant="outlined"
+              format="dd/MM/yyyy"
+              model-type="format"
+              placeholder="Start Date"
+              :teleport="true"
             />
           </v-col>
           <v-col cols="12" sm="2">
-            <v-text-field
+            <VueDatePicker
               v-model="filters.end_date"
-              autocomplete="off"
-              autocorrect="off"
+              auto-apply
               clearable
-              density="comfortable"
-              inputmode="none"
-              label="End Date"
-              prepend-inner-icon="mdi-calendar"
-              spellcheck="false"
-              type="date"
-              variant="outlined"
+              format="dd/MM/yyyy"
+              model-type="format"
+              placeholder="End Date"
+              :teleport="true"
             />
           </v-col>
           <v-col cols="12" sm="2">
@@ -655,6 +647,7 @@ import {
 } from "vue";
 import { useStore } from "vuex";
 import * as echarts from "echarts";
+import { formatDMY, toISODateOnly } from "@/utils/date.js";
 
 const store = useStore();
 
@@ -752,13 +745,13 @@ function formatCurrency(value) {
   }).format(value);
 }
 
+const MONTH_ABBR = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
 function formatDate(date) {
-  if (!date) return "";
-  return new Date(date).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  return formatDMY(date);
 }
 
 function getOutletIcon(type) {
@@ -795,8 +788,10 @@ async function loadDashboardData() {
         params.append("outlet_id[]", outlet.outlet_id),
       );
     }
-    if (filters.start_date) params.append("start_date", filters.start_date);
-    if (filters.end_date) params.append("end_date", filters.end_date);
+    if (filters.start_date)
+      params.append("start_date", toISODateOnly(filters.start_date));
+    if (filters.end_date)
+      params.append("end_date", toISODateOnly(filters.end_date));
     if (filters.payment_status)
       params.append("payment_status", filters.payment_status);
     if (filters.time_range && filters.time_range !== "custom") {
@@ -836,8 +831,10 @@ async function loadSales() {
       params.append("outlet_id[]", outlet.outlet_id),
     );
   }
-  if (filters.start_date) params.append("start_date", filters.start_date);
-  if (filters.end_date) params.append("end_date", filters.end_date);
+  if (filters.start_date)
+    params.append("start_date", toISODateOnly(filters.start_date));
+  if (filters.end_date)
+    params.append("end_date", toISODateOnly(filters.end_date));
   if (filters.payment_status)
     params.append("payment_status", filters.payment_status);
 
@@ -920,11 +917,14 @@ function getRevenueChartOption() {
     xAxis: {
       type: "category",
       data: data.map((item) => {
-        const date = new Date(item.date);
-        return date.toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-        });
+        // item.date is a plain YYYY-MM-DD string (no time, no timezone) —
+        // parse it directly instead of through `new Date(...)`, which
+        // reinterprets a date-only value as UTC midnight and can shift
+        // the axis label a day off in any browser timezone behind UTC.
+        const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(item.date);
+        if (!match) return item.date;
+        const [, , month, day] = match;
+        return `${MONTH_ABBR[Number(month) - 1]} ${Number(day)}`;
       }),
     },
     yAxis: [

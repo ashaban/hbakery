@@ -33,7 +33,8 @@ async function getSaleExpenditures(client, saleId) {
   const { rows } = await client.query(
     `
     SELECT e.id, e.type_id, c.name AS type_name, c.category,
-           e.amount, e.description, e.start_date
+           e.amount, e.description,
+           TO_CHAR(e.start_date, 'YYYY-MM-DD') AS start_date
     FROM expenditure e
     JOIN cost_type c ON c.id = e.type_id
     WHERE e.sale_id = $1
