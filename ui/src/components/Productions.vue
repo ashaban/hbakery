@@ -1654,24 +1654,10 @@
               </div>
               <v-row dense>
                 <v-col cols="12" md="6">
-                  <div class="position-relative w-100">
-                    <span
-                      v-if="batchActualForm.produced_at"
-                      class="datepicker-label"
-                    >
-                      Actual Production Date &amp; Time
-                    </span>
-                    <VueDatePicker
-                      v-model="batchActualForm.produced_at"
-                      auto-apply
-                      class="rounded-lg border px-4 py-2 w-100"
-                      :enable-time-picker="true"
-                      format="dd/MM/yyyy HH:mm"
-                      model-type="format"
-                      placeholder="Select Actual Production Date & Time"
-                      :teleport="true"
-                    />
-                  </div>
+                  <DateTimeField
+                    v-model="batchActualForm.produced_at"
+                    label="Actual Production Date &amp; Time"
+                  />
                 </v-col>
                 <v-col cols="12" md="6">
                   <v-text-field
@@ -2010,38 +1996,16 @@
               </div>
               <v-row dense>
                 <v-col cols="12" md="4">
-                  <div class="position-relative w-100">
-                    <span v-if="form.planned_at" class="datepicker-label">
-                      Planned Production Date &amp; Time
-                    </span>
-                    <VueDatePicker
-                      v-model="form.planned_at"
-                      auto-apply
-                      class="rounded-lg border px-4 py-2 w-100"
-                      :enable-time-picker="true"
-                      format="dd/MM/yyyy HH:mm"
-                      model-type="format"
-                      placeholder="Select Planned Production Date & Time"
-                      :teleport="true"
-                    />
-                  </div>
+                  <DateTimeField
+                    v-model="form.planned_at"
+                    label="Planned Production Date &amp; Time"
+                  />
                 </v-col>
                 <v-col v-if="actualAdded" cols="12" md="4">
-                  <div class="position-relative w-100">
-                    <span v-if="form.produced_at" class="datepicker-label">
-                      Actual Production Date &amp; Time
-                    </span>
-                    <VueDatePicker
-                      v-model="form.produced_at"
-                      auto-apply
-                      class="rounded-lg border px-4 py-2 w-100"
-                      :enable-time-picker="true"
-                      format="dd/MM/yyyy HH:mm"
-                      model-type="format"
-                      placeholder="Select Actual Production Date & Time"
-                      :teleport="true"
-                    />
-                  </div>
+                  <DateTimeField
+                    v-model="form.produced_at"
+                    label="Actual Production Date &amp; Time"
+                  />
                 </v-col>
                 <v-col cols="12" md="4">
                   <v-text-field
@@ -3449,6 +3413,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
 import { toDisplay, toISO } from "@/utils/date.js";
+import DateTimeField from "@/components/shared/DateTimeField.vue";
 
 const itemsPerPage = ref(10);
 const loading = ref(false);
@@ -5023,22 +4988,6 @@ onMounted(async () => {
 .combination-card:hover:not(.selected) {
   border-color: #90caf9;
   background-color: #f5f5f5;
-}
-
-.position-relative {
-  position: relative;
-}
-
-.datepicker-label {
-  position: absolute;
-  top: -8px;
-  left: 12px;
-  background: white;
-  padding: 0 6px;
-  font-size: 0.75rem;
-  color: #666;
-  z-index: 2;
-  pointer-events: none;
 }
 
 .gap-2 {
