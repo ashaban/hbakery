@@ -3859,7 +3859,14 @@ const addBatchActualProduction = async (batch) => {
     // blank so the user has to explicitly type something — even "0" — to
     // mark that item as ready to save.
     batchActualForm.batch_id = batch.id;
-    batchActualForm.produced_at = toDisplay(new Date());
+    // If this batch already has actuals recorded, load the date/time they
+    // were recorded at (data.batch.produced_at is MAX(produced_at) across
+    // the batch's products) instead of always defaulting to "now" — that
+    // was forcing the user to re-pick the date on every edit even when
+    // they only meant to adjust a quantity.
+    batchActualForm.produced_at = data.batch.produced_at
+      ? toDisplay(data.batch.produced_at)
+      : toDisplay(new Date());
     batchActualForm.notes = "";
     // Cancelled products are left out entirely — they were never made, hold
     // no ingredients, and the backend refuses actuals against them, so

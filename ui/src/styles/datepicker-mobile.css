@@ -1,0 +1,17 @@
+/* @vuepic/vue-datepicker ships a 35px calendar-day touch target
+ * (--dp-cell-size), which is below Apple's (44px) and Google's (48dp)
+ * recommended minimum tap size — easy to miss the intended date with a
+ * thumb. Bump it up specifically on narrow/mobile-width viewports, using
+ * the same 600px breakpoint the library itself switches to its mobile
+ * layout at, so desktop (mouse-precise) stays at the library's default.
+ */
+@media (max-width: 600px) {
+  :root {
+    --dp-cell-size: 42px;
+    --dp-month-year-row-height: 42px;
+    --dp-month-year-row-button-size: 36px;
+    --dp-button-height: 42px;
+    --dp-action-button-height: 36px;
+    --dp-time-inc-dec-button-size: 40px;
+  }
+}
