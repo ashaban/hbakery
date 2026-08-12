@@ -12,6 +12,11 @@
     --dp-month-year-row-button-size: 36px;
     --dp-button-height: 42px;
     --dp-action-button-height: 36px;
-    --dp-time-inc-dec-button-size: 40px;
+    /* Time-picker controls (Productions.vue's "Add Actual Production" and
+     * "Edit Batch" dialogs are the only date+time pickers in the app) —
+     * the hour/minute tap-to-increment/decrement chevrons are small and
+     * fiddly to hit repeatedly on a touchscreen, so size them closer to
+     * the 44px recommended minimum too. */
+    --dp-time-inc-dec-button-size: 44px;
   }
 }
