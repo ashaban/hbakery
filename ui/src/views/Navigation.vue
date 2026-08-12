@@ -147,6 +147,32 @@
         </v-list-item>
 
         <v-list-item
+          v-if="can('can_see_production_plans')"
+          active-class="menu-item--active"
+          class="menu-item rounded-xl"
+          to="ProductionPlan"
+          value="ProductionPlan"
+        >
+          <template #prepend>
+            <v-avatar
+              class="menu-avatar"
+              color="lime-lighten-5"
+              rounded="lg"
+              size="42"
+            >
+              <v-icon
+                color="lime-darken-3"
+                icon="mdi-truck-delivery-outline"
+                size="20"
+              />
+            </v-avatar>
+          </template>
+          <v-list-item-title class="font-weight-medium menu-title">
+            Production Plan
+          </v-list-item-title>
+        </v-list-item>
+
+        <v-list-item
           v-if="can('can_add_sale')"
           active-class="menu-item--active"
           class="menu-item rounded-xl"

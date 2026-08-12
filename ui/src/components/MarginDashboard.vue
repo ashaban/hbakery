@@ -89,6 +89,7 @@
                 </div>
                 <v-autocomplete
                   v-model="filters.product_id"
+                  autocomplete="off"
                   clearable
                   color="primary"
                   density="compact"
@@ -117,6 +118,7 @@
                 </div>
                 <v-autocomplete
                   v-model="filters.outlet_id"
+                  autocomplete="off"
                   clearable
                   color="primary"
                   density="compact"

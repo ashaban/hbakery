@@ -18,6 +18,7 @@
           <v-form @submit.prevent>
             <v-text-field
               v-model="state.name"
+              autocomplete="off"
               bg-color="#BDBDBD"
               :error-messages="v$.name.$errors.map((e) => e.$message)"
               label="Unit Name"
@@ -27,6 +28,7 @@
             />
             <v-text-field
               v-model="state.shortname"
+              autocomplete="off"
               bg-color="#BDBDBD"
               :error-messages="v$.shortname.$errors.map((e) => e.$message)"
               label="Short Name"
@@ -72,12 +74,14 @@
             <br />
             <v-text-field
               v-model="editingItem.id"
+              autocomplete="off"
               bg-color="#BDBDBD"
               label="ID"
               readonly
             />
             <v-text-field
               v-model="state.name"
+              autocomplete="off"
               bg-color="#BDBDBD"
               clearable
               :error-messages="v$.name.$errors.map((e) => e.$message)"
@@ -89,6 +93,7 @@
             />
             <v-text-field
               v-model="state.shortname"
+              autocomplete="off"
               bg-color="#BDBDBD"
               :error-messages="v$.shortname.$errors.map((e) => e.$message)"
               label="Short Name"

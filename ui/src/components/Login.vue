@@ -34,6 +34,7 @@
         <v-form class="nature-form" @submit.prevent="authenticate">
           <v-text-field
             v-model="state.username"
+            autocomplete="off"
             class="nature-input"
             color="success"
             :error-messages="v$.username.$errors.map((e) => e.$message)"
@@ -47,6 +48,7 @@
           <v-text-field
             v-model="state.password"
             :append-inner-icon="password_show ? 'mdi-eye' : 'mdi-eye-off'"
+            autocomplete="off"
             class="nature-input"
             color="success"
             :error-messages="v$.password.$errors.map((e) => e.$message)"
@@ -99,6 +101,7 @@
             Enter your email address to receive password reset instructions.
           </p>
           <v-text-field
+            autocomplete="off"
             class="nature-dialog-input"
             label="Email address"
             prepend-inner-icon="mdi-email-outline"

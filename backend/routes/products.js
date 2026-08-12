@@ -380,7 +380,8 @@ router.get("/", async (req, res) => {
     const totalPages = Math.ceil(totalRecords / limit);
 
     const result = await pool.query(
-      `SELECT id, name, description, unit, price, barcode, 
+      `SELECT id, name, description, unit, price, barcode,
+              units_per_batch, flour_kg_per_batch,
               TO_CHAR(created_at, 'DD-MM-YYYY') AS created_at
          FROM product
         WHERE name ILIKE $1
@@ -547,14 +548,16 @@ router.post("/", requireTask("can_add_settings"), async (req, res) => {
       await client.query("BEGIN");
 
       const insertProduct = await client.query(
-        `INSERT INTO product (name, description, unit, price, barcode)
-         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+        `INSERT INTO product (name, description, unit, price, barcode, units_per_batch, flour_kg_per_batch)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
         [
           fields.name?.[0],
           fields.description?.[0] || null,
           fields.unit?.[0] || null,
           fields.price?.[0] || 0,
           fields.barcode?.[0] || null,
+          fields.units_per_batch?.[0] || null,
+          fields.flour_kg_per_batch?.[0] || null,
         ]
       );
       const productId = insertProduct.rows[0].id;
@@ -684,14 +687,17 @@ router.put("/:id", requireTask("can_add_settings"), async (req, res) => {
          1. UPDATE BASIC PRODUCT INFO
       ---------------------------------------------------- */
       await client.query(
-        `UPDATE product SET name=$1, description=$2, unit=$3, price=$4, barcode=$5 
-         WHERE id=$6`,
+        `UPDATE product SET name=$1, description=$2, unit=$3, price=$4, barcode=$5,
+                units_per_batch=$6, flour_kg_per_batch=$7
+         WHERE id=$8`,
         [
           fields.name?.[0],
           fields.description?.[0] || "",
           fields.unit?.[0] || null,
           fields.price?.[0] || 0,
           fields.barcode?.[0] || "",
+          fields.units_per_batch?.[0] || null,
+          fields.flour_kg_per_batch?.[0] || null,
           productId,
         ]
       );

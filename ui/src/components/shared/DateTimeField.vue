@@ -7,6 +7,7 @@
   >
     <template #activator="{ props: activatorProps }">
       <v-text-field
+        autocomplete="off"
         v-bind="activatorProps"
         :label="modelValue ? label : ''"
         :model-value="modelValue"

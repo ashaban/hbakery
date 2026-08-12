@@ -234,6 +234,7 @@
           <v-autocomplete
             v-if="newLoan.type === 'staff'"
             v-model="newLoan.staff_id"
+            autocomplete="off"
             density="comfortable"
             item-title="name"
             item-value="id"
@@ -246,6 +247,7 @@
           <template v-else>
             <v-combobox
               auto-select-first="false"
+              autocomplete="off"
               clearable
               density="comfortable"
               hide-no-data
@@ -287,6 +289,7 @@
           <DateField v-model="newLoan.loan_date" label="Date" />
           <v-textarea
             v-model="newLoan.reason"
+            autocomplete="off"
             density="comfortable"
             label="Reason (optional)"
             rows="2"

@@ -173,6 +173,7 @@
                     </div>
                     <v-autocomplete
                       v-model="batchFilters.product_id"
+                      autocomplete="off"
                       clearable
                       color="primary"
                       density="compact"
@@ -250,6 +251,7 @@
                     </div>
                     <v-autocomplete
                       v-model="batchFilters.team_leader"
+                      autocomplete="off"
                       clearable
                       color="primary"
                       density="compact"
@@ -756,6 +758,7 @@
                     </div>
                     <v-autocomplete
                       v-model="filters.product_id"
+                      autocomplete="off"
                       clearable
                       color="primary"
                       density="compact"
@@ -833,6 +836,7 @@
                     </div>
                     <v-autocomplete
                       v-model="filters.team_leader"
+                      autocomplete="off"
                       clearable
                       color="primary"
                       density="compact"
@@ -1563,6 +1567,7 @@
           <v-textarea
             v-model="cancelReason"
             auto-grow
+            autocomplete="off"
             density="comfortable"
             label="Reason (optional)"
             rows="2"
@@ -1646,6 +1651,7 @@
                 <v-col cols="12" md="6">
                   <v-text-field
                     v-model="batchActualForm.notes"
+                    autocomplete="off"
                     color="primary"
                     label="Production Notes (optional)"
                     prepend-inner-icon="mdi-note-text"
@@ -1737,6 +1743,7 @@
                     <v-col cols="12" md="3">
                       <v-text-field
                         v-model.number="product.good_qty"
+                        autocomplete="off"
                         color="green"
                         density="compact"
                         :label="`Good Quantity (${product.planned_qty} planned)`"
@@ -1754,6 +1761,7 @@
                     <v-col cols="12" md="3">
                       <v-text-field
                         v-model.number="product.damaged_qty"
+                        autocomplete="off"
                         color="orange"
                         density="compact"
                         label="Damaged Quantity"
@@ -1771,6 +1779,7 @@
                     <v-col cols="12" md="3">
                       <v-text-field
                         v-model.number="product.reject_qty"
+                        autocomplete="off"
                         color="red"
                         density="compact"
                         label="Reject Quantity"
@@ -1788,6 +1797,7 @@
                     <v-col cols="12" md="3">
                       <v-text-field
                         v-model.number="product.actual_qty"
+                        autocomplete="off"
                         color="primary"
                         density="compact"
                         label="Total Actual"
@@ -1832,6 +1842,7 @@
                       <v-col cols="12" md="5">
                         <v-text-field
                           v-model="disc.notes"
+                          autocomplete="off"
                           density="compact"
                           label="Notes"
                           variant="outlined"
@@ -1994,6 +2005,7 @@
                 <v-col cols="12" md="4">
                   <v-text-field
                     v-model="form.notes"
+                    autocomplete="off"
                     color="primary"
                     label="Batch Notes (optional)"
                     prepend-inner-icon="mdi-note-text"
@@ -2082,6 +2094,7 @@
                         <v-col cols="12" md="5">
                           <v-autocomplete
                             v-model="p.product_id"
+                            autocomplete="off"
                             clearable
                             density="compact"
                             item-title="name"
@@ -2114,6 +2127,7 @@
                         <v-col v-if="p.mode === 'by_product'" cols="12" md="4">
                           <v-text-field
                             v-model.number="p.qty_product_input"
+                            autocomplete="off"
                             density="compact"
                             label="Planned Units"
                             prepend-inner-icon="mdi-counter"
@@ -2128,6 +2142,7 @@
                           <v-col cols="12" md="4">
                             <v-autocomplete
                               v-model="p.base_ingredient_id"
+                              autocomplete="off"
                               density="compact"
                               :disabled="!p.recipeItems.length"
                               item-title="item_name"
@@ -2144,6 +2159,7 @@
                           <v-col cols="12" md="3">
                             <v-text-field
                               v-model.number="p.base_ingredient_qty"
+                              autocomplete="off"
                               density="compact"
                               :disabled="!p.base_ingredient_id"
                               :label="`Base Qty (${p.baseUnit || 'units'})`"
@@ -2185,6 +2201,7 @@
                             <v-col cols="12" md="3">
                               <v-text-field
                                 v-model.number="p.good_qty"
+                                autocomplete="off"
                                 color="green"
                                 density="compact"
                                 :label="`Good Quantity (${p.planned_qty} planned)`"
@@ -2202,6 +2219,7 @@
                             <v-col cols="12" md="3">
                               <v-text-field
                                 v-model.number="p.damaged_qty"
+                                autocomplete="off"
                                 color="orange"
                                 density="compact"
                                 label="Damaged Quantity"
@@ -2219,6 +2237,7 @@
                             <v-col cols="12" md="3">
                               <v-text-field
                                 v-model.number="p.reject_qty"
+                                autocomplete="off"
                                 color="red"
                                 density="compact"
                                 label="Reject Quantity"
@@ -2236,6 +2255,7 @@
                             <v-col cols="12" md="3">
                               <v-text-field
                                 v-model.number="p.actual_qty"
+                                autocomplete="off"
                                 color="primary"
                                 density="compact"
                                 label="Total Actual"
@@ -2275,6 +2295,7 @@
                               <v-col cols="12" md="5">
                                 <v-text-field
                                   v-model="disc.notes"
+                                  autocomplete="off"
                                   density="compact"
                                   label="Notes"
                                   variant="outlined"
@@ -2881,6 +2902,7 @@
                 <template #item.staff_id="{ item }">
                   <v-autocomplete
                     v-model="item.staff_id"
+                    autocomplete="off"
                     density="compact"
                     :disabled="!editEnabled"
                     hide-details
@@ -2905,6 +2927,7 @@
                 <template #item.notes="{ item }">
                   <v-text-field
                     v-model="item.notes"
+                    autocomplete="off"
                     density="compact"
                     :disabled="!editEnabled"
                     hide-details

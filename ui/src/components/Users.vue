@@ -19,6 +19,7 @@
         <v-card-text class="pt-6">
           <v-text-field
             v-model="state.name"
+            autocomplete="off"
             bg-color="#BDBDBD"
             :error-messages="v$.name.$errors.map((e) => e.$message)"
             label="Full Name"
@@ -28,12 +29,14 @@
 
           <v-text-field
             v-model="state.title"
+            autocomplete="off"
             bg-color="#BDBDBD"
             label="Title"
           />
 
           <v-text-field
             v-model="state.email"
+            autocomplete="off"
             bg-color="#BDBDBD"
             :error-messages="v$.email.$errors.map((e) => e.$message)"
             label="Email"
@@ -43,6 +46,7 @@
 
           <v-text-field
             v-model="state.phone"
+            autocomplete="off"
             bg-color="#BDBDBD"
             :error-messages="v$.phone.$errors.map((e) => e.$message)"
             label="Phone Number"
@@ -53,6 +57,7 @@
           <!-- MULTI ROLE SELECT -->
           <v-autocomplete
             v-model="state.roles"
+            autocomplete="off"
             bg-color="#BDBDBD"
             chips
             closable-chips
@@ -68,6 +73,7 @@
           <!-- MULTI OUTLET SELECT -->
           <v-autocomplete
             v-model="state.outlets"
+            autocomplete="off"
             bg-color="#BDBDBD"
             chips
             closable-chips
@@ -81,6 +87,7 @@
           <v-text-field
             v-model="state.password"
             :append-icon="password_show ? 'mdi-eye' : 'mdi-eye-off'"
+            autocomplete="off"
             bg-color="#BDBDBD"
             :error-messages="v$.password.$errors.map((e) => e.$message)"
             label="Password"
@@ -123,6 +130,7 @@
         <v-card-text class="pt-6">
           <v-text-field
             v-model="editingItem.id"
+            autocomplete="off"
             bg-color="#BDBDBD"
             disabled
             label="User ID"
@@ -130,6 +138,7 @@
 
           <v-text-field
             v-model="state.email"
+            autocomplete="off"
             bg-color="#BDBDBD"
             disabled
             label="Email"
@@ -137,6 +146,7 @@
 
           <v-text-field
             v-model="state.name"
+            autocomplete="off"
             bg-color="#BDBDBD"
             label="Full Name"
             @blur="v$.name.$touch"
@@ -144,12 +154,14 @@
 
           <v-text-field
             v-model="state.title"
+            autocomplete="off"
             bg-color="#BDBDBD"
             label="Title"
           />
 
           <v-text-field
             v-model="state.phone"
+            autocomplete="off"
             bg-color="#BDBDBD"
             label="Phone Number"
             @blur="v$.phone.$touch"
@@ -157,6 +169,7 @@
 
           <v-autocomplete
             v-model="state.roles"
+            autocomplete="off"
             bg-color="#BDBDBD"
             chips
             closable-chips
@@ -169,6 +182,7 @@
 
           <v-autocomplete
             v-model="state.outlets"
+            autocomplete="off"
             bg-color="#BDBDBD"
             chips
             closable-chips
@@ -182,6 +196,7 @@
           <v-text-field
             v-model="state.password"
             :append-icon="password_show ? 'mdi-eye' : 'mdi-eye-off'"
+            autocomplete="off"
             bg-color="#BDBDBD"
             label="Password"
             :type="password_show ? 'text' : 'password'"

@@ -49,6 +49,7 @@
           >
             <v-text-field
               v-model="state.username"
+              autocomplete="off"
               class="mb-4"
               color="primary"
               :error-messages="v$.username.$errors.map(e => e.$message)"
@@ -62,6 +63,7 @@
             <v-text-field
               v-model="state.password"
               :append-inner-icon="password_show ? 'mdi-eye' : 'mdi-eye-off'"
+              autocomplete="off"
               class="mb-2"
               color="primary"
               :error-messages="v$.password.$errors.map(e => e.$message)"
@@ -123,6 +125,7 @@
         <v-card-text>
           <p>Please contact the system administrator to reset your password.</p>
           <v-text-field
+            autocomplete="off"
             class="mt-4"
             label="Email"
             prepend-inner-icon="mdi-email-outline"

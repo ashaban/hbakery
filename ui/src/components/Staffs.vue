@@ -7,6 +7,7 @@
           <v-text-field
             v-model="filters.search"
             append-inner-icon="mdi-close-circle"
+            autocomplete="off"
             clearable
             label="Search Staff Name"
             @click:append-inner="filters.search = ''"
@@ -148,6 +149,7 @@
           <v-form @submit.prevent>
             <v-text-field
               v-model="state.name"
+              autocomplete="off"
               bg-color="#E0E0E0"
               :error-messages="v$.name.$errors.map((e) => e.$message)"
               label="Full Name"
@@ -157,18 +159,21 @@
 
             <v-text-field
               v-model="state.phone"
+              autocomplete="off"
               bg-color="#E0E0E0"
               label="Phone Number"
             />
 
             <v-text-field
               v-model="state.position"
+              autocomplete="off"
               bg-color="#E0E0E0"
               label="Position"
             />
 
             <v-text-field
               v-model="state.salary"
+              autocomplete="off"
               bg-color="#E0E0E0"
               :error-messages="v$.salary.$errors.map((e) => e.$message)"
               label="Salary (TSh)"
@@ -279,6 +284,7 @@
 
             <v-textarea
               v-model="contractState.notes"
+              autocomplete="off"
               label="Additional Notes"
               placeholder="Enter any additional details about the contract end..."
               rows="3"
@@ -320,12 +326,14 @@
           <v-form @submit.prevent="rehireStaff">
             <v-text-field
               v-model="rehireState.position"
+              autocomplete="off"
               label="Position *"
               required
             />
 
             <v-text-field
               v-model="rehireState.salary"
+              autocomplete="off"
               label="Salary (TSh) *"
               required
               type="number"
@@ -352,6 +360,7 @@
 
             <v-textarea
               v-model="rehireState.notes"
+              autocomplete="off"
               label="Rehire Notes"
               placeholder="Enter any notes about the rehire..."
               rows="3"

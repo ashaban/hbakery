@@ -346,6 +346,7 @@
 
             <v-textarea
               v-model="singleForm.description"
+              autocomplete="off"
               color="primary"
               label="Description"
               rows="3"
@@ -512,6 +513,7 @@
                   <td>
                     <v-autocomplete
                       v-model="row.type_id"
+                      autocomplete="off"
                       density="compact"
                       :error="hasBulkFieldError(index, 'type_id')"
                       hide-details
@@ -586,6 +588,7 @@
                   <td>
                     <v-text-field
                       v-model.number="row.amount"
+                      autocomplete="off"
                       density="compact"
                       :error="hasBulkFieldError(index, 'amount')"
                       hide-details
@@ -607,6 +610,7 @@
                   <td>
                     <v-text-field
                       v-model="row.description"
+                      autocomplete="off"
                       density="compact"
                       hide-details
                       variant="outlined"

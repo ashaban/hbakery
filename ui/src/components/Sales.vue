@@ -329,6 +329,7 @@
                     <v-combobox
                       v-model="customerSelection"
                       auto-select-first="false"
+                      autocomplete="off"
                       clearable
                       hide-no-data
                       item-title="name"
@@ -347,6 +348,7 @@
                   <v-col cols="12">
                     <v-textarea
                       v-model="form.notes"
+                      autocomplete="off"
                       label="Notes / Description"
                       placeholder="Add any notes about this sale…"
                       rows="2"
@@ -899,6 +901,7 @@
                       <v-combobox
                         v-model="d.customerSelection"
                         auto-select-first="false"
+                        autocomplete="off"
                         clearable
                         density="comfortable"
                         hide-no-data

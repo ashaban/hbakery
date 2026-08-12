@@ -46,6 +46,7 @@
           <v-col cols="12" md="6">
             <v-autocomplete
               v-model="filters.items"
+              autocomplete="off"
               chips
               clearable
               closable-chips

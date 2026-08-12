@@ -33,6 +33,12 @@ const router = createRouter({
       component: () => import("../components/Productions.vue"),
     },
     {
+      path: "/ProductionPlan",
+      name: "ProductionPlan",
+      component: () => import("../components/ProductionPlan.vue"),
+      meta: { requiresAuth: true, task: "can_see_production_plans" },
+    },
+    {
       path: "/StockTransfers",
       name: "StockTransfers",
       component: () => import("../components/StockTransfers.vue"),

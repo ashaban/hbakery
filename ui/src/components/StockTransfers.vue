@@ -331,6 +331,7 @@
                 <v-col cols="12">
                   <v-textarea
                     v-model="form.remarks"
+                    autocomplete="off"
                     label="Remarks"
                     placeholder="Add any notes about this transfer..."
                     rows="2"
@@ -732,6 +733,7 @@
                 <v-col cols="12">
                   <v-textarea
                     v-model="adjust.remarks"
+                    autocomplete="off"
                     label="Remarks"
                     placeholder="Reason for quality adjustment..."
                     required

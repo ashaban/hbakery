@@ -30,6 +30,7 @@ const outletRoutes = require("./routes/outlets");
 const purchaseRoutes = require("./routes/itempurchase");
 const productsRoutes = require("./routes/products");
 const productionRoutes = require("./routes/production");
+const productionPlansRoutes = require("./routes/productionPlans");
 const stockTransfersRoutes = require("./routes/stocktransfers");
 const salesRoutes = require("./routes/sales");
 const productOutRoutes = require("./routes/productOut");
@@ -100,7 +101,7 @@ app.use("/", express.static(`${__dirname}/gui`));
 // Authorization header.
 const apiPrefixes = [
   "/users", "/items", "/units", "/outlets", "/purchases", "/products",
-  "/productions", "/stocktransfers", "/sales", "/productOut", "/expenditures",
+  "/productions", "/productionPlans", "/stocktransfers", "/sales", "/productOut", "/expenditures",
   "/staffs", "/loans", "/customers", "/reports", "/auth", "/roles", "/tasks",
   "/isTokenActive", "/auditlog",
 ];
@@ -122,6 +123,7 @@ app.use("/outlets", outletRoutes);
 app.use("/purchases", purchaseRoutes);
 app.use("/products", productsRoutes);
 app.use("/productions", productionRoutes);
+app.use("/productionPlans", productionPlansRoutes);
 app.use("/stocktransfers", stockTransfersRoutes);
 app.use("/sales", salesRoutes);
 app.use("/productOut", productOutRoutes);

@@ -7,6 +7,7 @@
           <v-text-field
             v-model="filters.search"
             append-inner-icon="mdi-close-circle"
+            autocomplete="off"
             clearable
             label="Search Outlet Name"
             @click:append-inner="filters.search = ''"
@@ -149,6 +150,7 @@
               <v-col cols="12" sm="6">
                 <v-text-field
                   v-model="state.name"
+                  autocomplete="off"
                   bg-color="#E0E0E0"
                   :error-messages="v$.name.$errors.map((e) => e.$message)"
                   label="Outlet Name"
@@ -168,6 +170,7 @@
               <v-col cols="12">
                 <v-textarea
                   v-model="state.location"
+                  autocomplete="off"
                   bg-color="#E0E0E0"
                   label="Location"
                   rows="2"

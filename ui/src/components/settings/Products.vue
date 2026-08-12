@@ -167,6 +167,34 @@
                   spellcheck="false"
                 />
               </v-col>
+              <v-col cols="12" sm="6">
+                <v-text-field
+                  v-model="state.units_per_batch"
+                  autocomplete="off"
+                  autocorrect="off"
+                  bg-color="#E0E0E0"
+                  hint="How many pieces one mixer batch of this product yields"
+                  inputmode="none"
+                  label="Units per Batch"
+                  persistent-hint
+                  spellcheck="false"
+                  type="number"
+                />
+              </v-col>
+              <v-col cols="12" sm="6">
+                <v-text-field
+                  v-model="state.flour_kg_per_batch"
+                  autocomplete="off"
+                  autocorrect="off"
+                  bg-color="#E0E0E0"
+                  hint="How many kg of flour one mixer batch of this product needs"
+                  inputmode="none"
+                  label="Flour (kg) per Batch"
+                  persistent-hint
+                  spellcheck="false"
+                  type="number"
+                />
+              </v-col>
             </v-row>
 
             <!-- 🧩 Mandatory Ingredients Section -->
@@ -892,6 +920,8 @@ const state = reactive({
   unit: "",
   price: "",
   barcode: "",
+  units_per_batch: "",
+  flour_kg_per_batch: "",
   items: [], // Mandatory ingredients
   groups: [], // Ingredient groups
 });
@@ -1281,6 +1311,8 @@ function activateAddDialog() {
     unit: "",
     price: "",
     barcode: "",
+    units_per_batch: "",
+    flour_kg_per_batch: "",
     items: [],
     groups: [],
   });
@@ -1302,6 +1334,8 @@ async function activateEditDialog(item) {
       unit: product.unit,
       price: product.price,
       barcode: product.barcode,
+      units_per_batch: product.units_per_batch ?? "",
+      flour_kg_per_batch: product.flour_kg_per_batch ?? "",
       items: (data.items || []).map((i) => ({
         item_id: i.item_id,
         quantity_per_unit: i.quantity_per_unit,
@@ -1345,6 +1379,8 @@ async function saveProduct() {
   formData.append("unit", state.unit);
   formData.append("price", state.price);
   formData.append("barcode", state.barcode);
+  formData.append("units_per_batch", state.units_per_batch || "");
+  formData.append("flour_kg_per_batch", state.flour_kg_per_batch || "");
   formData.append("items", JSON.stringify(state.items));
   formData.append("groups", JSON.stringify(state.groups));
 

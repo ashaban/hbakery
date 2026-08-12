@@ -20,6 +20,7 @@
               <v-col cols="12" sm="6">
                 <v-text-field
                   v-model="state.name"
+                  autocomplete="off"
                   bg-color="#BDBDBD"
                   :error-messages="v$.name.$errors.map((e) => e.$message)"
                   label="Item Name"
@@ -54,6 +55,7 @@
               <v-col cols="12" sm="6">
                 <v-text-field
                   v-model="state.human_readable_unit"
+                  autocomplete="off"
                   bg-color="#BDBDBD"
                   hint="Display unit for better readability"
                   label="Human Readable Unit (e.g. kilogram, liter)"
@@ -63,6 +65,7 @@
               <v-col cols="12" sm="6">
                 <v-text-field
                   v-model="state.conversion_factor"
+                  autocomplete="off"
                   bg-color="#BDBDBD"
                   hint="How many human readable units equal 1 base unit"
                   label="Conversion Factor"
@@ -138,6 +141,7 @@
               <v-col cols="12" sm="6">
                 <v-text-field
                   v-model="editingItem.id"
+                  autocomplete="off"
                   bg-color="#BDBDBD"
                   label="ID"
                   readonly
@@ -146,6 +150,7 @@
               <v-col cols="12" sm="6">
                 <v-text-field
                   v-model="state.name"
+                  autocomplete="off"
                   bg-color="#BDBDBD"
                   clearable
                   :error-messages="v$.name.$errors.map((e) => e.$message)"
@@ -159,6 +164,7 @@
               <v-col cols="12" sm="6">
                 <v-autocomplete
                   v-model="state.unit"
+                  autocomplete="off"
                   bg-color="#BDBDBD"
                   :error-messages="v$.unit.$errors.map((e) => e.$message)"
                   :item-title="
@@ -178,6 +184,7 @@
               <v-col cols="12" sm="6">
                 <v-text-field
                   v-model="state.human_readable_unit"
+                  autocomplete="off"
                   bg-color="#BDBDBD"
                   hint="Display unit for better readability"
                   label="Human Readable Unit"
@@ -187,6 +194,7 @@
               <v-col cols="12" sm="6">
                 <v-text-field
                   v-model="state.conversion_factor"
+                  autocomplete="off"
                   bg-color="#BDBDBD"
                   hint="How many human readable units equal 1 base unit"
                   label="Conversion Factor"

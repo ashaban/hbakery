@@ -36,6 +36,7 @@
           <v-col cols="12" sm="3">
             <v-text-field
               v-model="filters.search"
+              autocomplete="off"
               clearable
               density="comfortable"
               hide-details
@@ -71,6 +72,7 @@
           <v-col cols="12" sm="2">
             <v-autocomplete
               v-model="filters.outlet_id"
+              autocomplete="off"
               clearable
               density="comfortable"
               item-title="name"
@@ -86,6 +88,7 @@
             <v-menu>
               <template #activator="{ props }">
                 <v-text-field
+                  autocomplete="off"
                   v-bind="props"
                   density="comfortable"
                   label="Date Range"

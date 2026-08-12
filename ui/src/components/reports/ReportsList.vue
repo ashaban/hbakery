@@ -22,6 +22,7 @@
         <v-col class="d-flex align-center justify-end" cols="12" md="4">
           <v-text-field
             v-model="search"
+            autocomplete="off"
             class="search-field"
             clearable
             density="comfortable"

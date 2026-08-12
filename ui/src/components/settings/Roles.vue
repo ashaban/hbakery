@@ -21,6 +21,7 @@
             <v-col cols="12" md="6">
               <v-text-field
                 v-model="roleForm.name"
+                autocomplete="off"
                 bg-color="#BDBDBD"
                 :error-messages="nameErrors"
                 label="Role technical name (admin, cashier)"
@@ -30,6 +31,7 @@
             <v-col cols="12" md="6">
               <v-text-field
                 v-model="roleForm.display"
+                autocomplete="off"
                 bg-color="#BDBDBD"
                 :error-messages="displayErrors"
                 label="Display name (Administrator, Sales Officer)"
@@ -204,6 +206,7 @@
             <v-col cols="12" md="6">
               <v-text-field
                 v-model="roleForm.name"
+                autocomplete="off"
                 bg-color="#BDBDBD"
                 :error-messages="nameErrors"
                 label="Role Technical Name"
@@ -213,6 +216,7 @@
             <v-col cols="12" md="6">
               <v-text-field
                 v-model="roleForm.display"
+                autocomplete="off"
                 bg-color="#BDBDBD"
                 :error-messages="displayErrors"
                 label="Role Display Name"
@@ -391,6 +395,7 @@
           <v-row>
             <v-col cols="12" md="6">
               <v-text-field
+                autocomplete="off"
                 bg-color="#BDBDBD"
                 label="Role Technical Name"
                 :model-value="viewRole.name"
@@ -399,6 +404,7 @@
             </v-col>
             <v-col cols="12" md="6">
               <v-text-field
+                autocomplete="off"
                 bg-color="#BDBDBD"
                 label="Role Display Name"
                 :model-value="viewRole.display"

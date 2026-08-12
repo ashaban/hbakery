@@ -7,6 +7,7 @@
           <v-text-field
             v-model="filters.search"
             append-inner-icon="mdi-close-circle"
+            autocomplete="off"
             clearable
             label="Search Cost Type"
             @click:append-inner="filters.search = ''"
@@ -147,6 +148,7 @@
               <v-col cols="12" sm="6">
                 <v-text-field
                   v-model="state.name"
+                  autocomplete="off"
                   bg-color="#E0E0E0"
                   :error-messages="v$.name.$errors.map((e) => e.$message)"
                   label="Cost Type Name"

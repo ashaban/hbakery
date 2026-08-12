@@ -316,6 +316,7 @@
                 <v-col cols="12">
                   <v-textarea
                     v-model="form.notes"
+                    autocomplete="off"
                     label="Notes"
                     placeholder="Add any notes about this giveaway..."
                     rows="2"
