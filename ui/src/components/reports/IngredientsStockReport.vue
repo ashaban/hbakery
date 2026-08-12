@@ -37,22 +37,8 @@
           <v-col cols="12" md="6">
             <div class="text-caption text-grey mb-1">Date Range</div>
             <div class="d-flex align-center gap-2">
-              <VueDatePicker
-                v-model="dateRange.start"
-                auto-apply
-                class="rounded-lg border px-4 py-2 w-100"
-                format="dd/MM/yyyy"
-                placeholder="From date"
-                :teleport="true"
-              />
-              <VueDatePicker
-                v-model="dateRange.end"
-                auto-apply
-                class="rounded-lg border px-4 py-2 w-100"
-                format="dd/MM/yyyy"
-                placeholder="To date"
-                :teleport="true"
-              />
+              <DateField v-model="dateRange.start" placeholder="From date" />
+              <DateField v-model="dateRange.end" placeholder="To date" />
             </div>
           </v-col>
 
@@ -304,6 +290,8 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
+import { formatDMY, toISODateOnly } from "@/utils/date.js";
+import DateField from "@/components/shared/DateField.vue";
 
 const loading = ref(false);
 const itemsLoading = ref(false);
@@ -406,8 +394,8 @@ const filters = reactive({
 });
 
 const dateRange = reactive({
-  start: new Date().toISOString().split("T")[0],
-  end: new Date().toISOString().split("T")[0],
+  start: formatDMY(new Date()),
+  end: formatDMY(new Date()),
 });
 
 const allItems = ref([]);
@@ -472,21 +460,12 @@ async function loadItems() {
 function buildQuery() {
   const params = new URLSearchParams();
   if (dateRange.start)
-    params.append("start_date", formatDateForApi(dateRange.start));
-  if (dateRange.end) params.append("end_date", formatDateForApi(dateRange.end));
+    params.append("start_date", toISODateOnly(dateRange.start));
+  if (dateRange.end) params.append("end_date", toISODateOnly(dateRange.end));
   if (filters.items && filters.items.length) {
     for (const id of filters.items) params.append("items", id);
   }
   return params.toString();
-}
-
-function formatDateForApi(d) {
-  // Send as YYYY-MM-DD
-  const dt = new Date(d);
-  const yyyy = dt.getFullYear();
-  const mm = String(dt.getMonth() + 1).padStart(2, "0");
-  const dd = String(dt.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
 }
 
 async function applyFilters() {
@@ -506,8 +485,8 @@ async function applyFilters() {
 
 function resetFilters() {
   filters.items = [];
-  dateRange.start = null;
-  dateRange.end = null;
+  dateRange.start = "";
+  dateRange.end = "";
   applyFilters();
 }
 

@@ -78,25 +78,17 @@
             />
           </v-col>
           <v-col cols="12" sm="2">
-            <VueDatePicker
+            <DateField
               v-model="filters.start_date"
-              auto-apply
-              format="dd/MM/yyyy"
+              label="Start Date"
               :max-date="parseFlexibleDMY(filters.end_date)"
-              model-type="format"
-              placeholder="Start Date"
-              :teleport="true"
             />
           </v-col>
           <v-col cols="12" sm="2">
-            <VueDatePicker
+            <DateField
               v-model="filters.end_date"
-              auto-apply
-              format="dd/MM/yyyy"
+              label="End Date"
               :min-date="parseFlexibleDMY(filters.start_date)"
-              model-type="format"
-              placeholder="End Date"
-              :teleport="true"
             />
           </v-col>
           <v-col class="d-flex justify-end">
@@ -548,6 +540,7 @@ import {
 import { useStore } from "vuex";
 import * as echarts from "echarts";
 import { formatDMY, parseFlexibleDMY, toISODateOnly } from "@/utils/date.js";
+import DateField from "@/components/shared/DateField.vue";
 
 const store = useStore();
 const qualityChart = ref(null);

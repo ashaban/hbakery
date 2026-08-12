@@ -162,14 +162,9 @@
                 <div class="mb-1 text-caption text-grey">
                   Production Date Range
                 </div>
-                <VueDatePicker
+                <DateRangeField
                   v-model="dateRange"
-                  auto-apply
-                  class="rounded-lg border px-4 py-2 w-100"
-                  :enable-time-picker="false"
                   placeholder="Select date range"
-                  range
-                  :teleport="true"
                 />
               </v-col>
 
@@ -448,6 +443,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
+import DateRangeField from "@/components/shared/DateRangeField.vue";
 import { use } from "echarts/core";
 import VChart from "vue-echarts";
 import { CanvasRenderer } from "echarts/renderers";

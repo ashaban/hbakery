@@ -289,13 +289,9 @@
                         />
                       </v-col>
                       <v-col cols="12" sm="4">
-                        <VueDatePicker
+                        <DateField
                           v-model="batchFilters.planned_at"
-                          auto-apply
-                          format="dd/MM/yyyy"
-                          model-type="format"
                           placeholder="Start Date"
-                          :teleport="true"
                         />
                       </v-col>
                       <v-col
@@ -303,13 +299,9 @@
                         cols="12"
                         sm="4"
                       >
-                        <VueDatePicker
+                        <DateField
                           v-model="batchFilters.planned_end"
-                          auto-apply
-                          format="dd/MM/yyyy"
-                          model-type="format"
                           placeholder="End Date"
-                          :teleport="true"
                         />
                       </v-col>
                     </v-row>
@@ -880,13 +872,9 @@
                         />
                       </v-col>
                       <v-col cols="12" sm="4">
-                        <VueDatePicker
+                        <DateField
                           v-model="filters.planned_at"
-                          auto-apply
-                          format="dd/MM/yyyy"
-                          model-type="format"
                           placeholder="Start Date"
-                          :teleport="true"
                         />
                       </v-col>
                       <v-col
@@ -894,13 +882,9 @@
                         cols="12"
                         sm="4"
                       >
-                        <VueDatePicker
+                        <DateField
                           v-model="filters.planned_end"
-                          auto-apply
-                          format="dd/MM/yyyy"
-                          model-type="format"
                           placeholder="End Date"
-                          :teleport="true"
                         />
                       </v-col>
                     </v-row>
@@ -3414,6 +3398,7 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import { toDisplay, toISO } from "@/utils/date.js";
 import DateTimeField from "@/components/shared/DateTimeField.vue";
+import DateField from "@/components/shared/DateField.vue";
 
 const itemsPerPage = ref(10);
 const loading = ref(false);

@@ -48,13 +48,9 @@
                     >Start Date</label
                   >
                 </div>
-                <VueDatePicker
+                <DateField
                   v-model="filters.start_date"
-                  auto-apply
-                  format="dd/MM/yyyy"
-                  model-type="format"
                   placeholder="Start Date"
-                  :teleport="true"
                 />
               </v-card-text>
             </v-card>
@@ -71,13 +67,9 @@
                     >End Date</label
                   >
                 </div>
-                <VueDatePicker
+                <DateField
                   v-model="filters.end_date"
-                  auto-apply
-                  format="dd/MM/yyyy"
-                  model-type="format"
                   placeholder="End Date"
-                  :teleport="true"
                 />
               </v-card-text>
             </v-card>
@@ -726,6 +718,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useStore } from "vuex";
 import { formatDMY, parseFlexibleDMY } from "@/utils/date.js";
+import DateField from "@/components/shared/DateField.vue";
 import { use } from "echarts/core";
 import VChart from "vue-echarts";
 import { CanvasRenderer } from "echarts/renderers";

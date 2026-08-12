@@ -284,14 +284,7 @@
             type="number"
             variant="outlined"
           />
-          <VueDatePicker
-            v-model="newLoan.loan_date"
-            auto-apply
-            format="dd/MM/yyyy"
-            model-type="format"
-            placeholder="Date"
-            :teleport="true"
-          />
+          <DateField v-model="newLoan.loan_date" label="Date" />
           <v-textarea
             v-model="newLoan.reason"
             density="comfortable"
@@ -367,14 +360,7 @@
             spellcheck="false"
             variant="outlined"
           />
-          <VueDatePicker
-            v-model="paymentForm.repayment_date"
-            auto-apply
-            format="dd/MM/yyyy"
-            model-type="format"
-            placeholder="Date"
-            :teleport="true"
-          />
+          <DateField v-model="paymentForm.repayment_date" label="Date" />
         </v-card-text>
         <v-card-actions class="pa-4 bg-grey-lighten-4">
           <v-spacer />
@@ -449,6 +435,7 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import { useStore } from "vuex";
 import { formatDMY, toISODateOnly } from "@/utils/date.js";
+import DateField from "@/components/shared/DateField.vue";
 
 const store = useStore();
 

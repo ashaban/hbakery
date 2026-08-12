@@ -18,23 +18,14 @@
     </template>
 
     <v-card min-width="300">
-      <v-tabs v-model="tab" color="primary" grow>
-        <v-tab value="date">Date</v-tab>
-        <v-tab value="time">Time</v-tab>
-      </v-tabs>
-      <v-window v-model="tab">
-        <v-window-item value="date">
-          <v-date-picker v-model="dateValue" hide-header show-adjacent-months />
-        </v-window-item>
-        <v-window-item value="time">
-          <v-time-picker
-            v-model="timeValue"
-            elevation="0"
-            format="24hr"
-            full-width
-          />
-        </v-window-item>
-      </v-window>
+      <!-- Date and time pickers are both always mounted (not tab-hidden) —
+           v-time-picker's clock face measures its own size on mount, and
+           if it mounts while hidden inside an inactive v-window-item it
+           computes a zero/bogus size and stays visually blank even after
+           switching to it. Stacking both avoids that class of bug. -->
+      <v-date-picker v-model="dateValue" hide-header show-adjacent-months />
+      <v-divider />
+      <v-time-picker v-model="timeValue" elevation="0" format="24hr" full-width />
       <v-card-actions>
         <v-spacer />
         <v-btn variant="text" @click="cancel">Cancel</v-btn>
@@ -61,7 +52,6 @@ const props = defineProps({
 const emit = defineEmits(["update:modelValue"]);
 
 const menu = ref(false);
-const tab = ref("date");
 const dateValue = ref(new Date());
 const timeValue = ref(moment().format("HH:mm"));
 
@@ -83,7 +73,6 @@ watch(
 
 watch(menu, (isOpen) => {
   if (isOpen) {
-    tab.value = "date";
     syncFromModelValue(props.modelValue);
   }
 });

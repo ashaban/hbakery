@@ -75,15 +75,7 @@
             />
           </v-col>
           <v-col cols="12" sm="3">
-            <VueDatePicker
-              v-model="filters.date"
-              auto-apply
-              clearable
-              format="dd/MM/yyyy"
-              model-type="format"
-              placeholder="Transfer Date"
-              :teleport="true"
-            />
+            <DateField v-model="filters.date" label="Transfer Date" />
           </v-col>
           <v-col class="d-flex justify-end" cols="12" sm="3">
             <v-btn
@@ -334,14 +326,7 @@
                   />
                 </v-col>
                 <v-col cols="12" md="6">
-                  <VueDatePicker
-                    v-model="form.movement_date"
-                    auto-apply
-                    format="dd/MM/yyyy"
-                    model-type="format"
-                    placeholder="Transfer Date"
-                    :teleport="true"
-                  />
+                  <DateField v-model="form.movement_date" label="Transfer Date" />
                 </v-col>
                 <v-col cols="12">
                   <v-textarea
@@ -1138,6 +1123,7 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import { useStore } from "vuex";
 import { formatDMY, toISODateOnly } from "@/utils/date.js";
+import DateField from "@/components/shared/DateField.vue";
 
 const store = useStore();
 

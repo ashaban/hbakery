@@ -51,26 +51,10 @@
             />
           </v-col>
           <v-col cols="12" sm="3">
-            <VueDatePicker
-              v-model="filters.start_date"
-              auto-apply
-              clearable
-              format="dd/MM/yyyy"
-              model-type="format"
-              placeholder="Start Date"
-              :teleport="true"
-            />
+            <DateField v-model="filters.start_date" label="Start Date" />
           </v-col>
           <v-col cols="12" sm="3">
-            <VueDatePicker
-              v-model="filters.end_date"
-              auto-apply
-              clearable
-              format="dd/MM/yyyy"
-              model-type="format"
-              placeholder="End Date"
-              :teleport="true"
-            />
+            <DateField v-model="filters.end_date" label="End Date" />
           </v-col>
           <v-col cols="12" sm="3">
             <v-select
@@ -358,14 +342,7 @@
                     />
                   </v-col>
                   <v-col cols="12" md="4">
-                    <VueDatePicker
-                      v-model="form.sale_date"
-                      auto-apply
-                      format="dd/MM/yyyy"
-                      model-type="format"
-                      placeholder="Sale Date"
-                      :teleport="true"
-                    />
+                    <DateField v-model="form.sale_date" label="Sale Date" required />
                   </v-col>
                   <v-col cols="12">
                     <v-textarea
@@ -834,14 +811,7 @@
                       />
                     </v-col>
                     <v-col cols="12" md="2">
-                      <VueDatePicker
-                        v-model="p.payment_date"
-                        auto-apply
-                        format="dd/MM/yyyy"
-                        model-type="format"
-                        placeholder="Payment Date"
-                        :teleport="true"
-                      />
+                      <DateField v-model="p.payment_date" label="Payment Date" />
                     </v-col>
                     <v-col class="text-right" cols="12" md="1">
                       <v-btn
@@ -1554,14 +1524,7 @@
               spellcheck="false"
               variant="outlined"
             />
-            <VueDatePicker
-              v-model="debtPaymentForm.payment_date"
-              auto-apply
-              format="dd/MM/yyyy"
-              model-type="format"
-              placeholder="Payment Date"
-              :teleport="true"
-            />
+            <DateField v-model="debtPaymentForm.payment_date" label="Payment Date" />
           </v-card-text>
           <v-card-actions class="pa-4 bg-grey-lighten-4">
             <v-spacer />
@@ -1640,6 +1603,7 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from "vue";
 import { useStore } from "vuex";
 import { formatDMY, toISODateOnly } from "@/utils/date.js";
 import { useRoute, useRouter } from "vue-router";
+import DateField from "@/components/shared/DateField.vue";
 
 const store = useStore();
 const route = useRoute();

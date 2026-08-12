@@ -83,26 +83,10 @@
             />
           </v-col>
           <v-col cols="12" sm="2">
-            <VueDatePicker
-              v-model="filters.start_date"
-              auto-apply
-              clearable
-              format="dd/MM/yyyy"
-              model-type="format"
-              placeholder="Start Date"
-              :teleport="true"
-            />
+            <DateField v-model="filters.start_date" label="Start Date" />
           </v-col>
           <v-col cols="12" sm="2">
-            <VueDatePicker
-              v-model="filters.end_date"
-              auto-apply
-              clearable
-              format="dd/MM/yyyy"
-              model-type="format"
-              placeholder="End Date"
-              :teleport="true"
-            />
+            <DateField v-model="filters.end_date" label="End Date" />
           </v-col>
           <v-col class="d-flex justify-end" cols="12" sm="12">
             <v-btn
@@ -317,14 +301,7 @@
                   />
                 </v-col>
                 <v-col cols="12" md="4">
-                  <VueDatePicker
-                    v-model="form.out_date"
-                    auto-apply
-                    format="dd/MM/yyyy"
-                    model-type="format"
-                    placeholder="Date *"
-                    :teleport="true"
-                  />
+                  <DateField v-model="form.out_date" label="Date *" required />
                 </v-col>
                 <v-col cols="12" md="4">
                   <v-select
@@ -755,6 +732,7 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useStore } from "vuex";
 import { formatDMY, toISODateOnly } from "@/utils/date.js";
+import DateField from "@/components/shared/DateField.vue";
 
 const store = useStore();
 

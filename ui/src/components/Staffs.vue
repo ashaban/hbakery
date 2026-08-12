@@ -21,15 +21,7 @@
           />
         </v-col>
         <v-col cols="12" sm="3">
-          <VueDatePicker
-            v-model="filters.hiredDate"
-            auto-apply
-            class="flex-1 border rounded-lg px-2 py-1"
-            format="dd/MM/yyyy"
-            model-type="format"
-            placeholder="From"
-            :teleport="true"
-          />
+          <DateField v-model="filters.hiredDate" placeholder="From" />
         </v-col>
         <v-col class="d-flex justify-end" cols="12">
           <v-btn color="primary" @click="applyFilters">
@@ -187,18 +179,13 @@
 
             <div class="mb-4">
               <label class="v-label text-body-2 mb-2">Hired Date *</label>
-              <VueDatePicker
+              <DateField
                 v-model="state.hired_at"
-                auto-apply
-                :class="{ 'datepicker-error': !isValidHireDate() }"
                 :clearable="false"
-                :enable-time-picker="false"
-                format="dd/MM/yyyy"
+                :error="!isValidHireDate()"
                 :max-date="new Date()"
-                model-type="format"
                 placeholder="Select Hire Date"
                 required
-                :teleport="true"
               />
               <div
                 v-if="v$.hired_at.$error || !isValidHireDate()"
@@ -259,19 +246,14 @@
           <v-form @submit.prevent="endContract">
             <div class="mb-4">
               <label class="v-label text-body-2 mb-2">End Date *</label>
-              <VueDatePicker
+              <DateField
                 v-model="contractState.end_date"
-                auto-apply
-                :class="{ 'datepicker-error': !isValidEndDate() }"
                 :clearable="false"
-                :enable-time-picker="false"
-                format="dd/MM/yyyy"
+                :error="!isValidEndDate()"
                 :max-date="new Date()"
                 :min-date="getLastStartDate()"
-                model-type="format"
                 placeholder="Select End Date"
                 required
-                :teleport="true"
               />
               <div
                 v-if="!isValidEndDate()"
@@ -351,19 +333,14 @@
 
             <div class="mb-4">
               <label class="v-label text-body-2 mb-2">Rehire Date *</label>
-              <VueDatePicker
+              <DateField
                 v-model="rehireState.rehire_date"
-                auto-apply
-                :class="{ 'datepicker-error': !isValidRehireDate() }"
                 :clearable="false"
-                :enable-time-picker="false"
-                format="dd/MM/yyyy"
+                :error="!isValidRehireDate()"
                 :max-date="new Date()"
                 :min-date="getLastEndDate()"
-                model-type="format"
                 placeholder="Select Rehire Date"
                 required
-                :teleport="true"
               />
               <div
                 v-if="!isValidRehireDate()"
@@ -563,6 +540,7 @@ import { useVuelidate } from "@vuelidate/core";
 import { minValue, required } from "@vuelidate/validators";
 import { useStore } from "vuex";
 import { formatDMY, parseFlexibleDMY } from "@/utils/date.js";
+import DateField from "@/components/shared/DateField.vue";
 
 // store
 const itemsPerPage = ref(10);
@@ -1101,30 +1079,4 @@ onMounted(() => loadValues());
   font-weight: 600;
 }
 
-.datepicker-error :deep(.dp__input) {
-  border-color: #ff5252 !important;
-}
-
-/* Style adjustments for VueDatePicker in Vuetify */
-:deep(.dp__input) {
-  height: 56px;
-  background-color: #e0e0e0;
-  border: 1px solid rgba(0, 0, 0, 0.38);
-  border-radius: 4px;
-  padding: 16px 12px;
-  font-size: 16px;
-}
-
-:deep(.dp__input:hover) {
-  border-color: rgba(0, 0, 0, 0.87);
-}
-
-:deep(.dp__input:focus) {
-  border-color: #1976d2;
-  border-width: 2px;
-}
-
-:deep(.dp__input::placeholder) {
-  color: rgba(0, 0, 0, 0.6);
-}
 </style>

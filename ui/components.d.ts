@@ -11,6 +11,8 @@ declare module 'vue' {
     AuditLog: typeof import('./src/components/reports/AuditLog.vue')['default']
     CostTypes: typeof import('./src/components/settings/CostTypes.vue')['default']
     DatabaseSettings: typeof import('./src/components/settings/DatabaseSettings.vue')['default']
+    DateField: typeof import('./src/components/shared/DateField.vue')['default']
+    DateRangeField: typeof import('./src/components/shared/DateRangeField.vue')['default']
     DateTimeField: typeof import('./src/components/shared/DateTimeField.vue')['default']
     DebtorsReport: typeof import('./src/components/DebtorsReport.vue')['default']
     Expenditures: typeof import('./src/components/Expenditures.vue')['default']

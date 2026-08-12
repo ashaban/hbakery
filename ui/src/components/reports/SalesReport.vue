@@ -162,26 +162,10 @@
             />
           </v-col>
           <v-col cols="12" sm="2">
-            <VueDatePicker
-              v-model="filters.start_date"
-              auto-apply
-              clearable
-              format="dd/MM/yyyy"
-              model-type="format"
-              placeholder="Start Date"
-              :teleport="true"
-            />
+            <DateField v-model="filters.start_date" label="Start Date" />
           </v-col>
           <v-col cols="12" sm="2">
-            <VueDatePicker
-              v-model="filters.end_date"
-              auto-apply
-              clearable
-              format="dd/MM/yyyy"
-              model-type="format"
-              placeholder="End Date"
-              :teleport="true"
-            />
+            <DateField v-model="filters.end_date" label="End Date" />
           </v-col>
           <v-col cols="12" sm="2">
             <v-select
@@ -648,6 +632,7 @@ import {
 import { useStore } from "vuex";
 import * as echarts from "echarts";
 import { formatDMY, toISODateOnly } from "@/utils/date.js";
+import DateField from "@/components/shared/DateField.vue";
 
 const store = useStore();
 

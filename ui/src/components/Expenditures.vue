@@ -127,24 +127,8 @@
               Start Date Range
             </v-card-subtitle>
             <div class="d-flex gap-2">
-              <VueDatePicker
-                v-model="filters.start_from"
-                auto-apply
-                class="flex-1 border rounded-lg px-2 py-1"
-                format="dd/MM/yyyy"
-                model-type="format"
-                placeholder="From"
-                :teleport="true"
-              />
-              <VueDatePicker
-                v-model="filters.start_to"
-                auto-apply
-                class="flex-1 border rounded-lg px-2 py-1"
-                format="dd/MM/yyyy"
-                model-type="format"
-                placeholder="To"
-                :teleport="true"
-              />
+              <DateField v-model="filters.start_from" placeholder="From" />
+              <DateField v-model="filters.start_to" placeholder="To" />
             </div>
           </v-col>
 
@@ -153,24 +137,8 @@
               >End Date Range</v-card-subtitle
             >
             <div class="d-flex gap-2">
-              <VueDatePicker
-                v-model="filters.end_from"
-                auto-apply
-                class="flex-1 border rounded-lg px-2 py-1"
-                format="dd/MM/yyyy"
-                model-type="format"
-                placeholder="From"
-                :teleport="true"
-              />
-              <VueDatePicker
-                v-model="filters.end_to"
-                auto-apply
-                class="flex-1 border rounded-lg px-2 py-1"
-                format="dd/MM/yyyy"
-                model-type="format"
-                placeholder="To"
-                :teleport="true"
-              />
+              <DateField v-model="filters.end_from" placeholder="From" />
+              <DateField v-model="filters.end_to" placeholder="To" />
             </div>
           </v-col>
           </template>
@@ -322,21 +290,10 @@
                   <label class="text-caption text-grey mb-1 required-field"
                     >Start Date *</label
                   >
-                  <VueDatePicker
+                  <DateField
                     v-model="singleForm.start_date"
-                    auto-apply
-                    :class="[
-                      'rounded-lg',
-                      'border',
-                      'px-2',
-                      'py-1',
-                      'w-100',
-                      singleErrors.start_date ? 'error-field' : '',
-                    ]"
-                    format="dd/MM/yyyy"
-                    model-type="format"
+                    :error="!!singleErrors.start_date"
                     placeholder="Start Date"
-                    :teleport="true"
                     @blur="validateSingleField('start_date')"
                     @update:model-value="clearSingleError('start_date')"
                   />
@@ -353,21 +310,10 @@
                   <label class="text-caption text-grey mb-1 required-field"
                     >End Date *</label
                   >
-                  <VueDatePicker
+                  <DateField
                     v-model="singleForm.end_date"
-                    auto-apply
-                    :class="[
-                      'rounded-lg',
-                      'border',
-                      'px-2',
-                      'py-1',
-                      'w-100',
-                      singleErrors.end_date ? 'error-field' : '',
-                    ]"
-                    format="dd/MM/yyyy"
-                    model-type="format"
+                    :error="!!singleErrors.end_date"
                     placeholder="End Date"
-                    :teleport="true"
                     @blur="validateSingleField('end_date')"
                     @update:model-value="validateSingleDateRange()"
                   />
@@ -466,14 +412,9 @@
                           <label class="text-caption text-grey mb-1"
                             >Start Date</label
                           >
-                          <VueDatePicker
+                          <DateField
                             v-model="bulkOptions.commonStartDate"
-                            auto-apply
-                            class="border rounded-lg px-2 py-1 w-100"
-                            format="dd/MM/yyyy"
-                            model-type="format"
                             placeholder="Start Date"
-                            :teleport="true"
                             @update:model-value="applyCommonStartDate"
                           />
                         </div>
@@ -483,14 +424,9 @@
                           <label class="text-caption text-grey mb-1"
                             >End Date</label
                           >
-                          <VueDatePicker
+                          <DateField
                             v-model="bulkOptions.commonEndDate"
-                            auto-apply
-                            class="border rounded-lg px-2 py-1 w-100"
-                            format="dd/MM/yyyy"
-                            model-type="format"
                             placeholder="End Date"
-                            :teleport="true"
                             @update:model-value="applyCommonEndDate"
                           />
                         </div>
@@ -597,22 +533,10 @@
                   <!-- Individual Dates (when sameDates is false) -->
                   <td v-if="!bulkOptions.sameDates">
                     <div class="d-flex flex-column">
-                      <VueDatePicker
+                      <DateField
                         v-model="row.start_date"
-                        auto-apply
-                        :class="[
-                          'border',
-                          'rounded-lg',
-                          'px-2',
-                          'py-1',
-                          hasBulkFieldError(index, 'start_date')
-                            ? 'error-field'
-                            : '',
-                        ]"
-                        format="dd/MM/yyyy"
-                        model-type="format"
+                        :error="hasBulkFieldError(index, 'start_date')"
                         placeholder="Start Date"
-                        :teleport="true"
                         @blur="validateBulkField(index, 'start_date')"
                         @update:model-value="
                           clearBulkError(index, 'start_date')
@@ -629,22 +553,10 @@
 
                   <td v-if="!bulkOptions.sameDates">
                     <div class="d-flex flex-column">
-                      <VueDatePicker
+                      <DateField
                         v-model="row.end_date"
-                        auto-apply
-                        :class="[
-                          'border',
-                          'rounded-lg',
-                          'px-2',
-                          'py-1',
-                          hasBulkFieldError(index, 'end_date')
-                            ? 'error-field'
-                            : '',
-                        ]"
-                        format="dd/MM/yyyy"
-                        model-type="format"
+                        :error="hasBulkFieldError(index, 'end_date')"
                         placeholder="End Date"
-                        :teleport="true"
                         @blur="validateBulkField(index, 'end_date')"
                         @update:model-value="validateBulkDateRange(index)"
                       />
@@ -815,6 +727,7 @@ import { useStore } from "vuex";
 import moment from "moment";
 import { DATE_RANGE_PRESETS, getDateRangePreset } from "@/utils/dateRangePresets";
 import { formatDMY } from "@/utils/date.js";
+import DateField from "@/components/shared/DateField.vue";
 
 const store = useStore();
 
@@ -1527,10 +1440,6 @@ onMounted(async () => {
 .required-field::after {
   content: " *";
   color: red;
-}
-.error-field {
-  border-color: #ff5252 !important;
-  border-width: 2px !important;
 }
 .text-error {
   color: #ff5252;

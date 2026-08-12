@@ -125,15 +125,7 @@
               <v-card-subtitle class="pl-0 pb-1 text-caption text-grey">
                 Select Date
               </v-card-subtitle>
-              <VueDatePicker
-                v-model="filters.date"
-                auto-apply
-                class="border rounded-lg px-4 py-2"
-                format="dd/MM/yyyy"
-                model-type="format"
-                placeholder="Select Date"
-                :teleport="true"
-              />
+              <DateField v-model="filters.date" placeholder="Select Date" />
             </template>
 
             <template v-if="filters.date_operator === 'in'">
@@ -141,24 +133,8 @@
                 Date Range
               </v-card-subtitle>
               <div class="d-flex gap-2">
-                <VueDatePicker
-                  v-model="filters.date_from"
-                  auto-apply
-                  class="flex-1 border rounded-lg px-2 py-1"
-                  format="dd/MM/yyyy"
-                  model-type="format"
-                  placeholder="From"
-                  :teleport="true"
-                />
-                <VueDatePicker
-                  v-model="filters.date_to"
-                  auto-apply
-                  class="flex-1 border rounded-lg px-2 py-1"
-                  format="dd/MM/yyyy"
-                  model-type="format"
-                  placeholder="To"
-                  :teleport="true"
-                />
+                <DateField v-model="filters.date_from" placeholder="From" />
+                <DateField v-model="filters.date_to" placeholder="To" />
               </div>
             </template>
           </v-col>
@@ -400,21 +376,10 @@
               <label class="text-caption text-grey mb-1 required-field"
                 >Purchase Date *</label
               >
-              <VueDatePicker
+              <DateField
                 v-model="form.date"
-                auto-apply
-                :class="[
-                  'rounded-lg',
-                  'border',
-                  'px-4',
-                  'py-2',
-                  'w-100',
-                  errors.date ? 'error-field' : '',
-                ]"
-                format="dd/MM/yyyy"
-                model-type="format"
+                :error="!!errors.date"
                 placeholder="Purchase Date"
-                :teleport="true"
                 @blur="validateField('date')"
                 @update:model-value="clearError('date')"
               />
@@ -568,21 +533,10 @@
               <label class="text-caption text-grey mb-1 required-field"
                 >Purchase Date *</label
               >
-              <VueDatePicker
+              <DateField
                 v-model="form.date"
-                auto-apply
-                :class="[
-                  'rounded-lg',
-                  'border',
-                  'px-4',
-                  'py-2',
-                  'w-100',
-                  errors.date ? 'error-field' : '',
-                ]"
-                format="dd/MM/yyyy"
-                model-type="format"
+                :error="!!errors.date"
                 placeholder="Purchase Date"
-                :teleport="true"
                 @blur="validateField('date')"
                 @update:model-value="clearError('date')"
               />
@@ -624,6 +578,7 @@ import { computed, onMounted, reactive, ref } from "vue";
 import { useStore } from "vuex";
 import moment from "moment";
 import { DATE_RANGE_PRESETS, getDateRangePreset } from "@/utils/dateRangePresets";
+import DateField from "@/components/shared/DateField.vue";
 
 const store = useStore();
 
@@ -1053,10 +1008,6 @@ onMounted(async () => {
 .required-field::after {
   content: " *";
   color: red;
-}
-.error-field {
-  border-color: #ff5252 !important;
-  border-width: 2px !important;
 }
 .text-error {
   color: #ff5252;
