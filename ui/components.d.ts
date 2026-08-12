@@ -26,6 +26,7 @@ declare module 'vue' {
     Logout: typeof import('./src/components/Logout.vue')['default']
     MarginDashboard: typeof import('./src/components/MarginDashboard.vue')['default']
     Outlets: typeof import('./src/components/settings/Outlets.vue')['default']
+    Payables: typeof import('./src/components/Payables.vue')['default']
     ProductionPlan: typeof import('./src/components/ProductionPlan.vue')['default']
     Productions: typeof import('./src/components/Productions.vue')['default']
     Products: typeof import('./src/components/settings/Products.vue')['default']

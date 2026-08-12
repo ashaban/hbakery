@@ -459,6 +459,32 @@
         </v-list-item>
 
         <v-list-item
+          v-if="$store.getters.hasTask('can_see_payables')"
+          active-class="menu-item--active"
+          class="menu-item rounded-xl"
+          to="Payables"
+          value="Payables"
+        >
+          <template #prepend>
+            <v-avatar
+              class="menu-avatar"
+              color="deep-orange-lighten-5"
+              rounded="lg"
+              size="42"
+            >
+              <v-icon
+                color="deep-orange-darken-2"
+                icon="mdi-cash-minus"
+                size="20"
+              />
+            </v-avatar>
+          </template>
+          <v-list-item-title class="font-weight-medium menu-title">
+            Payables
+          </v-list-item-title>
+        </v-list-item>
+
+        <v-list-item
           v-if="$store.getters.hasTask('can_see_users')"
           active-class="menu-item--active"
           class="menu-item rounded-xl"

@@ -38,6 +38,7 @@ const expenditureRoutes = require("./routes/expenditure");
 const staffRoutes = require("./routes/staffs");
 const customersRoutes = require("./routes/customers");
 const loansRoutes = require("./routes/loans");
+const payablesRoutes = require("./routes/payables");
 const reportRoutes = require("./routes/reports");
 const authRoutes = require("./routes/auth");
 const roleRoutes = require("./routes/roles");
@@ -102,7 +103,7 @@ app.use("/", express.static(`${__dirname}/gui`));
 const apiPrefixes = [
   "/users", "/items", "/units", "/outlets", "/purchases", "/products",
   "/productions", "/productionPlans", "/stocktransfers", "/sales", "/productOut", "/expenditures",
-  "/staffs", "/loans", "/customers", "/reports", "/auth", "/roles", "/tasks",
+  "/staffs", "/loans", "/payables", "/customers", "/reports", "/auth", "/roles", "/tasks",
   "/isTokenActive", "/auditlog",
 ];
 app.use((req, res, next) => {
@@ -130,6 +131,7 @@ app.use("/productOut", productOutRoutes);
 app.use("/expenditures", expenditureRoutes);
 app.use("/staffs", staffRoutes);
 app.use("/loans", loansRoutes);
+app.use("/payables", payablesRoutes);
 app.use("/customers", customersRoutes);
 app.use("/reports", reportRoutes);
 app.use("/auth", authRoutes);

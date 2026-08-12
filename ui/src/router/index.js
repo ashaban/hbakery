@@ -93,6 +93,12 @@ const router = createRouter({
       meta: { requiresAuth: true, task: "can_see_loans" },
     },
     {
+      path: "/Payables",
+      name: "Payables",
+      component: () => import("../components/Payables.vue"),
+      meta: { requiresAuth: true, task: "can_see_payables" },
+    },
+    {
       path: "/Users",
       name: "Users",
       component: () => import("../components/Users.vue"),

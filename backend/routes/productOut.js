@@ -166,11 +166,15 @@ router.put("/:id", requireTask("can_edit_free_release"), async (req, res) => {
       return res.status(404).json({ error: "Record not found or cancelled" });
     }
 
-    // Validate new items stock first
-    await validateOutAvailability(client, outlet_id, items);
-
-    // Remove previous ledger for this OUT (we’ll reapply from items)
+    // Undo this record's own existing ledger reservation first — otherwise
+    // validateOutAvailability checks the new quantities against a stock
+    // pool that still excludes what this same record already deducted,
+    // making an unchanged or reduced line falsely look insufficient (same
+    // class of bug fixed on the stock-transfer edit flow).
     await undoOutLedger(client, id);
+
+    // Validate new items against the now-accurate available stock
+    await validateOutAvailability(client, outlet_id, items);
 
     // Update header
     await client.query(

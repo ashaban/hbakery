@@ -773,6 +773,11 @@ const form = reactive({
   reason: "CHARITY",
   notes: "",
   items: [],
+  // Snapshot of the items as they were before editing started — an
+  // existing giveaway already deducted its own quantities from stock, so
+  // re-checking "available" against current stock alone would wrongly
+  // flag every unchanged line as insufficient. See fetchItemAvailability.
+  originalItems: [],
 });
 
 // Validation
@@ -910,6 +915,20 @@ async function fetchItemAvailability(it) {
     );
     const data = await res.json();
     it.stockData = data.stock || { GOOD: 0, DAMAGED: 0, EXPIRED: 0 };
+
+    // If editing, this record's own original quantity for this exact
+    // product+quality was already deducted from the stock the API just
+    // returned — add it back so unchanged/reduced lines don't show as
+    // "insufficient stock" against a pool that already excludes them.
+    if (isEditing.value && it.quality) {
+      const original = form.originalItems.find(
+        (orig) => orig.product_id === it.product_id && orig.quality === it.quality,
+      );
+      if (original) {
+        it.stockData[it.quality] =
+          (Number(it.stockData[it.quality]) || 0) + Number(original.quantity);
+      }
+    }
   } catch (err) {
     console.error("Stock check failed:", err);
     it.stockData = null;
@@ -1025,6 +1044,11 @@ async function openEditDialog(row) {
     form.notes = data.out.notes || "";
 
     // Items
+    form.originalItems = (data.items || []).map((li) => ({
+      product_id: li.product_id,
+      quality: li.quality,
+      quantity: Number(li.quantity),
+    }));
     form.items = (data.items || []).map((li) => ({
       product_id: li.product_id,
       quality: li.quality,
@@ -1033,7 +1057,8 @@ async function openEditDialog(row) {
       stockData: null,
     }));
 
-    // Stock preload
+    // Stock preload — after originalItems is populated, so the addback
+    // in fetchItemAvailability has something to match against.
     for (const it of form.items) await fetchItemAvailability(it);
 
     validateForm();
@@ -1079,6 +1104,7 @@ function resetForm() {
   form.reason = "CHARITY";
   form.notes = "";
   form.items = [];
+  form.originalItems = [];
   validationErrors.value = [];
 }
 
