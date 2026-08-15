@@ -1,0 +1,8 @@
+{
+  "appId": "tz.co.hanein.bakery",
+  "appName": "Hanein Bakery Admin",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  }
+}

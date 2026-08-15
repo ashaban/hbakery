@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Video Recording Script — Cancelling a Production</title>
+<style>
+  @page { size: A4 landscape; margin: 14mm 12mm; }
+  :root {
+    --ink:#1a1a1a; --muted:#5c5c5c; --rule:#d8d8d8;
+    --accent:#8b1a1a; --tint:#faf7f7; --ok:#1d6b3a; --warn:#8a5a00;
+  }
+  * { box-sizing:border-box; }
+  body { font-family:"Segoe UI",Roboto,Helvetica,Arial,sans-serif; color:var(--ink);
+         font-size:9.5pt; line-height:1.45; margin:0; }
+  .titleblock { border-bottom:3px solid var(--accent); padding-bottom:12px; margin-bottom:18px; }
+  .eyebrow { font-size:8pt; letter-spacing:.14em; text-transform:uppercase;
+             color:var(--accent); font-weight:700; margin-bottom:5px; }
+  h1 { font-size:20pt; line-height:1.15; margin:0 0 6px; font-weight:700; }
+  .subtitle { color:var(--muted); font-size:10.5pt; margin:0; }
+  h2 { font-size:12pt; margin:20px 0 8px; padding-bottom:4px;
+       border-bottom:1px solid var(--rule); font-weight:700; }
+  p { margin:0 0 9px; }
+  .callout { border-left:4px solid var(--accent); background:var(--tint);
+             padding:9px 12px; margin:12px 0; font-size:9pt; }
+  .callout strong { display:block; margin-bottom:3px; }
+  ul.plain { margin:0 0 10px; padding-left:18px; }
+  ul.plain li { margin-bottom:4px; }
+  table { width:100%; border-collapse:collapse; margin:10px 0 14px; font-size:8.7pt; }
+  th { text-align:left; background:#f1efef; padding:7px 8px;
+       border-bottom:2px solid var(--rule); font-weight:700; }
+  td { padding:7px 8px; border-bottom:1px solid var(--rule); vertical-align:top; }
+  tr { page-break-inside:avoid; }
+  .shot { font-weight:700; color:var(--accent); white-space:nowrap; }
+  .time { color:var(--muted); font-size:8pt; white-space:nowrap; }
+  .sw { color:#333; font-style:italic; }
+  .action { font-size:8.4pt; }
+  code { font-family:"Consolas","Courier New",monospace; background:#f0eeee;
+         padding:1px 4px; border-radius:3px; font-size:8.2pt; }
+  .pill { display:inline-block; padding:1px 7px; border-radius:10px;
+          font-size:8pt; font-weight:700; white-space:nowrap; }
+  .pill-grey{background:#e4e4e4;color:#444;}
+  .pagebreak { page-break-before:always; }
+  footer.note { margin-top:20px; padding-top:9px; border-top:1px solid var(--rule);
+                font-size:8pt; color:var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="titleblock">
+  <div class="eyebrow">Hanein Bakery &middot; Video Recording Script</div>
+  <h1>Cancelling a Production — Screen Recording Guide</h1>
+  <p class="subtitle">Shot-by-shot script for recording a ~3 minute training video. Narration given in English and Swahili.</p>
+</div>
+
+<h2>Before you record</h2>
+<ul class="plain">
+  <li><strong>Use test data, not real production data.</strong> Create a practice batch with 2–3 products so nothing real gets cancelled on camera.</li>
+  <li><strong>Log in as a user who has the cancel permission</strong>, otherwise the buttons won't appear.</li>
+  <li><strong>Prepare a second batch that already has actual quantities recorded</strong> — you'll need it for Shot 9 (showing the refusal).</li>
+  <li><strong>Note the ingredient stock figures before you start</strong> (Purchases &rarr; ingredient stock). You'll show them again after cancelling to prove the ingredients came back.</li>
+  <li>Close unrelated browser tabs, set browser zoom to 100%, and record at 1920×1080.</li>
+  <li>Hide any sensitive figures you don't want on a training video.</li>
+</ul>
+
+<div class="callout">
+  <strong>Tip: record the screen first, add narration after</strong>
+  Doing the clicks silently and then recording the voice over the footage is far easier
+  than trying to talk and click at the same time — and lets you re-record the narration
+  in Swahili without re-doing the screen capture.
+</div>
+
+<h2>Shot list</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width:5%">Shot</th>
+      <th style="width:25%">On screen / action</th>
+      <th style="width:32%">Narration — English</th>
+      <th style="width:32%">Narration — Swahili</th>
+      <th style="width:6%">Time</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="shot">1</td>
+      <td class="action">Productions list open, showing a few batches.</td>
+      <td>"When we plan a production, the system sets aside the ingredients it will need. But sometimes a production doesn't happen — the oven breaks, or staff don't come in. This video shows how to cancel it and get those ingredients back."</td>
+      <td class="sw">"Tunapopanga uzalishaji, mfumo hutenga viungo vitakavyohitajika. Lakini wakati mwingine uzalishaji haufanyiki — oveni imeharibika, au wafanyakazi hawakufika. Video hii inaonyesha jinsi ya kughairi na kurudisha viungo hivyo."</td>
+      <td class="time">0:00</td>
+    </tr>
+    <tr>
+      <td class="shot">2</td>
+      <td class="action">Go to Purchases / ingredient stock. Point at the available quantity of one ingredient (e.g. Wheatflour). Pause on the number.</td>
+      <td>"First, note the flour we have available right now — remember this number."</td>
+      <td class="sw">"Kwanza, angalia unga tulionao sasa hivi — kumbuka namba hii."</td>
+      <td class="time">0:20</td>
+    </tr>
+    <tr>
+      <td class="shot">3</td>
+      <td class="action">Back to Productions. Click <strong>View Batch Details</strong> on the practice batch.</td>
+      <td>"Now open the batch. Click View Batch Details."</td>
+      <td class="sw">"Sasa fungua batch. Bonyeza View Batch Details."</td>
+      <td class="time">0:35</td>
+    </tr>
+    <tr>
+      <td class="shot">4</td>
+      <td class="action">Scroll to <strong>Products in Batch</strong>. Hover slowly over the row of the product that "wasn't made".</td>
+      <td>"Here are the products in this batch. Let's say this one was never made — the dough didn't rise."</td>
+      <td class="sw">"Hizi ndizo bidhaa zilizomo kwenye batch hii. Tuseme hii haikutengenezwa — donge halikuumuka."</td>
+      <td class="time">0:45</td>
+    </tr>
+    <tr>
+      <td class="shot">5</td>
+      <td class="action">Click the red <strong>Cancel</strong> button on that row. Dialog opens.</td>
+      <td>"Click Cancel on that row. The system tells you exactly what will happen — this product will be cancelled, and its ingredients released back to stock."</td>
+      <td class="sw">"Bonyeza Cancel kwenye safu hiyo. Mfumo unakuambia kitakachotokea — bidhaa hii itaghairiwa, na viungo vyake vitarudi stoo."</td>
+      <td class="time">0:55</td>
+    </tr>
+    <tr>
+      <td class="shot">6</td>
+      <td class="action">Type a reason slowly, e.g. "Dough did not rise". Then click <strong>Cancel &amp; release ingredients</strong>.</td>
+      <td>"Type a short reason. This isn't required, but it's saved with the record, so always write one — later you'll want to know why. Then confirm."</td>
+      <td class="sw">"Andika sababu kwa ufupi. Si lazima, lakini inahifadhiwa kwenye kumbukumbu, hivyo andika kila wakati — baadaye utataka kujua kwa nini. Kisha thibitisha."</td>
+      <td class="time">1:10</td>
+    </tr>
+    <tr>
+      <td class="shot">7</td>
+      <td class="action">Dialog closes. Zoom/point at the grey <span class="pill pill-grey">Cancelled</span> tag on the row. Hover it so the tooltip shows who/when/why.</td>
+      <td>"The product now shows Cancelled. Notice it hasn't disappeared — it stays here with who cancelled it, when, and the reason. Cancelling is not deleting."</td>
+      <td class="sw">"Bidhaa sasa inaonyesha Cancelled. Angalia haijapotea — inabaki hapa ikionyesha nani aliighairi, lini, na sababu. Kughairi si kufuta."</td>
+      <td class="time">1:25</td>
+    </tr>
+    <tr>
+      <td class="shot">8</td>
+      <td class="action">Go back to ingredient stock. Point at the same ingredient — the number has gone up.</td>
+      <td>"And here's the important part — look at the flour again. It's gone back up. Those ingredients are free to use for another production today."</td>
+      <td class="sw">"Na hapa ndipo muhimu — angalia unga tena. Umeongezeka. Viungo hivyo sasa vinaweza kutumika kwa uzalishaji mwingine leo."</td>
+      <td class="time">1:40</td>
+    </tr>
+    <tr>
+      <td class="shot">9</td>
+      <td class="action">Open the batch that already has actual quantities recorded. Show that the Cancel button is <em>not</em> there on a produced row.</td>
+      <td>"One important rule. If actual production has already been recorded, you can't cancel it — see, there's no Cancel button here. The bread really exists, and may already be at a shop. To fix a mistake there, edit the actual quantities instead."</td>
+      <td class="sw">"Kanuni moja muhimu. Kama kiasi halisi tayari kimeingizwa, huwezi kughairi — angalia, hakuna kitufe cha Cancel hapa. Mikate ipo kweli, na huenda tayari iko dukani. Kurekebisha kosa hapo, hariri kiasi halisi badala yake."</td>
+      <td class="time">1:55</td>
+    </tr>
+    <tr>
+      <td class="shot">10</td>
+      <td class="action">Back to the practice batch. Click <strong>Cancel Batch</strong> at the top right. Show the dialog, then confirm.</td>
+      <td>"If the whole day was called off, use Cancel Batch at the top instead. That cancels everything still remaining in the batch and releases all their ingredients at once."</td>
+      <td class="sw">"Kama uzalishaji wote wa siku ulisitishwa, tumia Cancel Batch juu badala yake. Hiyo inaghairi kila kilichobaki kwenye batch na kurudisha viungo vyote kwa mara moja."</td>
+      <td class="time">2:15</td>
+    </tr>
+    <tr>
+      <td class="shot">11</td>
+      <td class="action">Show the batch now marked <span class="pill pill-grey">Cancelled</span> in the batch list.</td>
+      <td>"The whole batch is now marked Cancelled."</td>
+      <td class="sw">"Batch nzima sasa imewekwa alama ya Cancelled."</td>
+      <td class="time">2:35</td>
+    </tr>
+    <tr>
+      <td class="shot">12</td>
+      <td class="action">Return to Productions list. Hold still for the closing line.</td>
+      <td>"So: cancel when a planned production didn't happen, and the ingredients come straight back. If it was made — even partly — record the actual quantity instead. Always write a reason."</td>
+      <td class="sw">"Kwa hiyo: ghairi pale mpango wa uzalishaji haukutekelezwa, na viungo vitarudi papo hapo. Kama ulitengenezwa — hata kwa sehemu — ingiza kiasi halisi badala yake. Andika sababu kila wakati."</td>
+      <td class="time">2:45</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Recording tips</h2>
+<ul class="plain">
+  <li><strong>Move the mouse slowly.</strong> Fast cursor movement is the most common reason training videos are hard to follow.</li>
+  <li><strong>Pause 2 seconds after every click</strong> before moving on, so viewers can see what changed.</li>
+  <li><strong>Say button names exactly as they appear</strong> ("View Batch Details", not "the details button") — the app is in English even when narrating in Swahili.</li>
+  <li><strong>Shots 2 and 8 are the most valuable in the whole video.</strong> Showing the stock number before and after is what makes people trust the feature. Don't rush them.</li>
+  <li>If you fluff a line, pause, then repeat the whole sentence — it's much easier to cut in editing than a half-sentence.</li>
+</ul>
+
+<footer class="note">
+  Hanein Bakery Management System — Video Recording Script, Cancelling a Production.
+</footer>
+
+</body>
+</html>

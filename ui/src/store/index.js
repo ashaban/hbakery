@@ -1,5 +1,6 @@
 import { createStore } from "vuex";
 import router from "../router";
+import { resolveApiUrl } from "../lib/apiBase";
 
 const { fetch: originalFetch } = window;
 
@@ -166,6 +167,12 @@ const store = createStore({
 window.fetch = async (...args) => {
   let [resource, config] = args;
   const token = store.state.auth.token;
+
+  // In the Capacitor build the WebView serves the app from the device
+  // itself, so every relative "/whatever" call in the codebase — there
+  // are hundreds — otherwise asks the phone for the API instead of the
+  // real server. See lib/apiBase.js.
+  resource = resolveApiUrl(resource);
 
   if (token) {
     if (!config || !config.headers) {

@@ -4,6 +4,7 @@ import Vue from "@vitejs/plugin-vue";
 import Vuetify, { transformAssetUrls } from "vite-plugin-vuetify";
 import Fonts from "unplugin-fonts/vite";
 import VueRouter from "unplugin-vue-router/vite";
+import { VitePWA } from "vite-plugin-pwa";
 
 // Utilities
 import { defineConfig } from "vite";
@@ -34,6 +35,51 @@ export default defineConfig({
           },
         ],
       },
+    }),
+    VitePWA({
+      // No push/notificationclick handling needed (hbakery has no
+      // notification system), so the auto-generated service worker
+      // (offline app-shell precache + navigation fallback) is enough —
+      // no reason to hand-write one via injectManifest.
+      strategies: "generateSW",
+      registerType: "autoUpdate",
+      workbox: {
+        // A couple of the app's JS chunks run past the default 2MB
+        // precache ceiling; without raising it those chunks are silently
+        // dropped from the offline shell instead of erroring loudly.
+        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+        // The backend's own API routes must never be answered from the
+        // precached shell — an offline "200 index.html" standing in for
+        // real data would be worse than the app's normal error state.
+        navigateFallbackDenylist: [
+          // Lowercase only, deliberately: the API path is /orders while
+          // the SPA's own page is /Orders, and these must not collide.
+          /^\/(users|items|units|outlets|purchases|products|productions|productionPlans|stocktransfers|sales|productOut|expenditures|staffs|loans|payables|customers|reports|auth|roles|tasks|isTokenActive|auditlog|orders|geo|customerAuth|shop)(\/|$)/,
+        ],
+      },
+      manifest: {
+        name: "Hanein Bakery — Bakery Management System",
+        short_name: "Hanein Bakery",
+        description:
+          "Production, sales, stock and staff management for Hanein Bakery.",
+        theme_color: "#1867C0",
+        background_color: "#1867C0",
+        display: "standalone",
+        start_url: "/",
+        scope: "/",
+        lang: "en",
+        icons: [
+          { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
+          { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+          {
+            src: "/icon-maskable-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable",
+          },
+        ],
+      },
+      devOptions: { enabled: false },
     }),
   ],
   optimizeDeps: {

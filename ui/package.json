@@ -1,5 +1,5 @@
 {
-  "name": "Agricultural Public And Private Sector Investments Tracking System",
+  "name": "hbakery-client",
   "private": true,
   "type": "module",
   "version": "0.0.0",
@@ -7,9 +7,16 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint . --fix"
+    "lint": "eslint . --fix",
+    "build:app": "vite build && npx cap sync android",
+    "apk": "npm run build:app && cd android && ./gradlew assembleDebug"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/status-bar": "^8.0.3",
     "@fontsource/roboto": "5.2.5",
     "@mdi/font": "7.4.47",
     "@vuelidate/core": "^2.0.3",
@@ -43,6 +50,7 @@
     "unplugin-vue-components": "^28.4.1",
     "unplugin-vue-router": "^0.12.0",
     "vite": "^6.2.2",
+    "vite-plugin-pwa": "^1.3.0",
     "vite-plugin-vuetify": "^2.1.1"
   }
 }

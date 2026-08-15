@@ -1,6 +1,36 @@
 // app.js
 const express = require("express");
+const cors = require("cors");
 const app = express();
+
+// The Capacitor Android apps serve their bundled files from the device
+// itself, so their requests arrive cross-origin from the WebView's own
+// scheme (https://localhost on Android, capacitor://localhost on iOS)
+// rather than from the real site address — neither can be spoofed by a
+// web page, since both are the app itself. Without this the APK gets a
+// CORS failure on every call, surfacing as a login that never completes.
+//
+// Both apps — the staff one (tz.co.hanein.bakery) and the customer
+// ordering one (tz.co.hanein.shop) — share this same WebView origin, so
+// one entry covers both.
+const allowedOrigins = [
+  "https://hanein.co.tz",
+  "https://localhost",
+  "capacitor://localhost",
+];
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // No Origin header at all: same-origin browser requests, curl, the
+      // mobile WebView's own asset loads. Nothing to check.
+      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+      // Withhold the headers rather than throwing: the browser then blocks
+      // the response itself, which is the actual enforcement. Throwing
+      // would turn a routine cross-origin probe into a 500 in the logs.
+      callback(null, false);
+    },
+  })
+);
 
 // Last-resort safety net: an unhandled rejection (e.g. a ROLLBACK that
 // itself throws) must never silently crash the server mid-transaction.
@@ -44,6 +74,11 @@ const authRoutes = require("./routes/auth");
 const roleRoutes = require("./routes/roles");
 const taskRoutes = require("./routes/tasks");
 const auditLogRoutes = require("./routes/auditlog");
+const ordersRoutes = require("./routes/orders");
+const geoRoutes = require("./routes/geo");
+const customerAuthRoutes = require("./routes/customerAuth");
+const shopRoutes = require("./routes/shop");
+const { CUSTOMER_TOKEN_TYPE } = require("./middleware/customerAuth");
 
 const jwtValidator = function (req, res, next) {
   let allowedPaths = ["/auth/login", "/auth/refreshToken"];
@@ -59,7 +94,6 @@ const jwtValidator = function (req, res, next) {
     req.headers.authorization.split(" ").length !== 2
   ) {
     console.error("Token is missing");
-    res.set("Access-Control-Allow-Origin", "*");
     res.set("WWW-Authenticate", 'Bearer realm="Token is required"');
     res.set("charset", "utf - 8");
     res.status(401).json({
@@ -71,16 +105,23 @@ const jwtValidator = function (req, res, next) {
     jwt.verify(token, config.get("auth:secret"), (err, decoded) => {
       if (err) {
         console.warn("Token expired");
-        res.set("Access-Control-Allow-Origin", "*");
         res.set("WWW-Authenticate", 'Bearer realm="Token expired"');
         res.set("charset", "utf - 8");
         res.status(401).json({
           error: "Token expired",
         });
+      } else if (decoded && decoded.type === CUSTOMER_TOKEN_TYPE) {
+        // Customer app tokens are signed with the same secret, so they
+        // verify here just fine — but they must never reach a staff
+        // route. Most are task-gated and a customer token carries no
+        // tasks, but a few (e.g. GET /customers) are not, and that one
+        // would hand a customer the entire customer list. Stop the whole
+        // class of problem at the door rather than route by route.
+        console.warn("Customer token rejected on staff route", req.path);
+        res.status(403).json({ error: "Forbidden" });
       } else {
         req.user = decoded;
         if (req.path == "/isTokenActive/") {
-          res.set("Access-Control-Allow-Origin", "*");
           res.status(200).send(true);
         } else {
           return next();
@@ -104,7 +145,7 @@ const apiPrefixes = [
   "/users", "/items", "/units", "/outlets", "/purchases", "/products",
   "/productions", "/productionPlans", "/stocktransfers", "/sales", "/productOut", "/expenditures",
   "/staffs", "/loans", "/payables", "/customers", "/reports", "/auth", "/roles", "/tasks",
-  "/isTokenActive", "/auditlog",
+  "/isTokenActive", "/auditlog", "/orders", "/geo", "/customerAuth", "/shop",
 ];
 app.use((req, res, next) => {
   const isApiRequest = apiPrefixes.some(
@@ -116,7 +157,18 @@ app.use((req, res, next) => {
   res.sendFile(`${__dirname}/gui/index.html`);
 });
 
+// ── Client mobile app ────────────────────────────────────────────────
+// Mounted BEFORE jwtValidator, which only understands staff tokens and
+// would reject a customer's outright. These routes carry their own guard
+// (requireCustomer) where they need one; /geo is intentionally open,
+// since a customer needs the region list to fill in the form that
+// creates their account.
+app.use("/geo", geoRoutes);
+app.use("/customerAuth", customerAuthRoutes);
+app.use("/shop", shopRoutes);
+
 app.use(jwtValidator);
+app.use("/orders", ordersRoutes);
 app.use("/users", usersRoutes);
 app.use("/items", itemRoutes);
 app.use("/units", unitRoutes);
@@ -143,5 +195,8 @@ app.get("/", (req, res) => {
   res.send("PostgreSQL Item Management API");
 });
 
-const PORT = 3007;
+// Defaults to 3007 exactly as before; the override exists so a second
+// instance can be started on another port for testing without editing
+// this file and risking the edit being left behind.
+const PORT = Number(process.env.PORT) || 3007;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

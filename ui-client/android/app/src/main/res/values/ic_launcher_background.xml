@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The adaptive icon's foreground glyph is white, so the background
+         layer has to be the brand blue — the Capacitor default of white
+         would leave a white mark on white, i.e. a blank launcher icon. -->
+    <color name="ic_launcher_background">#1867C0</color>
+</resources>

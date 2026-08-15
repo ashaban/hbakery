@@ -173,6 +173,32 @@
         </v-list-item>
 
         <v-list-item
+          v-if="can('can_see_orders')"
+          active-class="menu-item--active"
+          class="menu-item rounded-xl"
+          to="Orders"
+          value="Orders"
+        >
+          <template #prepend>
+            <v-avatar
+              class="menu-avatar"
+              color="teal-lighten-5"
+              rounded="lg"
+              size="42"
+            >
+              <v-icon
+                color="teal-darken-2"
+                icon="mdi-clipboard-list"
+                size="20"
+              />
+            </v-avatar>
+          </template>
+          <v-list-item-title class="font-weight-medium menu-title">
+            Customer Orders
+          </v-list-item-title>
+        </v-list-item>
+
+        <v-list-item
           v-if="can('can_add_sale')"
           active-class="menu-item--active"
           class="menu-item rounded-xl"

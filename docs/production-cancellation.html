@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cancelling a Production — Hanein Bakery</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+
+  :root {
+    --ink: #1a1a1a;
+    --muted: #5c5c5c;
+    --rule: #d8d8d8;
+    --accent: #8b1a1a;
+    --tint: #faf7f7;
+    --ok: #1d6b3a;
+    --warn: #8a5a00;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    font-size: 10.5pt;
+    line-height: 1.55;
+    margin: 0;
+  }
+
+  /* ---------- cover header ---------- */
+  .titleblock {
+    border-bottom: 3px solid var(--accent);
+    padding-bottom: 14px;
+    margin-bottom: 26px;
+  }
+  .eyebrow {
+    font-size: 8.5pt;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  h1 {
+    font-size: 24pt;
+    line-height: 1.15;
+    margin: 0 0 8px;
+    font-weight: 700;
+  }
+  .subtitle { color: var(--muted); font-size: 11pt; margin: 0; }
+  .meta {
+    margin-top: 12px;
+    font-size: 8.5pt;
+    color: var(--muted);
+  }
+
+  h2 {
+    font-size: 13.5pt;
+    margin: 26px 0 10px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid var(--rule);
+    font-weight: 700;
+  }
+  h3 {
+    font-size: 11pt;
+    margin: 18px 0 6px;
+    font-weight: 700;
+  }
+  p { margin: 0 0 10px; }
+
+  /* ---------- callouts ---------- */
+  .callout {
+    border-left: 4px solid var(--accent);
+    background: var(--tint);
+    padding: 11px 14px;
+    margin: 14px 0;
+    font-size: 10pt;
+  }
+  .callout.good { border-left-color: var(--ok); background: #f4faf6; }
+  .callout.warn { border-left-color: var(--warn); background: #fdf9f0; }
+  .callout strong { display: block; margin-bottom: 3px; }
+
+  /* ---------- steps ---------- */
+  ol.steps { margin: 0 0 12px; padding-left: 0; counter-reset: s; list-style: none; }
+  ol.steps > li {
+    counter-increment: s;
+    position: relative;
+    padding-left: 30px;
+    margin-bottom: 9px;
+  }
+  ol.steps > li::before {
+    content: counter(s);
+    position: absolute;
+    left: 0; top: 1px;
+    width: 20px; height: 20px;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 50%;
+    font-size: 9pt;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  ul.plain { margin: 0 0 12px; padding-left: 18px; }
+  ul.plain li { margin-bottom: 5px; }
+
+  /* ---------- tables ---------- */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 16px;
+    font-size: 9.5pt;
+  }
+  th {
+    text-align: left;
+    background: #f1efef;
+    padding: 8px 10px;
+    border-bottom: 2px solid var(--rule);
+    font-weight: 700;
+  }
+  td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  tr { page-break-inside: avoid; }
+
+  code {
+    font-family: "Consolas", "Courier New", monospace;
+    background: #f0eeee;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 9pt;
+  }
+
+  .pill {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-size: 8.5pt;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .pill-grey  { background: #e4e4e4; color: #444; }
+  .pill-green { background: #d8efdf; color: var(--ok); }
+  .pill-amber { background: #fbeacc; color: var(--warn); }
+
+  .pagebreak { page-break-before: always; }
+
+  footer.note {
+    margin-top: 26px;
+    padding-top: 10px;
+    border-top: 1px solid var(--rule);
+    font-size: 8.5pt;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<div class="titleblock">
+  <div class="eyebrow">Hanein Bakery &middot; User Guide</div>
+  <h1>Cancelling a Production</h1>
+  <p class="subtitle">How to call off a planned production and return its ingredients to stock</p>
+  <div class="meta">Applies to the Productions module &middot; Version 1.0</div>
+</div>
+
+<h2>1. What this is for</h2>
+<p>
+  When you plan a production, the system immediately <strong>reserves the ingredients</strong>
+  it will need, so they can't be double-booked by another plan. If that production
+  then doesn't happen — the oven broke, staff didn't show, the day was a public
+  holiday — those ingredients would otherwise stay locked up against a plan that
+  will never be made.
+</p>
+<p>
+  <strong>Cancelling</strong> releases them. The moment you cancel, every ingredient
+  reserved for that production goes straight back into available stock and can be
+  used by another production, the same day.
+</p>
+
+<div class="callout good">
+  <strong>Cancelling is not deleting</strong>
+  The record stays in the batch, clearly marked as cancelled, showing who cancelled
+  it, when, and why. Nothing disappears from your history.
+</div>
+
+<h2>2. Who can cancel</h2>
+<p>
+  Cancelling requires the <code>can_cancel_production</code> permission. If you don't
+  have it, the Cancel buttons simply won't appear. An administrator can grant it under
+  <strong>Settings &rarr; Roles</strong>.
+</p>
+
+<h2>3. Cancelling one product from a batch</h2>
+<p>Use this when most of the batch went ahead but one item didn't get made.</p>
+<ol class="steps">
+  <li>Go to <strong>Productions</strong> and find the batch.</li>
+  <li>Click <strong>View Batch Details</strong>.</li>
+  <li>In the <strong>Products in Batch</strong> table, find the product that wasn't made.</li>
+  <li>Click the red <strong>Cancel</strong> button on that row.</li>
+  <li>Type a short reason (optional but recommended — it's saved for the record).</li>
+  <li>Click <strong>Cancel &amp; release ingredients</strong>.</li>
+</ol>
+<p>
+  The row immediately shows a grey <span class="pill pill-grey">Cancelled</span> tag,
+  and that product's ingredients are back in stock.
+</p>
+
+<h2>4. Cancelling a whole batch</h2>
+<p>Use this when the entire day's production was called off.</p>
+<ol class="steps">
+  <li>Go to <strong>Productions</strong> and find the batch.</li>
+  <li>Click <strong>View Batch Details</strong>.</li>
+  <li>Click <strong>Cancel Batch</strong> at the top right of the dialog.</li>
+  <li>Type a reason and confirm.</li>
+</ol>
+<p>
+  Every remaining product in the batch is cancelled together and all their ingredients
+  are released at once. The batch status becomes
+  <span class="pill pill-grey">Cancelled</span>.
+</p>
+
+<div class="callout">
+  <strong>All-or-nothing</strong>
+  If even one product in the batch can't be cancelled (see Section 5), the whole
+  action is refused and <em>nothing</em> is cancelled. This prevents a batch ending up
+  half-cancelled. Cancel the eligible items individually instead.
+</div>
+
+<h2>5. When cancelling is not allowed</h2>
+<p>
+  Cancellation is only for plans that never happened. The system will refuse in the
+  situations below and explain why on screen.
+</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width:30%">Situation</th>
+      <th style="width:36%">What you'll see</th>
+      <th style="width:34%">What to do instead</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Actual quantities already recorded</strong></td>
+      <td>"…cannot be cancelled: actual production has already been recorded for it."</td>
+      <td>The goods physically exist, so this isn't a plan any more. Use
+          <strong>Add / Edit Actual Production</strong> to correct the quantities.</td>
+    </tr>
+    <tr>
+      <td><strong>Output already transferred, sold or given out</strong></td>
+      <td>"…its output has already been used by transfer #x, sale #y."</td>
+      <td>Reverse or delete those transfers/sales first, then cancel.</td>
+    </tr>
+    <tr>
+      <td><strong>Already cancelled</strong></td>
+      <td>"…is already cancelled."</td>
+      <td>Nothing to do — it's done.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout warn">
+  <strong>Why produced items can't be cancelled</strong>
+  Once actual production is recorded, real bread exists and may already have moved to
+  an outlet. Cancelling would remove stock the shops are relying on. Correcting the
+  actual quantities is the safe way to fix a mistake there.
+</div>
+
+<h2>6. What changes after cancelling</h2>
+<table>
+  <thead>
+    <tr><th style="width:34%">Where</th><th>What you'll notice</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Ingredient stock</td>
+      <td>Reserved ingredients are available again immediately.</td>
+    </tr>
+    <tr>
+      <td>Batch Details</td>
+      <td>The product stays listed with a <span class="pill pill-grey">Cancelled</span>
+          tag. Hover it to see who cancelled it, when, and the reason.</td>
+    </tr>
+    <tr>
+      <td>Batch totals &amp; status</td>
+      <td>Cancelled products no longer count towards the batch. A batch whose
+          remaining products are all produced correctly shows
+          <span class="pill pill-green">Completed</span> instead of being stuck on
+          <span class="pill pill-amber">Pending</span>.</td>
+    </tr>
+    <tr>
+      <td>Productions list</td>
+      <td>Cancelled items are hidden from the main list — Batch Details is where
+          their history remains visible.</td>
+    </tr>
+    <tr>
+      <td>Audit Log</td>
+      <td>Records the cancellation with the user, time and reason.</td>
+    </tr>
+    <tr>
+      <td>Editing</td>
+      <td>A cancelled product can no longer be edited or given actual quantities.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>7. Common questions</h2>
+
+<h3>Can I undo a cancellation?</h3>
+<p>
+  No. If the production does go ahead after all, add it again as a new product in the
+  batch (or as a new batch) — the ingredients are back in stock, so it will reserve
+  them again normally.
+</p>
+
+<h3>What if only part of the planned quantity was made?</h3>
+<p>
+  Don't cancel. Record the actual production with the quantity that was really made —
+  that's exactly what actual quantities are for. Cancelling is only for items where
+  <em>nothing</em> was produced.
+</p>
+
+<h3>The Cancel button isn't showing.</h3>
+<p>Check in this order:</p>
+<ul class="plain">
+  <li>Do you have the <code>can_cancel_production</code> permission?</li>
+  <li>Has the item already had actual quantities recorded? (It will show
+      <span class="pill pill-green">Produced</span>.)</li>
+  <li>Is it already cancelled?</li>
+</ul>
+<p>
+  If you were granted the permission while already logged in, log out and back in —
+  permissions are read at login.
+</p>
+
+<h3>Does cancelling affect the ingredients' cost or purchase records?</h3>
+<p>
+  No. It only removes the reservation against those purchases. The purchase records,
+  quantities and prices are untouched, and the ingredients return to the same
+  purchase lots they were taken from.
+</p>
+
+<footer class="note">
+  Hanein Bakery Management System — Production Cancellation Guide.
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="sw">
+<head>
+<meta charset="utf-8">
+<title>Kughairi Uzalishaji — Hanein Bakery</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  :root {
+    --ink:#1a1a1a; --muted:#5c5c5c; --rule:#d8d8d8;
+    --accent:#8b1a1a; --tint:#faf7f7; --ok:#1d6b3a; --warn:#8a5a00;
+  }
+  * { box-sizing:border-box; }
+  body { font-family:"Segoe UI",Roboto,Helvetica,Arial,sans-serif; color:var(--ink);
+         font-size:10.5pt; line-height:1.55; margin:0; }
+  .titleblock { border-bottom:3px solid var(--accent); padding-bottom:14px; margin-bottom:26px; }
+  .eyebrow { font-size:8.5pt; letter-spacing:.14em; text-transform:uppercase;
+             color:var(--accent); font-weight:700; margin-bottom:6px; }
+  h1 { font-size:24pt; line-height:1.15; margin:0 0 8px; font-weight:700; }
+  .subtitle { color:var(--muted); font-size:11pt; margin:0; }
+  .meta { margin-top:12px; font-size:8.5pt; color:var(--muted); }
+  h2 { font-size:13.5pt; margin:26px 0 10px; padding-bottom:5px;
+       border-bottom:1px solid var(--rule); font-weight:700; }
+  h3 { font-size:11pt; margin:18px 0 6px; font-weight:700; }
+  p { margin:0 0 10px; }
+  .callout { border-left:4px solid var(--accent); background:var(--tint);
+             padding:11px 14px; margin:14px 0; font-size:10pt; }
+  .callout.good { border-left-color:var(--ok); background:#f4faf6; }
+  .callout.warn { border-left-color:var(--warn); background:#fdf9f0; }
+  .callout strong { display:block; margin-bottom:3px; }
+  ol.steps { margin:0 0 12px; padding-left:0; counter-reset:s; list-style:none; }
+  ol.steps > li { counter-increment:s; position:relative; padding-left:30px; margin-bottom:9px; }
+  ol.steps > li::before { content:counter(s); position:absolute; left:0; top:1px;
+    width:20px; height:20px; background:var(--accent); color:#fff; border-radius:50%;
+    font-size:9pt; font-weight:700; display:flex; align-items:center; justify-content:center; }
+  ul.plain { margin:0 0 12px; padding-left:18px; }
+  ul.plain li { margin-bottom:5px; }
+  table { width:100%; border-collapse:collapse; margin:12px 0 16px; font-size:9.5pt; }
+  th { text-align:left; background:#f1efef; padding:8px 10px;
+       border-bottom:2px solid var(--rule); font-weight:700; }
+  td { padding:8px 10px; border-bottom:1px solid var(--rule); vertical-align:top; }
+  tr { page-break-inside:avoid; }
+  code { font-family:"Consolas","Courier New",monospace; background:#f0eeee;
+         padding:1px 5px; border-radius:3px; font-size:9pt; }
+  .pill { display:inline-block; padding:1px 8px; border-radius:10px;
+          font-size:8.5pt; font-weight:700; white-space:nowrap; }
+  .pill-grey{background:#e4e4e4;color:#444;} .pill-green{background:#d8efdf;color:var(--ok);}
+  .pill-amber{background:#fbeacc;color:var(--warn);}
+  footer.note { margin-top:26px; padding-top:10px; border-top:1px solid var(--rule);
+                font-size:8.5pt; color:var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="titleblock">
+  <div class="eyebrow">Hanein Bakery &middot; Mwongozo wa Mtumiaji</div>
+  <h1>Kughairi Uzalishaji</h1>
+  <p class="subtitle">Jinsi ya kusitisha mpango wa uzalishaji na kurudisha viungo stoo</p>
+  <div class="meta">Inahusu sehemu ya Productions &middot; Toleo la 1.0</div>
+</div>
+
+<div class="callout">
+  <strong>Kumbuka</strong>
+  Majina ya vitufe na sehemu za mfumo yameachwa kwa Kiingereza kwa sababu ndivyo
+  yalivyoandikwa kwenye skrini.
+</div>
+
+<h2>1. Madhumuni</h2>
+<p>
+  Unapopanga uzalishaji, mfumo <strong>hutenga viungo</strong> vitakavyohitajika mara
+  moja, ili visitumike na mpango mwingine. Kama uzalishaji huo hautafanyika — oveni
+  imeharibika, wafanyakazi hawakufika, au ilikuwa sikukuu — viungo hivyo vingebaki
+  vimefungwa kwa ajili ya mpango ambao hautatekelezwa.
+</p>
+<p>
+  <strong>Kughairi</strong> kunavifungua. Mara tu unapoghairi, kila kiungo
+  kilichotengwa kwa uzalishaji huo kinarudi stoo papo hapo na kinaweza kutumika kwa
+  uzalishaji mwingine siku hiyo hiyo.
+</p>
+
+<div class="callout good">
+  <strong>Kughairi si kufuta</strong>
+  Kumbukumbu inabaki ndani ya batch, ikiwa na alama ya kughairiwa, ikionyesha nani
+  aliighairi, lini, na kwa sababu gani. Hakuna kinachopotea kwenye historia yako.
+</div>
+
+<h2>2. Nani anaweza kughairi</h2>
+<p>
+  Kughairi kunahitaji ruhusa ya <code>can_cancel_production</code>. Kama huna ruhusa
+  hiyo, vitufe vya <strong>Cancel</strong> havitaonekana kabisa. Msimamizi anaweza
+  kukupa ruhusa hiyo kupitia <strong>Settings &rarr; Roles</strong>.
+</p>
+
+<h2>3. Kughairi bidhaa moja ndani ya batch</h2>
+<p>Tumia hii pale ambapo sehemu kubwa ya batch ilitengenezwa lakini bidhaa moja haikutengenezwa.</p>
+<ol class="steps">
+  <li>Nenda <strong>Productions</strong> kisha tafuta batch husika.</li>
+  <li>Bonyeza <strong>View Batch Details</strong>.</li>
+  <li>Katika jedwali la <strong>Products in Batch</strong>, tafuta bidhaa ambayo haikutengenezwa.</li>
+  <li>Bonyeza kitufe chekundu cha <strong>Cancel</strong> kwenye safu ya bidhaa hiyo.</li>
+  <li>Andika sababu kwa ufupi (si lazima, lakini inashauriwa — inahifadhiwa kwenye kumbukumbu).</li>
+  <li>Bonyeza <strong>Cancel &amp; release ingredients</strong>.</li>
+</ol>
+<p>
+  Safu hiyo itaonyesha alama ya kijivu ya <span class="pill pill-grey">Cancelled</span>
+  papo hapo, na viungo vya bidhaa hiyo vitakuwa vimerudi stoo.
+</p>
+
+<h2>4. Kughairi batch nzima</h2>
+<p>Tumia hii pale ambapo uzalishaji wote wa siku ulisitishwa.</p>
+<ol class="steps">
+  <li>Nenda <strong>Productions</strong> kisha tafuta batch husika.</li>
+  <li>Bonyeza <strong>View Batch Details</strong>.</li>
+  <li>Bonyeza <strong>Cancel Batch</strong> juu kulia kwenye dirisha.</li>
+  <li>Andika sababu kisha thibitisha.</li>
+</ol>
+<p>
+  Kila bidhaa iliyobaki ndani ya batch itaghairiwa kwa pamoja na viungo vyake vyote
+  vitarudishwa stoo kwa wakati mmoja. Hali ya batch itakuwa
+  <span class="pill pill-grey">Cancelled</span>.
+</p>
+
+<div class="callout">
+  <strong>Yote au hakuna</strong>
+  Kama hata bidhaa moja ndani ya batch haiwezi kughairiwa (angalia Sehemu ya 5),
+  kitendo chote kinakataliwa na <em>hakuna</em> kinachoghairiwa. Hii inazuia batch
+  kuishia nusu-kughairiwa. Badala yake, ghairi bidhaa zinazoruhusiwa moja moja.
+</div>
+
+<h2>5. Wakati kughairi hakuruhusiwi</h2>
+<p>
+  Kughairi ni kwa ajili ya mipango ambayo haikutekelezwa. Mfumo utakataa katika hali
+  zifuatazo na utaeleza sababu kwenye skrini.
+</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width:30%">Hali</th>
+      <th style="width:36%">Utakachoona</th>
+      <th style="width:34%">Cha kufanya badala yake</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Kiasi halisi tayari kimeingizwa</strong></td>
+      <td>"…cannot be cancelled: actual production has already been recorded for it."</td>
+      <td>Bidhaa tayari zipo kimwili, hivyo huu si mpango tena. Tumia
+          <strong>Add / Edit Actual Production</strong> kurekebisha kiasi.</td>
+    </tr>
+    <tr>
+      <td><strong>Bidhaa tayari zimehamishwa, kuuzwa au kutolewa</strong></td>
+      <td>"…its output has already been used by transfer #x, sale #y."</td>
+      <td>Tangua au futa uhamisho au mauzo hayo kwanza, kisha ghairi.</td>
+    </tr>
+    <tr>
+      <td><strong>Tayari imeghairiwa</strong></td>
+      <td>"…is already cancelled."</td>
+      <td>Hakuna cha kufanya — imeshafanyika.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout warn">
+  <strong>Kwa nini bidhaa zilizotengenezwa haziwezi kughairiwa</strong>
+  Mara kiasi halisi kinapoingizwa, mikate halisi ipo na huenda tayari imeshapelekwa
+  tawi. Kughairi kungeondoa bidhaa ambazo maduka yanazitegemea. Kurekebisha kiasi
+  halisi ndiyo njia salama ya kusahihisha kosa hapo.
+</div>
+
+<h2>6. Nini kinabadilika baada ya kughairi</h2>
+<table>
+  <thead>
+    <tr><th style="width:34%">Wapi</th><th>Utakachoona</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Stoo ya viungo</td>
+      <td>Viungo vilivyotengwa vinapatikana tena papo hapo.</td>
+    </tr>
+    <tr>
+      <td>Batch Details</td>
+      <td>Bidhaa inabaki kwenye orodha ikiwa na alama ya
+          <span class="pill pill-grey">Cancelled</span>. Weka kishale juu yake kuona
+          nani aliighairi, lini, na sababu.</td>
+    </tr>
+    <tr>
+      <td>Jumla na hali ya batch</td>
+      <td>Bidhaa zilizoghairiwa haziwi tena sehemu ya hesabu za batch. Batch ambayo
+          bidhaa zake zilizobaki zote zimetengenezwa itaonyesha
+          <span class="pill pill-green">Completed</span> badala ya kukwama kwenye
+          <span class="pill pill-amber">Pending</span>.</td>
+    </tr>
+    <tr>
+      <td>Orodha ya Productions</td>
+      <td>Bidhaa zilizoghairiwa hazionekani kwenye orodha kuu — historia yake inabaki
+          ndani ya Batch Details.</td>
+    </tr>
+    <tr>
+      <td>Audit Log</td>
+      <td>Inahifadhi kumbukumbu ya kughairi pamoja na mtumiaji, muda na sababu.</td>
+    </tr>
+    <tr>
+      <td>Kuhariri</td>
+      <td>Bidhaa iliyoghairiwa haiwezi tena kuhaririwa wala kuingizwa kiasi halisi.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>7. Maswali ya kawaida</h2>
+
+<h3>Je, ninaweza kutangua kughairi?</h3>
+<p>
+  Hapana. Kama uzalishaji utafanyika baadaye, iongeze upya kama bidhaa mpya ndani ya
+  batch (au kama batch mpya) — viungo vipo stoo, hivyo vitatengwa tena kama kawaida.
+</p>
+
+<h3>Je, kama sehemu tu ya kiasi kilichopangwa ilitengenezwa?</h3>
+<p>
+  Usighairi. Ingiza kiasi halisi kilichotengenezwa — hiyo ndiyo kazi ya kiasi halisi.
+  Kughairi ni kwa bidhaa ambazo <em>hakuna</em> kilichotengenezwa kabisa.
+</p>
+
+<h3>Kitufe cha Cancel hakionekani.</h3>
+<p>Angalia kwa mpangilio huu:</p>
+<ul class="plain">
+  <li>Je, una ruhusa ya <code>can_cancel_production</code>?</li>
+  <li>Je, bidhaa tayari imeingizwa kiasi halisi? (Itaonyesha
+      <span class="pill pill-green">Produced</span>.)</li>
+  <li>Je, tayari imeghairiwa?</li>
+</ul>
+<p>
+  Kama ulipewa ruhusa ukiwa tayari umeingia kwenye mfumo, toka kisha ingia tena —
+  ruhusa zinasomwa wakati wa kuingia.
+</p>
+
+<h3>Je, kughairi kunaathiri gharama au kumbukumbu za manunuzi ya viungo?</h3>
+<p>
+  Hapana. Kunaondoa tu utengaji dhidi ya manunuzi hayo. Kumbukumbu za manunuzi, kiasi
+  na bei hazibadiliki, na viungo vinarudi kwenye makundi yale yale ya manunuzi
+  yalikotolewa.
+</p>
+
+<footer class="note">
+  Hanein Bakery Management System — Mwongozo wa Kughairi Uzalishaji.
+</footer>
+
+</body>
+</html>
