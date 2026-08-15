@@ -5,7 +5,7 @@
         <v-icon>mdi-arrow-left</v-icon>
       </v-btn>
       <v-app-bar-title class="font-weight-bold">
-        Order #{{ $route.params.id }}
+        {{ $t("orders.detailTitle", { id: $route.params.id }) }}
       </v-app-bar-title>
     </v-app-bar>
 
@@ -33,12 +33,14 @@
           </v-chip>
           <v-spacer />
           <div class="text-caption text-medium-emphasis">
-            Placed {{ formatDate(order.order_date) }}
+            {{ $t("orders.placedOn", { date: formatDate(order.order_date) }) }}
           </div>
         </div>
 
         <!-- DELIVERY SCHEDULE -->
-        <div class="text-overline text-medium-emphasis">Delivery</div>
+        <div class="text-overline text-medium-emphasis">
+          {{ $t("orders.delivery") }}
+        </div>
 
         <v-card
           v-if="order.deliveries.length === 0"
@@ -47,8 +49,7 @@
         >
           <v-card-text class="text-body-2">
             <v-icon size="18" start>mdi-clock-outline</v-icon>
-            We've received your order and will confirm the delivery day
-            shortly.
+            {{ $t("orders.awaitingConfirmation") }}
           </v-card-text>
         </v-card>
 
@@ -95,7 +96,12 @@
                   v-if="Number(item.scheduled_quantity) > 0"
                   class="text-primary"
                 >
-                  · {{ qty(item.scheduled_quantity) }} scheduled
+                  ·
+                  {{
+                    $t("orders.scheduled", {
+                      count: qty(item.scheduled_quantity),
+                    })
+                  }}
                 </span>
               </v-list-item-subtitle>
               <template #append>
@@ -109,7 +115,7 @@
           <v-divider />
 
           <v-card-text class="d-flex align-center">
-            <div class="text-subtitle-1">Total</div>
+            <div class="text-subtitle-1">{{ $t("common.total") }}</div>
             <v-spacer />
             <div class="text-h6 font-weight-bold">{{ money(order.total) }}</div>
           </v-card-text>
@@ -117,7 +123,9 @@
 
         <v-card v-if="order.notes" class="mt-3" variant="tonal">
           <v-card-text class="text-body-2">
-            <div class="text-caption text-medium-emphasis">Your note</div>
+            <div class="text-caption text-medium-emphasis">
+              {{ $t("orders.yourNote") }}
+            </div>
             {{ order.notes }}
           </v-card-text>
         </v-card>
@@ -132,7 +140,7 @@
           variant="outlined"
           @click="confirmCancel = true"
         >
-          Cancel this order
+          {{ $t("orders.cancelOrder") }}
         </v-btn>
 
         <div style="height: 80px" />
@@ -141,17 +149,17 @@
 
     <v-dialog v-model="confirmCancel" max-width="400">
       <v-card>
-        <v-card-title>Cancel this order?</v-card-title>
+        <v-card-title>{{ $t("orders.cancelTitle") }}</v-card-title>
         <v-card-text>
-          You'll need to place a new order if you change your mind.
+          {{ $t("orders.cancelBody") }}
         </v-card-text>
         <v-card-actions>
           <v-spacer />
           <v-btn variant="text" @click="confirmCancel = false">
-            Keep order
+            {{ $t("orders.keepOrder") }}
           </v-btn>
           <v-btn color="error" :loading="cancelling" @click="doCancel">
-            Cancel order
+            {{ $t("orders.cancelOrder") }}
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -170,6 +178,7 @@
     statusColor,
     statusLabel,
   } from "@/lib/format";
+  import { t } from "@/lib/i18n";
   import { notify, notifyError } from "@/lib/toast";
 
   const route = useRoute();
@@ -198,7 +207,7 @@
     try {
       await api(`/shop/orders/${route.params.id}/cancel`, { method: "POST" });
       confirmCancel.value = false;
-      notify("Order cancelled", "info");
+      notify(t("orders.cancelled"), "info");
       await load();
     } catch (error_) {
       notifyError(error_);

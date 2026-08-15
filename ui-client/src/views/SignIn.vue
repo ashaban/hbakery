@@ -10,18 +10,18 @@
           @click="$router.push('/welcome')"
         />
 
-        <h1 class="text-h5 font-weight-bold mb-1">Welcome back</h1>
+        <h1 class="text-h5 font-weight-bold mb-1">{{ $t("signIn.title") }}</h1>
         <p class="text-body-2 text-medium-emphasis mb-6">
-          Sign in with the phone number you registered with.
+          {{ $t("signIn.subtitle") }}
         </p>
 
         <v-form @submit.prevent="submit">
           <v-text-field
             v-model="phone"
             autocomplete="off"
-            hint="e.g. 0712 345 678"
+            :hint="$t('signIn.phoneHint')"
             inputmode="tel"
-            label="Phone number"
+            :label="$t('signIn.phone')"
             prepend-inner-icon="mdi-phone"
           />
 
@@ -29,7 +29,7 @@
             v-model="password"
             :append-inner-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
             autocomplete="off"
-            label="Password"
+            :label="$t('signIn.password')"
             prepend-inner-icon="mdi-lock"
             :type="showPassword ? 'text' : 'password'"
             @click:append-inner="showPassword = !showPassword"
@@ -53,13 +53,13 @@
             size="large"
             type="submit"
           >
-            Sign in
+            {{ $t("signIn.submit") }}
           </v-btn>
         </v-form>
 
         <div class="text-center mt-6">
           <span class="text-body-2 text-medium-emphasis">
-            Don't have an account?
+            {{ $t("signIn.noAccount") }}
           </span>
           <v-btn
             class="ml-1"
@@ -68,7 +68,7 @@
             variant="text"
             @click="$router.push('/register')"
           >
-            Register
+            {{ $t("signIn.register") }}
           </v-btn>
         </div>
       </v-col>
@@ -80,6 +80,7 @@
   import { ref } from "vue";
   import { useRouter } from "vue-router";
   import { login } from "@/lib/auth";
+  import { t } from "@/lib/i18n";
   import { notify } from "@/lib/toast";
 
   const router = useRouter();
@@ -95,7 +96,7 @@
     loading.value = true;
     try {
       const customer = await login(phone.value, password.value);
-      notify(`Welcome back, ${customer.name}`);
+      notify(t("signIn.welcomeBack", { name: customer.name }));
       router.replace("/shop");
     } catch (error_) {
       error.value = error_.message;

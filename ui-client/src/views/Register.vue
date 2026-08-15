@@ -10,28 +10,30 @@
           @click="$router.push('/welcome')"
         />
 
-        <h1 class="text-h5 font-weight-bold mb-1">Create your account</h1>
+        <h1 class="text-h5 font-weight-bold mb-1">{{ $t("register.title") }}</h1>
         <p class="text-body-2 text-medium-emphasis mb-6">
-          We need to know where you are so our driver can find you.
+          {{ $t("register.subtitle") }}
         </p>
 
         <v-form @submit.prevent="submit">
-          <div class="text-overline text-medium-emphasis">Your details</div>
+          <div class="text-overline text-medium-emphasis">
+            {{ $t("register.yourDetails") }}
+          </div>
 
           <v-text-field
             v-model="form.name"
             autocomplete="off"
-            hint="The name of your shop or business"
-            label="Shop / business name"
+            :hint="$t('register.shopNameHint')"
+            :label="$t('register.shopName')"
             prepend-inner-icon="mdi-store"
           />
 
           <v-text-field
             v-model="form.phone"
             autocomplete="off"
-            hint="You'll sign in with this number"
+            :hint="$t('register.phoneHint')"
             inputmode="tel"
-            label="Phone number"
+            :label="$t('register.phone')"
             prepend-inner-icon="mdi-phone"
           />
 
@@ -39,14 +41,14 @@
             v-model="form.password"
             :append-inner-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
             autocomplete="off"
-            label="Choose a password"
+            :label="$t('register.password')"
             prepend-inner-icon="mdi-lock"
             :type="showPassword ? 'text' : 'password'"
             @click:append-inner="showPassword = !showPassword"
           />
 
           <div class="text-overline text-medium-emphasis mt-4">
-            Where you are
+            {{ $t("register.whereYouAre") }}
           </div>
 
           <v-select
@@ -55,7 +57,7 @@
             item-value="id"
             :items="regions"
             :loading="loadingGeo"
-            label="Region"
+            :label="$t('register.region')"
             prepend-inner-icon="mdi-map"
             @update:model-value="onRegionChange"
           />
@@ -66,14 +68,14 @@
             item-title="name"
             item-value="id"
             :items="districts"
-            label="District"
+            :label="$t('register.district')"
             prepend-inner-icon="mdi-map-marker-radius"
           />
 
           <v-text-field
             v-model="form.town"
             autocomplete="off"
-            label="Town or street"
+            :label="$t('register.town')"
             prepend-inner-icon="mdi-road"
           />
 
@@ -81,8 +83,8 @@
             v-model="form.landmark"
             auto-grow
             autocomplete="off"
-            hint="Something the driver can find, e.g. 'opposite Kariakoo Market, next to the blue mosque'"
-            label="Nearby landmark"
+            :hint="$t('register.landmarkHint')"
+            :label="$t('register.landmark')"
             persistent-hint
             prepend-inner-icon="mdi-sign-direction"
             rows="2"
@@ -108,7 +110,7 @@
             size="large"
             type="submit"
           >
-            Create account
+            {{ $t("register.submit") }}
           </v-btn>
         </v-form>
       </v-col>
@@ -121,6 +123,7 @@
   import { useRouter } from "vue-router";
   import { api } from "@/lib/api";
   import { register } from "@/lib/auth";
+  import { t } from "@/lib/i18n";
   import { notify } from "@/lib/toast";
 
   const router = useRouter();
@@ -186,7 +189,7 @@
     loading.value = true;
     try {
       const customer = await register({ ...form });
-      notify(`Welcome, ${customer.name}`);
+      notify(t("register.welcome", { name: customer.name }));
       router.replace("/shop");
     } catch (error_) {
       error.value = error_.message;

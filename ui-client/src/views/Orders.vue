@@ -1,7 +1,9 @@
 <template>
   <div>
     <v-app-bar color="primary" flat>
-      <v-app-bar-title class="font-weight-bold">Your orders</v-app-bar-title>
+      <v-app-bar-title class="font-weight-bold">
+        {{ $t("orders.title") }}
+      </v-app-bar-title>
       <v-btn icon @click="load">
         <v-icon>mdi-refresh</v-icon>
       </v-btn>
@@ -19,7 +21,9 @@
       >
         {{ error }}
         <template #append>
-          <v-btn size="small" variant="text" @click="load">Retry</v-btn>
+            <v-btn size="small" variant="text" @click="load">
+            {{ $t("common.retry") }}
+          </v-btn>
         </template>
       </v-alert>
 
@@ -28,9 +32,9 @@
         class="text-center py-12 text-medium-emphasis"
       >
         <v-icon size="56">mdi-clipboard-text-off-outline</v-icon>
-        <div class="text-h6 mt-3">No orders yet</div>
+        <div class="text-h6 mt-3">{{ $t("orders.empty") }}</div>
         <v-btn class="mt-6" color="primary" @click="$router.push('/shop')">
-          Browse products
+          {{ $t("cart.browse") }}
         </v-btn>
       </div>
 
@@ -45,10 +49,10 @@
           <div class="d-flex align-center mb-2">
             <div>
               <div class="text-subtitle-1 font-weight-bold">
-                Order #{{ order.id }}
+                {{ $t("orders.orderNumber", { id: order.id }) }}
               </div>
               <div class="text-caption text-medium-emphasis">
-                Placed {{ formatDate(order.order_date) }}
+                {{ $t("orders.placedOn", { date: formatDate(order.order_date) }) }}
               </div>
             </div>
             <v-spacer />
@@ -69,7 +73,8 @@
                screen to find, so it goes on the card, not one tap in. -->
           <div v-if="nextDelivery(order)" class="text-body-2 mt-2">
             <v-icon color="primary" size="18" start>mdi-truck-delivery</v-icon>
-            Arriving <strong>{{ formatDate(nextDelivery(order)) }}</strong>
+            {{ $t("orders.arriving") }}
+            <strong>{{ formatDate(nextDelivery(order)) }}</strong>
           </div>
 
           <div class="d-flex align-center mt-3">

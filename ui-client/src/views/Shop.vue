@@ -1,7 +1,9 @@
 <template>
   <div>
     <v-app-bar color="primary" flat>
-      <v-app-bar-title class="font-weight-bold">Our products</v-app-bar-title>
+      <v-app-bar-title class="font-weight-bold">
+        {{ $t("shop.title") }}
+      </v-app-bar-title>
       <v-btn icon @click="load">
         <v-icon>mdi-refresh</v-icon>
       </v-btn>
@@ -15,7 +17,7 @@
         clearable
         density="compact"
         hide-details
-        label="Search products"
+        :label="$t('shop.search')"
         prepend-inner-icon="mdi-magnify"
       />
 
@@ -30,7 +32,9 @@
       >
         {{ error }}
         <template #append>
-          <v-btn size="small" variant="text" @click="load">Retry</v-btn>
+          <v-btn size="small" variant="text" @click="load">
+            {{ $t("common.retry") }}
+          </v-btn>
         </template>
       </v-alert>
 
@@ -39,7 +43,7 @@
         class="text-center py-12 text-medium-emphasis"
       >
         <v-icon size="48">mdi-basket-off-outline</v-icon>
-        <div class="mt-2">No products found.</div>
+        <div class="mt-2">{{ $t("shop.empty") }}</div>
       </div>
 
       <v-card
@@ -58,7 +62,12 @@
                 {{ product.name }}
               </div>
               <div class="text-body-2 text-medium-emphasis">
-                {{ money(product.price) }} per {{ product.unit || "unit" }}
+                {{
+                  $t("shop.perUnit", {
+                    price: money(product.price),
+                    unit: product.unit || $t("common.unit"),
+                  })
+                }}
               </div>
             </div>
           </div>
@@ -99,7 +108,7 @@
             <v-spacer />
             <v-btn color="primary" @click="add(product)">
               <v-icon start>mdi-cart-plus</v-icon>
-              Add
+              {{ $t("shop.add") }}
             </v-btn>
           </template>
         </v-card-actions>
@@ -115,13 +124,13 @@
       <div class="d-flex align-center pa-3">
         <div class="text-white">
           <div class="text-caption">
-            {{ cartCount }} item{{ cartCount === 1 ? "" : "s" }}
+            {{ $t("shop.itemCount", cartCount, { count: cartCount }) }}
           </div>
           <div class="text-h6 font-weight-bold">{{ money(cartTotal) }}</div>
         </div>
         <v-spacer />
         <v-btn color="white" variant="flat" @click="$router.push('/cart')">
-          View basket
+          {{ $t("shop.viewBasket") }}
           <v-icon end>mdi-arrow-right</v-icon>
         </v-btn>
       </div>
@@ -140,6 +149,7 @@
     setQuantity,
   } from "@/lib/cart";
   import { money } from "@/lib/format";
+  import { t } from "@/lib/i18n";
   import { notify } from "@/lib/toast";
 
   const products = ref([]);
@@ -155,7 +165,7 @@
 
   function add (product) {
     addToCart(product);
-    notify(`${product.name} added`);
+    notify(t("shop.added", { name: product.name }));
   }
 
   function decrement (product) {

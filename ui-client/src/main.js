@@ -5,12 +5,18 @@ import vuetify from "./plugins/vuetify";
 import { isNative, setUnauthorizedHandler } from "@/lib/api";
 import { ensureSessionRestored, signOut } from "@/lib/auth";
 import { loadCart } from "@/lib/cart";
+import { i18n, restoreLanguage, t } from "@/lib/i18n";
 import { notify } from "@/lib/toast";
 
 const app = createApp(App);
+app.use(i18n);
 app.use(router);
 app.use(vuetify);
 app.mount("#app");
+
+// Applied before anything user-visible needs it. Kiswahili is already
+// the default, so a slow read here shows the right language either way.
+restoreLanguage();
 
 // A rejected token anywhere in the app drops back to the welcome screen
 // once, from a single place, rather than every caller handling it.
@@ -69,7 +75,7 @@ if (isNative()) {
           CapApp.minimizeApp();
         } else {
           lastBackPress = now;
-          notify("Press back again to close", "info");
+          notify(t("back.pressAgain"), "info");
         }
       });
     })

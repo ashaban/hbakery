@@ -1,3 +1,5 @@
+import { t } from "./i18n";
+
 // Money is Tanzanian shillings, which has no subunit in practice — no
 // one prices bread in cents — so totals read as whole numbers.
 export function money (value) {
@@ -13,13 +15,8 @@ export function qty (value) {
   return Number.isInteger(n) ? String(n) : String(n);
 }
 
-const MONTHS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
-
 /**
- * "17 Aug 2026" from a "YYYY-MM-DD" string.
+ * "17 Aug 2026" / "17 Ago 2026" from a "YYYY-MM-DD" string.
  *
  * Read straight out of the string rather than via `new Date(...)`: a
  * date-only value has no timezone, and re-parsing it through Date
@@ -32,22 +29,26 @@ export function formatDate (value) {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value));
   if (!match) return String(value);
   const [, year, month, day] = match;
-  return `${Number(day)} ${MONTHS[Number(month) - 1]} ${year}`;
+  return `${Number(day)} ${t(`months.${Number(month)}`)} ${year}`;
 }
-
-const STATUS_META = {
-  PENDING: { label: "Awaiting confirmation", color: "orange" },
-  PARTIALLY_SCHEDULED: { label: "Partly scheduled", color: "amber-darken-2" },
-  SCHEDULED: { label: "Delivery scheduled", color: "primary" },
-  PARTIALLY_DELIVERED: { label: "Partly delivered", color: "teal" },
-  DELIVERED: { label: "Delivered", color: "success" },
-  CANCELLED: { label: "Cancelled", color: "grey" },
-};
 
 export function statusLabel (status) {
-  return STATUS_META[status]?.label || status;
+  // An unrecognised status falls back to the raw value rather than
+  // rendering a missing-key placeholder at the customer.
+  const key = `status.${status}`;
+  const label = t(key);
+  return label === key ? status : label;
 }
 
+const STATUS_COLORS = {
+  PENDING: "orange",
+  PARTIALLY_SCHEDULED: "amber-darken-2",
+  SCHEDULED: "primary",
+  PARTIALLY_DELIVERED: "teal",
+  DELIVERED: "success",
+  CANCELLED: "grey",
+};
+
 export function statusColor (status) {
-  return STATUS_META[status]?.color || "grey";
+  return STATUS_COLORS[status] || "grey";
 }

@@ -6,10 +6,9 @@
           <v-avatar class="mb-4" color="primary" size="88">
             <v-icon color="white" size="48">mdi-silverware-fork-knife</v-icon>
           </v-avatar>
-          <h1 class="text-h4 font-weight-bold">Hanein Bakery</h1>
+          <h1 class="text-h4 font-weight-bold">{{ $t("app.name") }}</h1>
           <p class="text-body-1 text-medium-emphasis mt-2">
-            Order fresh bread and pastries for your shop, and we'll tell you
-            the day it arrives.
+            {{ $t("welcome.tagline") }}
           </p>
         </div>
 
@@ -19,7 +18,7 @@
           size="large"
           @click="$router.push('/register')"
         >
-          Create an account
+          {{ $t("welcome.createAccount") }}
         </v-btn>
 
         <v-btn
@@ -30,7 +29,7 @@
           variant="outlined"
           @click="$router.push('/sign-in')"
         >
-          I already have an account
+          {{ $t("welcome.haveAccount") }}
         </v-btn>
       </v-col>
     </v-row>

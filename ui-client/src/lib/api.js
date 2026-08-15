@@ -8,6 +8,7 @@
 // (see vite.config.mjs) forwards to the local backend.
 
 import { Capacitor } from "@capacitor/core";
+import { currentLanguage, t } from "./i18n";
 
 export const isNative = () => Capacitor.isNativePlatform();
 
@@ -45,6 +46,9 @@ export async function api (path, { method = "GET", body = null } = {}) {
   const headers = {};
   if (body) headers["Content-Type"] = "application/json";
   if (authToken) headers.Authorization = `Bearer ${authToken}`;
+  // So a server-side message (e.g. "only 20 left") comes back in the
+  // same language as the screen showing it.
+  headers["Accept-Language"] = currentLanguage();
 
   let response;
   try {
@@ -56,13 +60,13 @@ export async function api (path, { method = "GET", body = null } = {}) {
   } catch {
     // fetch only rejects on a genuine network failure, which for this
     // app almost always means "no signal", not a broken server.
-    throw new ApiError("No connection. Check your internet and try again.", 0);
+    throw new ApiError(t("errors.offline"), 0);
   }
 
   if (response.status === 401 && authToken) {
     setToken("");
     if (onUnauthorized) onUnauthorized();
-    throw new ApiError("Your session has expired. Please sign in again.", 401);
+    throw new ApiError(t("errors.sessionExpired"), 401);
   }
 
   let data = null;
@@ -74,7 +78,7 @@ export async function api (path, { method = "GET", body = null } = {}) {
 
   if (!response.ok) {
     throw new ApiError(
-      data?.error || "Something went wrong. Please try again.",
+      data?.error || t("errors.generic"),
       response.status,
     );
   }
