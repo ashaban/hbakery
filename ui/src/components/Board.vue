@@ -1,128 +1,186 @@
 <template>
-  <v-container class="bg-grey-lighten-4 pa-6" fluid>
-    <div v-if="!board" class="text-center py-12">
-      <v-progress-circular color="primary" indeterminate />
+  <v-container class="pa-4 pa-md-6" fluid>
+    <div v-if="board.loading" class="d-flex justify-center py-16">
+      <v-progress-circular color="primary" indeterminate size="42" />
     </div>
 
-    <template v-else>
-      <!-- HEADER -->
-      <v-card class="mb-4" elevation="2">
-        <v-card-text class="pa-4">
-          <v-row align="center" no-gutters>
-            <v-col cols="12" md="6">
-              <div class="d-flex align-center">
-                <v-btn icon size="small" variant="text" @click="$router.push({ name: 'BoardsList' })">
-                  <v-icon>mdi-arrow-left</v-icon>
-                </v-btn>
-                <h1 class="text-h5 font-weight-bold text-primary ml-2">{{ board.name }}</h1>
-                <v-chip class="ml-3" size="small" variant="tonal">{{ board.my_role }}</v-chip>
-              </div>
-            </v-col>
-            <v-col class="text-right" cols="12" md="6">
-              <v-btn variant="text" @click="showSettings = true">
-                <v-icon start>mdi-cog</v-icon>
-                Settings
-              </v-btn>
-            </v-col>
-          </v-row>
+    <template v-else-if="board.board">
+      <div class="d-flex align-center flex-wrap ga-3 mb-4">
+        <v-btn icon="mdi-arrow-left" variant="text" @click="$router.push({ name: 'BoardsList' })" />
+        <div class="flex-grow-1 min-w-0">
+          <h1 class="text-h5 font-weight-bold text-primary">{{ board.board.name }}</h1>
+          <div v-if="board.board.description" class="text-body-2 text-medium-emphasis">
+            {{ board.board.description }}
+          </div>
+        </div>
 
-          <v-tabs v-model="view" class="mt-2" density="compact">
-            <v-tab value="kanban"><v-icon start>mdi-view-column</v-icon>Kanban</v-tab>
-            <v-tab value="table"><v-icon start>mdi-table</v-icon>Table</v-tab>
-            <v-tab value="calendar"><v-icon start>mdi-calendar-month</v-icon>Calendar</v-tab>
-            <v-tab value="gantt"><v-icon start>mdi-chart-gantt</v-icon>Gantt</v-tab>
-            <v-tab value="workload"><v-icon start>mdi-account-group</v-icon>Workload</v-tab>
-            <v-tab value="time"><v-icon start>mdi-clock-outline</v-icon>Time</v-tab>
-          </v-tabs>
-        </v-card-text>
-      </v-card>
+        <div class="d-flex align-center ga-1">
+          <StaffAvatar
+            v-for="m in board.members.slice(0, 6)"
+            :key="m.staff_id"
+            :name="m.full_name"
+            :size="30"
+          />
+          <span v-if="board.members.length > 6" class="text-caption text-medium-emphasis ml-1">
+            +{{ board.members.length - 6 }}
+          </span>
+        </div>
 
-      <!-- VIEWS -->
-      <v-card class="rounded-lg pa-4" elevation="1">
-        <v-progress-linear :active="loadingCards" color="primary" height="3" indeterminate />
+        <v-btn-toggle v-model="view" density="compact" divided mandatory variant="outlined">
+          <v-btn v-for="v in VIEWS" :key="v.value" size="small" :value="v.value">
+            <v-icon :icon="v.icon" size="18" />
+            <v-tooltip activator="parent" location="bottom">{{ v.label }}</v-tooltip>
+          </v-btn>
+        </v-btn-toggle>
 
-        <KanbanView
-          v-if="view === 'kanban'"
-          :cards="cards"
-          :lists="board.lists"
-          @add-card="openAddCard"
-          @add-list="addList"
-          @move-card="moveCard"
-          @open-card="openCard"
-        />
-        <TableView
-          v-else-if="view === 'table'"
-          :cards="cards"
-          :lists="board.lists"
-          :statuses="board.statuses"
-          @open-card="openCard"
-        />
-        <CalendarView v-else-if="view === 'calendar'" :cards="cards" @open-card="openCard" />
-        <GanttView v-else-if="view === 'gantt'" :cards="cards" @open-card="openCard" />
-        <WorkloadView v-else-if="view === 'workload'" :board-id="board.id" />
-        <TimeReportView v-else-if="view === 'time'" :board-id="board.id" />
-      </v-card>
+        <v-btn prepend-icon="mdi-account-multiple-outline" variant="text" @click="openMembers">
+          Members
+        </v-btn>
+        <v-menu location="bottom end">
+          <template #activator="{ props: p }">
+            <v-btn v-bind="p" icon="mdi-dots-vertical" variant="text" />
+          </template>
+          <v-list density="compact">
+            <v-list-item
+              prepend-icon="mdi-archive-arrow-up-outline"
+              title="Archived items"
+              @click="archiveDialog = true"
+            />
+            <v-list-item
+              v-if="board.isOwner"
+              prepend-icon="mdi-tag-multiple-outline"
+              title="Manage statuses"
+              @click="statusesDialog = true"
+            />
+            <v-list-item
+              v-if="board.isOwner"
+              prepend-icon="mdi-clipboard-text-outline"
+              title="Intake forms"
+              @click="formsDialog = true"
+            />
+            <template v-if="board.isOwner">
+              <v-divider />
+              <v-list-item
+                base-color="error"
+                prepend-icon="mdi-archive-outline"
+                title="Archive this board"
+                @click="archiveBoard"
+              />
+            </template>
+          </v-list>
+        </v-menu>
+      </div>
+
+      <v-alert
+        v-if="board.board.linked_card"
+        class="mb-4"
+        density="comfortable"
+        icon="mdi-link-variant"
+        rounded="lg"
+        type="info"
+        variant="tonal"
+      >
+        This board addresses
+        <router-link
+          class="font-weight-bold"
+          :to="{ name: 'Board', query: { id: board.board.linked_card.board_id, card: board.board.linked_card.id } }"
+        >{{ board.board.linked_card.title }}</router-link>
+        on <strong>{{ board.board.linked_card.board_name }}</strong>.
+      </v-alert>
+
+      <BoardFilterBar v-model="board.state.filter" />
+      <BoardViewBar v-model:view-type="view" />
+
+      <BoardKanban v-if="view === 'board'" @open-card="openCard" />
+      <BoardCalendar v-else-if="view === 'calendar'" @open-card="openCard" />
+      <BoardTable v-else-if="view === 'table'" @open-card="openCard" />
+      <BoardGantt v-else-if="view === 'gantt'" @open-card="openCard" />
+      <BoardWorkload v-else @open-card="openCard" />
+
+      <!-- Outside the view chain: the bulk bar floats over whichever is shown. -->
+      <BoardBulkBar />
     </template>
 
-    <!-- ADD CARD DIALOG -->
-    <v-dialog v-model="showAddCard" max-width="420">
-      <v-card class="rounded-lg">
-        <v-card-title>New card</v-card-title>
-        <v-card-text>
-          <v-text-field
-            v-model="newCardTitle"
-            autofocus
-            density="comfortable"
-            label="Title"
-            variant="outlined"
-            @keyup.enter="submitAddCard"
-          />
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="outlined" @click="showAddCard = false">Cancel</v-btn>
-          <v-btn color="primary" :disabled="!newCardTitle.trim()" variant="flat" @click="submitAddCard">
-            Add
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-
-    <!-- ADD LIST DIALOG -->
-    <v-dialog v-model="showAddList" max-width="420">
-      <v-card class="rounded-lg">
-        <v-card-title>New list</v-card-title>
-        <v-card-text>
-          <v-text-field
-            v-model="newListName"
-            autofocus
-            density="comfortable"
-            label="List name"
-            variant="outlined"
-            @keyup.enter="submitAddList"
-          />
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="outlined" @click="showAddList = false">Cancel</v-btn>
-          <v-btn color="primary" :disabled="!newListName.trim()" variant="flat" @click="submitAddList">
-            Add
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+    <v-alert v-else rounded="lg" type="error" variant="tonal">
+      This board is not available to you.
+    </v-alert>
 
     <CardDialog
-      :board-id="board?.id"
-      :board-labels="board?.labels || []"
+      v-if="openCardId"
       :card-id="openCardId"
-      :cards="cards"
-      :statuses="board?.statuses || []"
-      @changed="loadCards"
-      @close="openCardId = null"
+      @changed="onCardChanged"
+      @close="closeCard"
+      @open-card="openCard"
     />
 
-    <BoardSettingsDialog v-model="showSettings" :board="board" @changed="loadBoard" />
+    <BoardArchive v-model="archiveDialog" />
+    <BoardStatusesDialog v-model="statusesDialog" />
+    <BoardFormsDialog v-model="formsDialog" />
+
+    <!-- MEMBERS -->
+    <v-dialog v-model="membersDialog" max-width="520">
+      <v-card border rounded="lg">
+        <v-card-title class="py-4">Board members</v-card-title>
+        <v-divider />
+        <v-card-text class="pt-4">
+          <v-list class="bg-transparent" density="compact">
+            <v-list-item v-for="m in board.members" :key="m.staff_id" class="px-0">
+              <template #prepend>
+                <StaffAvatar class="mr-3" :name="m.full_name" :size="34" />
+              </template>
+              <v-list-item-title class="text-body-2">{{ m.full_name }}</v-list-item-title>
+              <v-list-item-subtitle class="text-caption">
+                {{ ROLES.find((r) => r.value === m.role)?.title || m.role }}
+              </v-list-item-subtitle>
+              <template v-if="board.isOwner" #append>
+                <v-btn
+                  icon="mdi-close"
+                  size="x-small"
+                  variant="text"
+                  @click="removeMember(m.staff_id)"
+                />
+              </template>
+            </v-list-item>
+          </v-list>
+
+          <template v-if="board.isOwner">
+            <v-divider class="my-3" />
+            <v-autocomplete
+              v-model="addingUserId"
+              class="mb-2"
+              density="compact"
+              item-title="name"
+              item-value="id"
+              :items="userOptions"
+              label="Add someone"
+            />
+            <v-select
+              v-model="addingRole"
+              density="compact"
+              item-title="title"
+              item-value="value"
+              :items="ROLES"
+              label="Their role"
+            />
+            <v-btn
+              block
+              class="mt-2"
+              color="primary"
+              :disabled="!addingUserId"
+              flat
+              @click="addMember"
+            >
+              Add to board
+            </v-btn>
+          </template>
+        </v-card-text>
+        <v-divider />
+        <v-card-actions class="pa-4">
+          <v-spacer />
+          <v-btn variant="text" @click="membersDialog = false">Done</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
@@ -130,115 +188,137 @@
   import { onMounted, ref, watch } from "vue";
   import { useRoute, useRouter } from "vue-router";
   import { useStore } from "vuex";
-  import KanbanView from "@/components/board/KanbanView.vue";
-  import TableView from "@/components/board/TableView.vue";
-  import CalendarView from "@/components/board/CalendarView.vue";
-  import GanttView from "@/components/board/GanttView.vue";
-  import WorkloadView from "@/components/board/WorkloadView.vue";
-  import TimeReportView from "@/components/board/TimeReportView.vue";
+  import { useBoard } from "@/stores/board";
+  import StaffAvatar from "@/components/StaffAvatar.vue";
+  import BoardKanban from "@/components/board/BoardKanban.vue";
+  import BoardCalendar from "@/components/board/BoardCalendar.vue";
+  import BoardTable from "@/components/board/BoardTable.vue";
+  import BoardGantt from "@/components/board/BoardGantt.vue";
+  import BoardWorkload from "@/components/board/BoardWorkload.vue";
+  import BoardFilterBar from "@/components/board/BoardFilterBar.vue";
+  import BoardViewBar from "@/components/board/BoardViewBar.vue";
+  import BoardBulkBar from "@/components/board/BoardBulkBar.vue";
+  import BoardArchive from "@/components/board/BoardArchive.vue";
+  import BoardStatusesDialog from "@/components/board/BoardStatusesDialog.vue";
+  import BoardFormsDialog from "@/components/board/BoardFormsDialog.vue";
   import CardDialog from "@/components/board/CardDialog.vue";
-  import BoardSettingsDialog from "@/components/settings/BoardSettingsDialog.vue";
 
   const route = useRoute();
   const router = useRouter();
   const store = useStore();
+  const board = useBoard();
 
-  const board = ref(null);
-  const cards = ref([]);
-  const loadingCards = ref(false);
-  const view = ref("kanban");
-  const openCardId = ref(null);
-  const showSettings = ref(false);
+  const membersDialog = ref(false);
+  const archiveDialog = ref(false);
+  const statusesDialog = ref(false);
+  const formsDialog = ref(false);
 
-  const showAddCard = ref(false);
-  const addCardListId = ref(null);
-  const newCardTitle = ref("");
+  const userOptions = ref([]);
+  const addingUserId = ref(null);
+  const addingRole = ref("MEMBER");
 
-  const showAddList = ref(false);
-  const newListName = ref("");
+  const ROLES = [
+    { value: "OWNER", title: "Owner — can manage the board" },
+    { value: "MEMBER", title: "Member — can create and edit cards" },
+    { value: "OBSERVER", title: "Observer — read-only" },
+  ];
 
-  async function loadBoard() {
-    const res = await fetch(`/boards/${route.query.id}`);
-    if (!res.ok) {
-      store.commit("setMessage", { type: "error", text: "Failed to load board" });
-      router.push({ name: "BoardsList" });
-      return;
-    }
-    board.value = await res.json();
-  }
+  const VIEWS = [
+    { value: "board", icon: "mdi-view-column-outline", label: "Board" },
+    { value: "calendar", icon: "mdi-calendar-month-outline", label: "Calendar" },
+    { value: "table", icon: "mdi-table", label: "Table" },
+    { value: "gantt", icon: "mdi-chart-timeline", label: "Timeline" },
+    { value: "workload", icon: "mdi-scale-balance", label: "Workload" },
+  ];
 
-  async function loadCards() {
-    loadingCards.value = true;
-    try {
-      const res = await fetch(`/boards/${route.query.id}/cards`);
-      const data = await res.json();
-      cards.value = data.data || [];
-    } finally {
-      loadingCards.value = false;
-    }
-  }
+  // The chosen view is a personal preference, so it is remembered per
+  // board rather than shared with everyone else looking at it.
+  const view = ref(localStorage.getItem(`hb_board_view_${route.query.id}`) || "board");
+  watch(view, (v) => localStorage.setItem(`hb_board_view_${route.query.id}`, v));
+
+  /**
+   * The open card lives in the URL, so a card can be linked to and
+   * shared — the same thing Trello does with its /c/:id URLs.
+   */
+  const openCardId = ref(route.query.card ? Number(route.query.card) : null);
 
   function openCard(id) {
     openCardId.value = id;
+    router.replace({ name: "Board", query: { ...route.query, card: id } });
   }
 
-  function openAddCard(listId) {
-    addCardListId.value = listId;
-    newCardTitle.value = "";
-    showAddCard.value = true;
+  function closeCard() {
+    openCardId.value = null;
+    const query = { ...route.query };
+    delete query.card;
+    router.replace({ name: "Board", query });
   }
 
-  async function submitAddCard() {
-    if (!newCardTitle.value.trim()) return;
-    await fetch(`/boards/${board.value.id}/cards`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ list_id: addCardListId.value, title: newCardTitle.value.trim() }),
-    });
-    showAddCard.value = false;
-    await loadCards();
+  async function onCardChanged() {
+    // The card dialog already patches the board's copy in place for the
+    // common edits; this catches the structural ones (subtasks,
+    // dependencies) where a count on another card may also have moved.
   }
 
-  function addList() {
-    newListName.value = "";
-    showAddList.value = true;
+  async function load() {
+    board.setViewer(store.state.auth?.id ?? null);
+    await board.load(route.query.id);
+    if (board.error) {
+      store.commit("setMessage", { type: "error", text: board.error.message });
+    }
   }
 
-  async function submitAddList() {
-    if (!newListName.value.trim()) return;
-    await fetch(`/boards/${board.value.id}/lists`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newListName.value.trim() }),
-    });
-    showAddList.value = false;
-    await loadBoard();
-  }
-
-  async function moveCard({ cardId, list_id, before_id, after_id }) {
-    // Optimistic: the drag has already visually reordered `cards` via
-    // vuedraggable's v-model-less list mutation, so just persist it —
-    // reloading here would fight the drop animation.
-    await fetch(`/boards/cards/${cardId}/move`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ list_id, before_id, after_id }),
-    });
-    await loadCards();
-  }
-
-  watch(
-    () => route.query.id,
-    () => {
-      if (route.query.id) {
-        loadBoard();
-        loadCards();
+  async function openMembers() {
+    membersDialog.value = true;
+    if (!userOptions.value.length) {
+      try {
+        userOptions.value = await board.api.get("/boards/users");
+      } catch (err) {
+        store.commit("setMessage", { type: "error", text: err.message });
       }
-    },
-  );
+    }
+  }
 
-  onMounted(() => {
-    loadBoard();
-    loadCards();
-  });
+  async function addMember() {
+    if (!addingUserId.value) return;
+    try {
+      await board.api.post(`/boards/${route.query.id}/members`, {
+        user_id: addingUserId.value,
+        role: addingRole.value,
+      });
+      addingUserId.value = null;
+      await board.refresh();
+    } catch (err) {
+      store.commit("setMessage", { type: "error", text: err.message });
+    }
+  }
+
+  async function removeMember(userId) {
+    try {
+      await board.api.del(`/boards/${route.query.id}/members/${userId}`);
+      await board.refresh();
+    } catch (err) {
+      store.commit("setMessage", { type: "error", text: err.message });
+    }
+  }
+
+  async function archiveBoard() {
+    if (!window.confirm(`Archive the board "${board.board.name}"? Its cards are kept.`)) return;
+    try {
+      await board.api.del(`/boards/${route.query.id}`);
+      store.commit("setMessage", { type: "success", text: "Board archived" });
+      router.push({ name: "BoardsList" });
+    } catch (err) {
+      store.commit("setMessage", { type: "error", text: err.message });
+    }
+  }
+
+  watch(() => route.query.id, load);
+  onMounted(load);
 </script>
+
+<style scoped>
+.min-w-0 {
+  min-width: 0;
+}
+</style>

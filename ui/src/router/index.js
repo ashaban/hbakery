@@ -11,6 +11,12 @@ import store from "../store";
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
+    // The site root has no screen of its own. It used to reach Landing
+    // only as a side effect of App.vue bouncing every unauthenticated
+    // visitor there; now that the bounce is limited to pages that
+    // actually require a login, "/" needs a route of its own or it
+    // renders nothing at all.
+    { path: "/", redirect: "/Landing" },
     {
       path: "/Landing",
       name: "Landing",

@@ -1,609 +1,1164 @@
 <template>
   <v-dialog
-    max-width="760"
-    :model-value="!!cardId"
+    :fullscreen="mobile"
+    :max-width="mobile ? undefined : 1360"
+    :model-value="true"
     scrollable
-    @update:model-value="(v) => !v && $emit('close')"
+    @update:model-value="emit('close')"
   >
-    <v-card v-if="card" class="rounded-lg">
-      <v-toolbar color="primary" density="comfortable">
-        <v-toolbar-title class="text-subtitle-1 font-weight-bold">
-          {{ card.title }}
-        </v-toolbar-title>
-        <v-spacer />
-        <v-btn icon @click="$emit('close')">
-          <v-icon>mdi-close</v-icon>
-        </v-btn>
-      </v-toolbar>
+    <v-card border :class="{ 'card-frame': !mobile }" rounded="lg">
+      <div v-if="card?.cover_color" :style="{ background: card.cover_color, height: '48px' }" />
 
-      <v-card-text class="pa-6" style="max-height: 75vh">
-        <!-- TITLE / DESCRIPTION -->
-        <v-text-field
-          v-model="editTitle"
-          class="mb-2"
-          density="comfortable"
-          label="Title"
-          variant="outlined"
-          @blur="saveField('title', editTitle)"
-        />
-        <v-textarea
-          v-model="editDescription"
-          auto-grow
-          class="mb-4"
-          density="comfortable"
-          label="Description"
-          rows="2"
-          variant="outlined"
-          @blur="saveField('description', editDescription)"
-        />
+      <div v-if="loading" class="d-flex justify-center py-16">
+        <v-progress-circular color="primary" indeterminate size="36" />
+      </div>
 
-        <!-- QUICK FIELDS -->
-        <v-row dense>
-          <v-col cols="12" sm="4">
-            <v-select
-              v-model="editStatusId"
-              density="compact"
-              item-title="name"
-              item-value="id"
-              :items="statuses"
-              label="Status"
-              variant="outlined"
-              @update:model-value="(v) => saveField('status_id', v)"
-            />
-          </v-col>
-          <v-col cols="12" sm="4">
-            <v-select
-              v-model="editPriority"
-              clearable
-              density="compact"
-              :items="['URGENT', 'HIGH', 'NORMAL', 'LOW']"
-              label="Priority"
-              variant="outlined"
-              @update:model-value="(v) => saveField('priority', v)"
-            />
-          </v-col>
-          <v-col cols="12" sm="4">
-            <v-checkbox
-              v-model="editMilestone"
-              density="compact"
-              hide-details
-              label="Milestone"
-              @update:model-value="(v) => saveField('is_milestone', v)"
-            />
-          </v-col>
-          <v-col cols="12" sm="6">
-            <DateField
-              v-model="editStart"
-              label="Start"
-              @update:model-value="(v) => saveField('start_at', toISO(v))"
-            />
-          </v-col>
-          <v-col cols="12" sm="6">
-            <DateField
-              v-model="editDue"
-              label="Due"
-              @update:model-value="(v) => saveField('due_at', toISO(v))"
-            />
-          </v-col>
-        </v-row>
-
-        <!-- ASSIGNEES -->
-        <div class="text-subtitle-2 font-weight-bold mt-2 mb-1">Assignees</div>
-        <v-autocomplete
-          v-model="editMembers"
-          chips
-          closable-chips
-          density="compact"
-          item-title="name"
-          item-value="id"
-          :items="userList"
-          multiple
-          variant="outlined"
-          @update:model-value="saveMembers"
-        />
-
-        <!-- LABELS / TAGS -->
-        <div class="text-subtitle-2 font-weight-bold mb-1">Labels</div>
-        <div class="d-flex flex-wrap ga-2 mb-3">
-          <v-chip
-            v-for="l in boardLabels"
-            :key="l.id"
-            :color="l.color"
-            :variant="hasLabel(l.id) ? 'flat' : 'outlined'"
-            @click="toggleLabel(l.id)"
-          >
-            {{ l.name || "(unnamed)" }}
-          </v-chip>
-        </div>
-
-        <div class="text-subtitle-2 font-weight-bold mb-1">Tags</div>
-        <v-combobox
-          v-model="editTags"
-          chips
-          closable-chips
-          density="compact"
-          hide-details
-          multiple
-          variant="outlined"
-          @update:model-value="saveTags"
-        />
-
-        <v-divider class="my-4" />
-
-        <!-- CHECKLISTS -->
-        <div class="d-flex align-center mb-2">
-          <div class="text-subtitle-2 font-weight-bold">Checklist</div>
-          <v-spacer />
-          <v-btn v-if="!card.checklists.length" size="small" variant="text" @click="addChecklist">
-            <v-icon start>mdi-plus</v-icon>
-            Add checklist
-          </v-btn>
-        </div>
-        <div v-for="cl in card.checklists" :key="cl.id" class="mb-4">
-          <v-progress-linear
-            class="mb-2"
-            color="success"
-            height="6"
-            :model-value="checklistPct(cl)"
-            rounded
-          />
-          <div v-for="item in cl.items" :key="item.id" class="d-flex align-center">
-            <v-checkbox-btn
-              :model-value="item.is_done"
-              @update:model-value="(v) => toggleItem(item, v)"
-            />
-            <span :class="{ 'text-decoration-line-through text-grey': item.is_done }">
-              {{ item.content }}
-            </span>
-            <v-spacer />
-            <v-btn color="error" icon size="x-small" variant="text" @click="deleteItem(item)">
-              <v-icon size="16">mdi-close</v-icon>
-            </v-btn>
-          </div>
-          <div class="d-flex mt-1">
+      <template v-else-if="card">
+        <v-card-title class="d-flex align-start ga-2 py-4">
+          <v-icon class="mt-1 text-medium-emphasis" icon="mdi-card-text-outline" size="20" />
+          <div class="flex-grow-1 min-w-0">
             <v-text-field
-              v-model="newItemText[cl.id]"
+              v-if="editingTitle"
+              v-model="titleDraft"
+              autofocus
               density="compact"
               hide-details
-              placeholder="Add an item…"
               variant="outlined"
-              @keyup.enter="addItem(cl)"
+              @blur="saveTitle"
+              @keyup.enter="saveTitle"
+              @keyup.esc="editingTitle = false"
             />
-            <v-btn class="ml-2" color="primary" variant="tonal" @click="addItem(cl)">Add</v-btn>
+            <div
+              v-else
+              class="text-h6"
+              :class="{ 'cursor-text': canEdit }"
+              @click="canEdit && (editingTitle = true)"
+            >{{ card.title }}</div>
+            <div class="text-caption text-medium-emphasis mt-1">
+              in list <strong>{{ card.list_name }}</strong>
+              <span v-if="card.created_by_name"> · added by {{ card.created_by_name }}</span>
+              <span v-if="card.submitted_by_name"> · submitted by {{ card.submitted_by_name }}</span>
+            </div>
+
+            <div class="d-flex align-center flex-wrap ga-2 mt-2">
+              <!-- Status is separate from the list: where it sits vs how
+                   far along it is. -->
+              <v-menu location="bottom start">
+                <template #activator="{ props: p }">
+                  <v-chip
+                    v-bind="p"
+                    :disabled="!canEdit"
+                    label
+                    size="small"
+                    :style="currentStatus ? { color: currentStatus.color } : {}"
+                    variant="tonal"
+                  >
+                    <v-icon icon="mdi-progress-check" size="14" start />
+                    {{ currentStatus?.name || "No status" }}
+                  </v-chip>
+                </template>
+                <v-list density="compact">
+                  <v-list-item
+                    v-for="s in board.statuses"
+                    :key="s.id"
+                    :title="s.name"
+                    @click="setStatus(s.id)"
+                  >
+                    <template #prepend>
+                      <span class="status-dot mr-3" :style="{ background: s.color }" />
+                    </template>
+                    <template #append>
+                      <v-icon
+                        v-if="s.id === card.status_id"
+                        color="success"
+                        icon="mdi-check"
+                        size="16"
+                      />
+                    </template>
+                  </v-list-item>
+                </v-list>
+              </v-menu>
+
+              <v-menu location="bottom start">
+                <template #activator="{ props: p }">
+                  <v-chip
+                    v-bind="p"
+                    :disabled="!canEdit"
+                    label
+                    size="small"
+                    :style="currentPriority ? { color: currentPriority.color } : {}"
+                    variant="tonal"
+                  >
+                    <v-icon :icon="currentPriority?.icon || 'mdi-flag-outline'" size="14" start />
+                    {{ currentPriority?.label || "Priority" }}
+                  </v-chip>
+                </template>
+                <v-list density="compact">
+                  <v-list-item
+                    v-for="p in PRIORITIES"
+                    :key="p.value"
+                    :title="p.label"
+                    @click="setPriority(card.priority === p.value ? null : p.value)"
+                  >
+                    <template #prepend>
+                      <v-icon class="mr-3" :color="p.color" :icon="p.icon" size="16" />
+                    </template>
+                    <template #append>
+                      <v-icon
+                        v-if="card.priority === p.value"
+                        color="success"
+                        icon="mdi-check"
+                        size="16"
+                      />
+                    </template>
+                  </v-list-item>
+                </v-list>
+              </v-menu>
+
+              <v-chip
+                :color="card.is_milestone ? 'warning' : undefined"
+                :disabled="!canEdit"
+                label
+                size="small"
+                variant="tonal"
+                @click="canEdit && toggleMilestone()"
+              >
+                <v-icon
+                  :icon="card.is_milestone ? 'mdi-rhombus' : 'mdi-rhombus-outline'"
+                  size="13"
+                  start
+                />
+                Milestone
+              </v-chip>
+
+              <v-chip
+                v-if="card.blocked_by?.some((b) => b.status_category !== 'DONE')"
+                color="error"
+                label
+                size="small"
+                variant="tonal"
+              >
+                <v-icon icon="mdi-block-helper" size="13" start />Blocked
+              </v-chip>
+            </div>
           </div>
-        </div>
+          <v-btn icon="mdi-close" size="small" variant="text" @click="emit('close')" />
+        </v-card-title>
 
-        <v-divider class="my-4" />
+        <v-divider />
 
-        <!-- SUBTASKS -->
-        <div class="text-subtitle-2 font-weight-bold mb-2">Subtasks</div>
-        <div v-for="s in card.subtasks" :key="s.id" class="d-flex align-center mb-1">
-          <v-icon class="mr-1" color="grey" size="16">mdi-file-tree-outline</v-icon>
-          <span :class="{ 'text-decoration-line-through text-grey': s.is_archived }">{{ s.title }}</span>
-        </div>
-        <div v-if="!card.parent_card_id" class="d-flex mt-1">
-          <v-text-field
-            v-model="newSubtaskTitle"
-            density="compact"
-            hide-details
-            placeholder="Add a subtask…"
-            variant="outlined"
-            @keyup.enter="addSubtask"
-          />
-          <v-btn class="ml-2" color="primary" variant="tonal" @click="addSubtask">Add</v-btn>
-        </div>
+        <v-card-text class="pt-5" :class="{ 'card-body': !mobile }">
+          <v-row :class="{ 'card-row': !mobile }">
+            <!-- Main column ------------------------------------------ -->
+            <v-col class="card-main" cols="12" md="7">
+              <div
+                v-if="card.labels.length || card.members.length || card.start_at || card.due_at"
+                class="d-flex flex-wrap ga-6 mb-5"
+              >
+                <div v-if="card.members.length">
+                  <div class="eyebrow mb-2">Assigned to</div>
+                  <div class="d-flex ga-1">
+                    <StaffAvatar
+                      v-for="m in card.members"
+                      :key="m.staff_id"
+                      :name="m.full_name"
+                      :size="34"
+                    />
+                  </div>
+                </div>
+                <div v-if="card.labels.length">
+                  <div class="eyebrow mb-2">Labels</div>
+                  <div class="d-flex flex-wrap ga-1">
+                    <span
+                      v-for="l in card.labels"
+                      :key="l.id"
+                      class="card-label"
+                      :style="{ background: l.color }"
+                    >{{ l.name || "&nbsp;&nbsp;&nbsp;" }}</span>
+                  </div>
+                </div>
+                <div v-if="card.start_at">
+                  <div class="eyebrow mb-2">Starts</div>
+                  <v-chip label size="small" variant="tonal">
+                    <v-icon icon="mdi-calendar-start-outline" size="15" start />
+                    {{ formatDateTime(card.start_at) }}
+                  </v-chip>
+                </div>
+                <div v-if="card.due_at">
+                  <div class="eyebrow mb-2">Due</div>
+                  <v-chip
+                    :color="card.due_complete ? 'success' : undefined"
+                    :disabled="!canEdit"
+                    label
+                    size="small"
+                    variant="tonal"
+                    @click="canEdit && toggleDueComplete()"
+                  >
+                    <v-icon
+                      :icon="card.due_complete ? 'mdi-checkbox-marked-outline' : 'mdi-checkbox-blank-outline'"
+                      size="15"
+                      start
+                    />
+                    {{ formatDateTime(card.due_at) }}
+                  </v-chip>
+                </div>
+              </div>
 
-        <v-divider class="my-4" />
+              <div class="eyebrow mb-2">Description</div>
+              <div v-if="editingDescription">
+                <v-alert
+                  v-if="staleWarning"
+                  class="mb-2"
+                  density="compact"
+                  rounded="lg"
+                  type="warning"
+                  variant="tonal"
+                >
+                  <div class="text-body-2 font-weight-bold">
+                    Someone else edited this description while you were typing
+                  </div>
+                  <div class="d-flex ga-2 mt-2">
+                    <v-btn size="x-small" variant="tonal" @click="reloadAndKeepDraft">
+                      Show me theirs
+                    </v-btn>
+                    <v-btn color="error" size="x-small" variant="tonal" @click="overwriteAnyway">
+                      Keep mine
+                    </v-btn>
+                  </div>
+                </v-alert>
+                <v-textarea v-model="descriptionDraft" auto-grow rows="5" variant="outlined" />
+                <div class="d-flex ga-2 mt-2">
+                  <v-btn color="primary" flat :loading="savingDescription" size="small" @click="saveDescription">
+                    Save
+                  </v-btn>
+                  <v-btn size="small" variant="text" @click="editingDescription = false">Cancel</v-btn>
+                </div>
+              </div>
+              <div
+                v-else
+                class="card-description"
+                :class="{ 'cursor-text': canEdit }"
+                @click="canEdit && (editingDescription = true)"
+              >
+                <div v-if="card.description" class="text-body-2 description-text">
+                  {{ card.description }}
+                </div>
+                <span v-else class="text-caption text-medium-emphasis">
+                  {{ canEdit ? "Add a more detailed description…" : "No description" }}
+                </span>
+              </div>
 
-        <!-- DEPENDENCIES -->
-        <div class="text-subtitle-2 font-weight-bold mb-2">Blocked by</div>
-        <div v-if="!card.blocked_by.length" class="text-body-2 text-grey mb-2">
-          Nothing is blocking this card.
-        </div>
-        <v-chip
-          v-for="dep in card.blocked_by"
-          :key="dep.blocker_card_id"
-          class="mr-2 mb-2"
-          closable
-          :color="dep.blocker_status === 'DONE' ? 'success' : 'warning'"
-          variant="tonal"
-          @click:close="removeDependency(dep.blocker_card_id)"
-        >
-          {{ dep.blocker_title }}
-        </v-chip>
-        <div class="d-flex align-center mt-1">
-          <v-select
-            v-model="blockerCardId"
-            density="compact"
-            hide-details
-            item-title="title"
-            item-value="id"
-            :items="otherCards"
-            placeholder="Block on another card…"
-            variant="outlined"
-          />
-          <v-btn class="ml-2" color="primary" variant="tonal" @click="addDependency">Add</v-btn>
-        </div>
+              <v-btn
+                v-if="mobile && !showAllSections"
+                block
+                class="mt-5"
+                prepend-icon="mdi-chevron-down"
+                size="small"
+                variant="tonal"
+                @click="showAllSections = true"
+              >
+                More — subtasks, checklists, links, time…
+              </v-btn>
 
-        <v-divider class="my-4" />
+              <template v-if="detailShown">
+                <div class="eyebrow mt-6 mb-2">Subtasks</div>
+                <SubtaskPanel
+                  :can-edit="canEdit"
+                  :card-id="cardId"
+                  :subtasks="card.subtasks || []"
+                  @changed="reloadCollab"
+                  @open="(id) => emit('open-card', id)"
+                />
 
-        <!-- TIME TRACKING -->
-        <div class="d-flex align-center mb-2">
-          <div class="text-subtitle-2 font-weight-bold">Time tracked</div>
-          <v-spacer />
-          <span class="text-caption text-grey mr-2">{{ minutesToHuman(card.logged_minutes) }}</span>
-          <v-btn
-            v-if="!runningEntryId"
-            color="primary"
-            size="small"
-            variant="tonal"
-            @click="startTimer"
-          >
-            <v-icon start>mdi-play</v-icon>
-            Start
-          </v-btn>
-          <v-btn v-else color="error" size="small" variant="flat" @click="stopTimer">
-            <v-icon start>mdi-stop</v-icon>
-            Stop
-          </v-btn>
-        </div>
-        <div v-for="t in card.time_entries" :key="t.id" class="text-body-2">
-          {{ t.staff_name }} — {{ minutesToHuman(t.minutes) }}
-          <span v-if="t.note" class="text-grey">({{ t.note }})</span>
-        </div>
+                <div class="eyebrow mt-6 mb-2">Dependencies</div>
+                <DependencyPanel
+                  :blocked-by="card.blocked_by || []"
+                  :blocking="card.blocking || []"
+                  :can-edit="canEdit"
+                  :card-id="cardId"
+                  @changed="reloadCollab"
+                  @open="(id) => emit('open-card', id)"
+                />
 
-        <v-divider class="my-4" />
+                <div class="eyebrow mt-6 mb-2">Checklists</div>
+                <ChecklistPanel
+                  :can-edit="canEdit"
+                  :card-id="cardId"
+                  :checklists="card.checklists || []"
+                  :members="board.members"
+                  @changed="reloadCollab"
+                />
 
-        <!-- LINKS -->
-        <div class="text-subtitle-2 font-weight-bold mb-2">Links</div>
-        <div v-for="l in card.links" :key="l.id" class="d-flex align-center mb-1">
-          <v-icon class="mr-1" color="primary" size="16">mdi-link</v-icon>
-          <a :href="l.url" rel="noopener" target="_blank">{{ l.label || l.url }}</a>
-          <v-spacer />
-          <v-btn color="error" icon size="x-small" variant="text" @click="deleteLink(l)">
-            <v-icon size="16">mdi-close</v-icon>
-          </v-btn>
-        </div>
-        <div class="d-flex mt-1">
-          <v-text-field
-            v-model="newLinkUrl"
-            density="compact"
-            hide-details
-            placeholder="Paste a link (Drive, WhatsApp, photo…)"
-            variant="outlined"
-          />
-          <v-btn class="ml-2" color="primary" variant="tonal" @click="addLink">Add</v-btn>
-        </div>
+                <div class="eyebrow mt-6 mb-2">Fields</div>
+                <CustomFieldsPanel
+                  :can-edit="canEdit"
+                  :card-id="cardId"
+                  :values="card.custom || {}"
+                  @changed="reloadCollab"
+                />
 
-        <v-divider class="my-4" />
+                <div class="eyebrow mt-6 mb-2">Tags</div>
+                <div class="d-flex flex-wrap ga-2 align-center">
+                  <v-chip
+                    v-for="t in card.tags || []"
+                    :key="t.id"
+                    :closable="canEdit"
+                    label
+                    size="small"
+                    :style="{ color: t.color }"
+                    variant="tonal"
+                    @click:close="removeTag(t)"
+                  >{{ t.name }}</v-chip>
+                  <v-combobox
+                    v-if="canEdit"
+                    v-model="newTag"
+                    density="compact"
+                    hide-details
+                    :items="allTags.map((t) => t.name)"
+                    placeholder="Add a tag"
+                    style="max-width: 200px"
+                    @update:model-value="addTag"
+                  />
+                </div>
 
-        <!-- COMMENTS -->
-        <div class="text-subtitle-2 font-weight-bold mb-2">Comments</div>
-        <div v-for="c in card.comments" :key="c.id" class="mb-3">
-          <div class="text-caption text-grey">
-            {{ c.staff_name }} · {{ formatDateTime(c.created_at) }}
-            <v-chip v-if="c.resolved_at" class="ml-1" color="success" size="x-small" variant="tonal">
-              resolved
-            </v-chip>
-          </div>
-          <div class="text-body-2">{{ c.body }}</div>
-          <v-btn
-            v-if="c.assigned_to && !c.resolved_at"
-            size="x-small"
-            variant="text"
-            @click="resolveComment(c)"
-          >
-            Mark resolved
-          </v-btn>
-        </div>
-        <v-textarea
-          v-model="newComment"
-          auto-grow
-          density="compact"
-          placeholder="Write a comment…"
-          rows="2"
-          variant="outlined"
-        />
-        <v-btn color="primary" variant="flat" @click="addComment">Comment</v-btn>
+                <template v-if="card.linked_boards?.length">
+                  <div class="eyebrow mt-6 mb-2">Boards addressing this task</div>
+                  <div v-for="b in card.linked_boards" :key="b.id" class="linked-row">
+                    <v-icon
+                      class="text-medium-emphasis"
+                      icon="mdi-view-column-outline"
+                      size="16"
+                    />
+                    <router-link
+                      class="text-body-2 linked-row__link"
+                      :to="{ name: 'Board', query: { id: b.id } }"
+                    >{{ b.name }}</router-link>
+                    <v-chip v-if="b.is_archived" size="x-small" variant="tonal">Archived</v-chip>
+                  </div>
+                </template>
 
-        <v-divider class="my-4" />
+                <div class="eyebrow mt-6 mb-2">Time</div>
+                <TimeTracker
+                  :can-edit="canEdit"
+                  :card-id="cardId"
+                  :estimate="card.estimate_minutes"
+                  :time="card.time"
+                  @changed="reloadCollab"
+                />
 
-        <!-- ACTIVITY -->
-        <div class="text-subtitle-2 font-weight-bold mb-2">Activity</div>
-        <div v-for="a in card.activity" :key="a.id" class="text-caption text-grey mb-1">
-          {{ formatDateTime(a.created_at) }} — {{ a.summary }}
-        </div>
-      </v-card-text>
+                <div class="eyebrow mt-6 mb-2">Repeat</div>
+                <RecurrencePicker
+                  :can-edit="canEdit"
+                  :card-id="cardId"
+                  :recurrence="card.recurrence"
+                  @changed="reloadCollab"
+                />
 
-      <v-card-actions class="pa-4 bg-grey-lighten-4">
-        <v-btn color="error" variant="text" @click="archiveCard">
-          <v-icon start>mdi-archive</v-icon>
-          Archive
-        </v-btn>
-        <v-spacer />
-        <v-btn variant="outlined" @click="$emit('close')">Close</v-btn>
-      </v-card-actions>
+                <!-- hbakery has no file storage, so a card carries links
+                     (Drive, a shared photo) rather than uploads. -->
+                <div class="eyebrow mt-6 mb-2">Links</div>
+                <div v-if="card.attachments?.length" class="mb-2">
+                  <div v-for="a in card.attachments" :key="a.id" class="attachment d-flex align-center ga-3">
+                    <v-icon class="text-medium-emphasis" icon="mdi-link-variant" size="20" />
+                    <div class="flex-grow-1 min-w-0">
+                      <a class="text-body-2 linked-row__link" :href="a.url" rel="noopener" target="_blank">
+                        {{ a.label || a.url }}
+                      </a>
+                      <div class="text-caption text-medium-emphasis">
+                        {{ a.added_by_name }} · {{ relativeTime(a.added_at) }}
+                      </div>
+                    </div>
+                    <v-btn
+                      v-if="canEdit"
+                      icon="mdi-delete-outline"
+                      size="x-small"
+                      variant="text"
+                      @click="removeLink(a)"
+                    />
+                  </div>
+                </div>
+                <div v-if="canEdit" class="d-flex ga-2">
+                  <v-text-field
+                    v-model="newLink.url"
+                    density="compact"
+                    hide-details
+                    placeholder="Paste a link"
+                    variant="outlined"
+                  />
+                  <v-text-field
+                    v-model="newLink.label"
+                    density="compact"
+                    hide-details
+                    placeholder="Label (optional)"
+                    style="max-width: 180px"
+                    variant="outlined"
+                  />
+                  <v-btn color="primary" flat size="small" @click="addLink">Add</v-btn>
+                </div>
+
+                <v-btn
+                  v-if="mobile"
+                  block
+                  class="mt-4"
+                  prepend-icon="mdi-chevron-up"
+                  size="small"
+                  variant="text"
+                  @click="showAllSections = false"
+                >Show less</v-btn>
+              </template>
+            </v-col>
+
+            <!-- Sidebar: quick fields, actions, then the conversation —
+                 so the thread is always visible alongside the card
+                 rather than at the bottom of a long scroll. --------- -->
+            <v-col class="card-side" cols="12" md="5">
+              <div class="eyebrow mb-2">Add to card</div>
+
+              <v-menu :close-on-content-click="false" location="bottom end">
+                <template #activator="{ props: p }">
+                  <v-btn
+                    v-bind="p"
+                    block
+                    class="mb-2 justify-start"
+                    :disabled="!canEdit"
+                    prepend-icon="mdi-account-outline"
+                    size="small"
+                    variant="tonal"
+                  >Assign</v-btn>
+                </template>
+                <v-card border min-width="250" rounded="lg">
+                  <v-list density="compact">
+                    <v-list-item
+                      v-for="m in board.members"
+                      :key="m.staff_id"
+                      :title="m.full_name"
+                      @click="toggleMember(m)"
+                    >
+                      <template #prepend>
+                        <StaffAvatar class="mr-2" :name="m.full_name" :size="28" :tooltip="false" />
+                      </template>
+                      <template #append>
+                        <v-icon
+                          v-if="assignedIds.has(m.staff_id)"
+                          color="success"
+                          icon="mdi-check"
+                          size="18"
+                        />
+                      </template>
+                    </v-list-item>
+                  </v-list>
+                </v-card>
+              </v-menu>
+
+              <v-menu :close-on-content-click="false" location="bottom end">
+                <template #activator="{ props: p }">
+                  <v-btn
+                    v-bind="p"
+                    block
+                    class="mb-2 justify-start"
+                    :disabled="!canEdit"
+                    prepend-icon="mdi-label-outline"
+                    size="small"
+                    variant="tonal"
+                  >Labels</v-btn>
+                </template>
+                <v-card border min-width="270" rounded="lg">
+                  <v-list density="compact">
+                    <v-list-item v-for="l in board.labels" :key="l.id" @click="toggleLabel(l)">
+                      <template #prepend>
+                        <span
+                          class="card-label mr-3"
+                          :style="{ background: l.color, minWidth: '52px' }"
+                        />
+                      </template>
+                      <v-list-item-title class="text-body-2">
+                        {{ l.name || "No name" }}
+                      </v-list-item-title>
+                      <template #append>
+                        <v-icon
+                          v-if="appliedLabelIds.has(l.id)"
+                          color="success"
+                          icon="mdi-check"
+                          size="18"
+                        />
+                      </template>
+                    </v-list-item>
+                  </v-list>
+                  <v-divider />
+                  <div class="pa-3">
+                    <div class="eyebrow mb-2">New label</div>
+                    <v-text-field
+                      v-model="newLabel.name"
+                      class="mb-2"
+                      density="compact"
+                      hide-details
+                      placeholder="Name (optional)"
+                    />
+                    <div class="d-flex flex-wrap ga-1 mb-2">
+                      <button
+                        v-for="c in LABEL_COLORS"
+                        :key="c"
+                        class="swatch"
+                        :class="{ 'swatch--on': newLabel.color === c }"
+                        :style="{ background: c }"
+                        @click="newLabel.color = c"
+                      />
+                    </div>
+                    <v-btn block color="primary" flat size="small" @click="createLabel">
+                      Create label
+                    </v-btn>
+                  </div>
+                </v-card>
+              </v-menu>
+
+              <v-menu :close-on-content-click="false" location="bottom end">
+                <template #activator="{ props: p }">
+                  <v-btn
+                    v-bind="p"
+                    block
+                    class="mb-2 justify-start"
+                    :disabled="!canEdit"
+                    prepend-icon="mdi-clock-outline"
+                    size="small"
+                    variant="tonal"
+                  >Dates</v-btn>
+                </template>
+                <v-card border class="pa-3" min-width="280" rounded="lg">
+                  <div class="eyebrow mb-2">Starts</div>
+                  <input v-model="startLocal" class="due-input" type="datetime-local">
+                  <v-btn
+                    v-if="card.start_at"
+                    block
+                    class="mt-1"
+                    size="x-small"
+                    variant="text"
+                    @click="setStart('')"
+                  >Clear start date</v-btn>
+
+                  <div class="eyebrow mt-3 mb-2">Due</div>
+                  <input v-model="dueLocal" class="due-input" type="datetime-local">
+                  <v-btn
+                    v-if="card.due_at"
+                    block
+                    class="mt-1"
+                    size="x-small"
+                    variant="text"
+                    @click="setDue('')"
+                  >Clear due date</v-btn>
+
+                  <div class="text-caption text-medium-emphasis mt-3">
+                    A start date makes this card a bar on the timeline.
+                  </div>
+                </v-card>
+              </v-menu>
+
+              <v-menu :close-on-content-click="false" location="bottom end">
+                <template #activator="{ props: p }">
+                  <v-btn
+                    v-bind="p"
+                    block
+                    class="mb-2 justify-start"
+                    :disabled="!canEdit"
+                    prepend-icon="mdi-palette-outline"
+                    size="small"
+                    variant="tonal"
+                  >Cover</v-btn>
+                </template>
+                <v-card border class="pa-3" rounded="lg">
+                  <div class="d-flex flex-wrap ga-1" style="max-width: 200px">
+                    <button
+                      v-for="c in COVER_COLORS"
+                      :key="c || 'none'"
+                      class="swatch"
+                      :class="{ 'swatch--on': card.cover_color === c, 'swatch--none': !c }"
+                      :style="c ? { background: c } : {}"
+                      @click="setCover(c)"
+                    />
+                  </div>
+                </v-card>
+              </v-menu>
+
+              <div class="eyebrow mt-5 mb-2">Actions</div>
+              <v-btn
+                block
+                class="mb-2 justify-start"
+                :prepend-icon="card.watching ? 'mdi-eye-off-outline' : 'mdi-eye-outline'"
+                size="small"
+                variant="tonal"
+                @click="toggleWatch"
+              >
+                {{ card.watching ? "Stop watching" : "Watch" }}
+              </v-btn>
+              <v-btn
+                v-if="canEdit"
+                block
+                class="mb-2 justify-start"
+                prepend-icon="mdi-content-copy"
+                size="small"
+                variant="tonal"
+                @click="copyCard"
+              >Copy card</v-btn>
+              <v-btn
+                v-if="canEdit"
+                block
+                class="justify-start"
+                color="error"
+                prepend-icon="mdi-archive-outline"
+                size="small"
+                variant="tonal"
+                @click="archive"
+              >Archive</v-btn>
+
+              <v-divider class="my-5" />
+
+              <div class="eyebrow mb-2">Comments</div>
+              <CommentBox
+                :card-id="cardId"
+                :comments="card.comments || []"
+                :members="board.members"
+                @changed="reloadCollab"
+              />
+
+              <template v-if="detailShown">
+                <div class="eyebrow mt-6 mb-2">Activity</div>
+                <div class="card-activity">
+                  <div v-for="a in card.activity" :key="a.id" class="activity-row">
+                    <span class="activity-dot" />
+                    <div>
+                      <div class="text-body-2">{{ a.summary }}</div>
+                      <div class="text-caption text-medium-emphasis">
+                        {{ relativeTime(a.created_at) }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </v-col>
+          </v-row>
+        </v-card-text>
+      </template>
     </v-card>
   </v-dialog>
 </template>
 
 <script setup>
   import { computed, onMounted, ref, watch } from "vue";
+  import { useDisplay } from "vuetify";
   import { useStore } from "vuex";
-  import moment from "moment";
-  import DateField from "@/components/shared/DateField.vue";
-  import { formatDateTime, minutesToHuman } from "@/lib/boardFormat";
+  import { useBoard } from "@/stores/board";
+  import StaffAvatar from "@/components/StaffAvatar.vue";
+  import ChecklistPanel from "./ChecklistPanel.vue";
+  import CommentBox from "./CommentBox.vue";
+  import SubtaskPanel from "./SubtaskPanel.vue";
+  import DependencyPanel from "./DependencyPanel.vue";
+  import CustomFieldsPanel from "./CustomFieldsPanel.vue";
+  import TimeTracker from "./TimeTracker.vue";
+  import RecurrencePicker from "./RecurrencePicker.vue";
+  import {
+    formatDateTime, LABEL_COLORS, PRIORITIES, priorityMeta, relativeTime, toLocalInput,
+  } from "@/lib/boards";
 
-  const props = defineProps({
-    cardId: { type: [Number, String, null], default: null },
-    boardId: { type: [Number, String], required: true },
-    statuses: { type: Array, default: () => [] },
-    boardLabels: { type: Array, default: () => [] },
-    cards: { type: Array, default: () => [] },
-  });
-  const emit = defineEmits(["close", "changed"]);
+  /** The "back" of a card. */
+  const props = defineProps({ cardId: { type: [String, Number], required: true } });
+  const emit = defineEmits(["close", "changed", "open-card"]);
 
+  const { mobile } = useDisplay();
+  const board = useBoard();
   const store = useStore();
 
+  /**
+   * A card back is a dozen sections tall. On a phone that is nearly two
+   * thousand pixels of scrolling before the comments, which is where most
+   * conversation happens. So on mobile only the parts people open a card
+   * *for* — description and comments — are shown, and the rest sits
+   * behind "More".
+   */
+  const showAllSections = ref(false);
+  const detailShown = computed(() => !mobile.value || showAllSections.value);
+
   const card = ref(null);
-  const userList = ref([]);
+  const loading = ref(true);
+  const savingDescription = ref(false);
+  const staleWarning = ref(false);
 
-  const editTitle = ref("");
-  const editDescription = ref("");
-  const editStatusId = ref(null);
-  const editPriority = ref(null);
-  const editMilestone = ref(false);
-  const editStart = ref("");
-  const editDue = ref("");
-  const editMembers = ref([]);
-  const editTags = ref([]);
+  const titleDraft = ref("");
+  const editingTitle = ref(false);
+  const descriptionDraft = ref("");
+  const editingDescription = ref(false);
 
-  const newItemText = ref({});
-  const newSubtaskTitle = ref("");
-  const blockerCardId = ref(null);
-  const newLinkUrl = ref("");
-  const newComment = ref("");
-  const runningEntryId = ref(null);
+  const COVER_COLORS = [null, ...LABEL_COLORS];
+  const newLabel = ref({ name: "", color: LABEL_COLORS[0] });
+  const newTag = ref("");
+  const allTags = ref([]);
+  const newLink = ref({ url: "", label: "" });
 
-  function toISO(displayDate) {
-    if (!displayDate) return null;
-    const m = moment(displayDate, "DD/MM/YYYY");
-    return m.isValid() ? m.format("YYYY-MM-DD") : null;
-  }
+  const canEdit = computed(() => board.canEdit);
+  const appliedLabelIds = computed(() => new Set((card.value?.labels || []).map((l) => l.id)));
+  const assignedIds = computed(() => new Set((card.value?.members || []).map((m) => m.staff_id)));
 
-  function fromISO(value) {
-    return value ? moment(value).format("DD/MM/YYYY") : "";
-  }
+  const fail = (err) =>
+    store.commit("setMessage", { type: "error", text: err.message || "Something went wrong" });
 
-  // The whole board's card list is already in memory (passed down from
-  // Board.vue), so the dependency picker just filters it rather than a
-  // separate request.
-  const otherCards = computed(() =>
-    props.cards.filter((c) => c.id !== Number(props.cardId)),
-  );
+  const dueLocal = computed({
+    get: () => toLocalInput(card.value?.due_at),
+    set: (v) => setDue(v),
+  });
+
+  /**
+   * A start date is what turns a card into a bar on the timeline. Without
+   * one a card can only be a point, so the Gantt view needs this control.
+   */
+  const startLocal = computed({
+    get: () => toLocalInput(card.value?.start_at),
+    set: (v) => setStart(v),
+  });
 
   async function load() {
-    if (!props.cardId) {
-      card.value = null;
+    loading.value = true;
+    try {
+      card.value = await board.api.get(`/boards/cards/${props.cardId}`);
+      titleDraft.value = card.value.title;
+      descriptionDraft.value = card.value.description || "";
+    } catch (err) {
+      fail(err);
+      emit("close");
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /** Writes a patch, then mirrors it onto the board so the tile updates behind. */
+  async function patch(body, mirror = body) {
+    try {
+      const saved = await board.api.put(`/boards/cards/${props.cardId}`, body);
+      Object.assign(card.value, saved);
+      board.patchCard(Number(props.cardId), {
+        ...mirror,
+        has_description: Boolean(saved.description),
+      });
+      emit("changed");
+      return saved;
+    } catch (err) {
+      // A stale-edit conflict is handled by the caller with a real choice.
+      if (err?.details?.reason !== "stale") fail(err);
+      throw err;
+    }
+  }
+
+  async function saveTitle() {
+    editingTitle.value = false;
+    const title = titleDraft.value.trim();
+    if (!title || title === card.value.title) {
+      titleDraft.value = card.value.title;
       return;
     }
-    const res = await fetch(`/boards/cards/${props.cardId}`);
-    const data = await res.json();
-    card.value = data;
-    editTitle.value = data.title;
-    editDescription.value = data.description || "";
-    editStatusId.value = data.status_id;
-    editPriority.value = data.priority;
-    editMilestone.value = data.is_milestone;
-    editStart.value = fromISO(data.start_at);
-    editDue.value = fromISO(data.due_at);
-    editMembers.value = (data.members || []).map((m) => m.user_id);
-    editTags.value = (data.tags || []).map((t) => t.name);
-    runningEntryId.value = data.time_entries?.find((t) => !t.ended_at)?.id || null;
+    await patch({ title }, { title });
   }
 
-  async function loadUsers() {
-    const res = await fetch("/boards/users");
-    const data = await res.json();
-    userList.value = data.data || [];
-  }
-
-  async function saveField(field, value) {
-    if (!card.value) return;
-    await fetch(`/boards/cards/${props.cardId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ [field]: value }),
-    });
-    await load();
-    emit("changed");
-  }
-
-  function hasLabel(labelId) {
-    return (card.value?.labels || []).some((l) => l.id === labelId);
-  }
-
-  async function toggleLabel(labelId) {
-    const current = (card.value.labels || []).map((l) => l.id);
-    const next = current.includes(labelId)
-      ? current.filter((id) => id !== labelId)
-      : [...current, labelId];
-    await fetch(`/boards/cards/${props.cardId}/labels`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ label_ids: next }),
-    });
-    await load();
-    emit("changed");
-  }
-
-  async function saveMembers(ids) {
-    await fetch(`/boards/cards/${props.cardId}/members`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_ids: ids }),
-    });
-    await load();
-    emit("changed");
-  }
-
-  async function saveTags(tags) {
-    await fetch(`/boards/cards/${props.cardId}/tags`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tags }),
-    });
-    emit("changed");
-  }
-
-  async function addChecklist() {
-    await fetch(`/boards/cards/${props.cardId}/checklists`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "Checklist" }),
-    });
-    await load();
-  }
-
-  function checklistPct(cl) {
-    if (!cl.items.length) return 0;
-    return Math.round((cl.items.filter((i) => i.is_done).length / cl.items.length) * 100);
-  }
-
-  async function addItem(checklist) {
-    const content = (newItemText.value[checklist.id] || "").trim();
-    if (!content) return;
-    await fetch(`/boards/checklists/${checklist.id}/items`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content }),
-    });
-    newItemText.value[checklist.id] = "";
-    await load();
-    emit("changed");
-  }
-
-  async function toggleItem(item, done) {
-    await fetch(`/boards/checklist-items/${item.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ is_done: done }),
-    });
-    await load();
-    emit("changed");
-  }
-
-  async function deleteItem(item) {
-    await fetch(`/boards/checklist-items/${item.id}`, { method: "DELETE" });
-    await load();
-    emit("changed");
-  }
-
-  async function addSubtask() {
-    const title = newSubtaskTitle.value.trim();
-    if (!title) return;
-    await fetch(`/boards/cards/${props.cardId}/subtasks`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title }),
-    });
-    newSubtaskTitle.value = "";
-    await load();
-    emit("changed");
-  }
-
-  async function addDependency() {
-    if (!blockerCardId.value) return;
-    const res = await fetch(`/boards/cards/${props.cardId}/dependencies`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ blocker_card_id: blockerCardId.value }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      store.commit("setMessage", { type: "error", text: data.error });
-      return;
+  async function saveDescription() {
+    savingDescription.value = true;
+    try {
+      // The description is the one field where two people can lose real
+      // work, so it is the one that checks whether the card moved on
+      // while it was open.
+      await patch({
+        description: descriptionDraft.value,
+        expected_updated_at: card.value.updated_at,
+      });
+      editingDescription.value = false;
+    } catch (err) {
+      if (err?.details?.reason === "stale") staleWarning.value = true;
+    } finally {
+      savingDescription.value = false;
     }
-    blockerCardId.value = null;
-    await load();
   }
 
-  async function removeDependency(blockerId) {
-    await fetch(`/boards/cards/${props.cardId}/dependencies/${blockerId}`, { method: "DELETE" });
+  async function reloadAndKeepDraft() {
+    // Their text is kept in the editor; only the saved copy is re-read,
+    // so nothing typed is lost while the two versions are compared.
+    const mine = descriptionDraft.value;
     await load();
+    descriptionDraft.value = mine;
+    editingDescription.value = true;
+    staleWarning.value = false;
+    store.commit("setMessage", {
+      type: "warning",
+      text: "Reloaded — your text is still here",
+    });
   }
 
-  async function startTimer() {
-    const res = await fetch(`/boards/cards/${props.cardId}/timer/start`, { method: "POST" });
-    const data = await res.json();
-    if (!res.ok) {
-      store.commit("setMessage", { type: "error", text: data.error });
-      return;
+  async function overwriteAnyway() {
+    staleWarning.value = false;
+    await load();
+    savingDescription.value = true;
+    try {
+      await patch({ description: descriptionDraft.value });
+      editingDescription.value = false;
+    } catch {
+      // Reported by patch.
+    } finally {
+      savingDescription.value = false;
     }
-    runningEntryId.value = data.id;
-    await load();
   }
 
-  async function stopTimer() {
-    await fetch(`/boards/time-entries/${runningEntryId.value}/stop`, { method: "POST" });
-    runningEntryId.value = null;
-    await load();
-    emit("changed");
+  async function setDue(local) {
+    const due_at = local ? new Date(local).toISOString() : null;
+    await patch({ due_at }, { due_at, due_complete: false });
+  }
+
+  async function setStart(local) {
+    const start_at = local ? new Date(local).toISOString() : null;
+    await patch({ start_at }, { start_at });
+  }
+
+  const toggleDueComplete = () =>
+    patch({ due_complete: !card.value.due_complete }, { due_complete: !card.value.due_complete });
+
+  const setCover = (color) => patch({ cover_color: color }, { cover_color: color });
+
+  const currentStatus = computed(
+    () => board.statuses.find((s) => s.id === card.value?.status_id) || null,
+  );
+  const currentPriority = computed(() => priorityMeta(card.value?.priority));
+
+  async function setStatus(statusId, force = false) {
+    try {
+      const saved = await board.api.put(`/boards/cards/${props.cardId}`, {
+        status_id: statusId,
+        ...(force ? { force: true } : {}),
+      });
+      Object.assign(card.value, saved);
+      board.patchCard(Number(props.cardId), { status_id: statusId });
+      // Completing a card can unblock others, so the board is re-read.
+      await board.refresh();
+      emit("changed");
+    } catch (err) {
+      // 409 means the card is still waiting on something. Completing
+      // anyway is a legitimate call, but it should be a decision rather
+      // than an accident.
+      if (err?.status === 409 && err.details?.blocked_by) {
+        const blockers = err.details.blocked_by.map((t) => `"${t}"`).join(", ");
+        if (window.confirm(`This card is still waiting on ${blockers}.\n\nComplete it anyway?`)) {
+          return setStatus(statusId, true);
+        }
+        return;
+      }
+      fail(err);
+    }
+  }
+
+  const setPriority = (value) => patch({ priority: value }, { priority: value });
+  const toggleMilestone = () =>
+    patch({ is_milestone: !card.value.is_milestone }, { is_milestone: !card.value.is_milestone });
+
+  async function toggleLabel(label) {
+    const applied = appliedLabelIds.value.has(label.id);
+    try {
+      const path = `/boards/cards/${props.cardId}/labels/${label.id}`;
+      if (applied) await board.api.del(path);
+      else await board.api.post(path);
+      card.value.labels = applied
+        ? card.value.labels.filter((l) => l.id !== label.id)
+        : [...card.value.labels, label];
+      board.patchCard(Number(props.cardId), {
+        label_ids: card.value.labels.map((l) => l.id),
+      });
+      emit("changed");
+    } catch (err) {
+      fail(err);
+    }
+  }
+
+  async function createLabel() {
+    if (!newLabel.value.color) return;
+    try {
+      const label = await board.api.post(`/boards/${board.board.id}/labels`, newLabel.value);
+      board.board.labels.push(label);
+      newLabel.value = { name: "", color: LABEL_COLORS[0] };
+      await toggleLabel(label);
+    } catch (err) {
+      fail(err);
+    }
+  }
+
+  async function toggleMember(member) {
+    const assigned = assignedIds.value.has(member.staff_id);
+    try {
+      const path = `/boards/cards/${props.cardId}/members/${member.staff_id}`;
+      if (assigned) await board.api.del(path);
+      else await board.api.post(path);
+      card.value.members = assigned
+        ? card.value.members.filter((m) => m.staff_id !== member.staff_id)
+        : [...card.value.members, { staff_id: member.staff_id, full_name: member.full_name }];
+      board.patchCard(Number(props.cardId), {
+        member_ids: card.value.members.map((m) => m.staff_id),
+      });
+      emit("changed");
+    } catch (err) {
+      fail(err);
+    }
+  }
+
+  async function toggleWatch() {
+    const watching = !card.value.watching;
+    try {
+      const path = `/boards/cards/${props.cardId}/watch`;
+      if (watching) await board.api.post(path);
+      else await board.api.del(path);
+      card.value.watching = watching;
+      board.patchCard(Number(props.cardId), { watching });
+    } catch (err) {
+      fail(err);
+    }
+  }
+
+  async function loadTags() {
+    try {
+      allTags.value = await board.api.get("/boards/tags");
+    } catch {
+      // The picker simply offers nothing.
+    }
+  }
+
+  async function addTag(name) {
+    const value = String(name || "").trim();
+    if (!value) return;
+    try {
+      card.value.tags = await board.api.post(`/boards/cards/${props.cardId}/tags`, { name: value });
+      newTag.value = "";
+      await loadTags();
+      emit("changed");
+    } catch (err) {
+      fail(err);
+    }
+  }
+
+  async function removeTag(tag) {
+    try {
+      card.value.tags = await board.api.del(`/boards/cards/${props.cardId}/tags/${tag.id}`);
+      emit("changed");
+    } catch (err) {
+      fail(err);
+    }
   }
 
   async function addLink() {
-    if (!newLinkUrl.value.trim()) return;
-    await fetch(`/boards/cards/${props.cardId}/links`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: newLinkUrl.value.trim() }),
-    });
-    newLinkUrl.value = "";
-    await load();
-    emit("changed");
+    if (!newLink.value.url.trim()) return;
+    try {
+      await board.api.post(`/boards/cards/${props.cardId}/links`, newLink.value);
+      newLink.value = { url: "", label: "" };
+      await reloadCollab();
+    } catch (err) {
+      fail(err);
+    }
   }
 
-  async function deleteLink(link) {
-    await fetch(`/boards/links/${link.id}`, { method: "DELETE" });
-    await load();
-    emit("changed");
+  async function removeLink(link) {
+    try {
+      await board.api.del(`/boards/cards/${props.cardId}/links/${link.id}`);
+      await reloadCollab();
+    } catch (err) {
+      fail(err);
+    }
   }
 
-  async function addComment() {
-    if (!newComment.value.trim()) return;
-    // Resolve "@Name" mentions against the board's people list.
-    const mentioned = userList.value.filter((u) => newComment.value.includes(`@${u.name}`));
-    await fetch(`/boards/cards/${props.cardId}/comments`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        body: newComment.value.trim(),
-        mentionStaffIds: mentioned.map((u) => u.id),
-      }),
-    });
-    newComment.value = "";
-    await load();
-    emit("changed");
-  }
-
-  async function resolveComment(comment) {
-    await fetch(`/boards/comments/${comment.id}/resolve`, { method: "POST" });
-    await load();
-  }
-
-  async function archiveCard() {
-    await fetch(`/boards/cards/${props.cardId}/archive`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ archived: true }),
+  /** Re-reads the card after a checklist, comment or link change. */
+  async function reloadCollab() {
+    const fresh = await board.api.get(`/boards/cards/${props.cardId}`);
+    card.value = fresh;
+    board.patchCard(Number(props.cardId), {
+      comment_count: fresh.comments.filter((c) => !c.is_deleted).length,
+      attachment_count: fresh.attachments.length,
+      checklist_total: fresh.checklists.reduce((n, l) => n + l.items.length, 0),
+      checklist_done: fresh.checklists.reduce(
+        (n, l) => n + l.items.filter((i) => i.is_done).length,
+        0,
+      ),
+      subtask_total: fresh.subtasks.length,
+      subtask_done: fresh.subtasks.filter((s) => s.status_category === "DONE").length,
+      is_blocked: fresh.blocked_by.some((b) => b.status_category !== "DONE"),
+      custom: fresh.custom,
+      estimate_minutes: fresh.estimate_minutes,
+      tags: fresh.tags,
     });
     emit("changed");
-    emit("close");
+  }
+
+  async function copyCard() {
+    const title = window.prompt("Title for the copy", `${card.value.title} (copy)`);
+    if (title === null) return;
+    try {
+      const fresh = await board.api.post(`/boards/cards/${props.cardId}/copy`, { title });
+      await board.refresh();
+      store.commit("setMessage", { type: "success", text: "Card copied" });
+      emit("open-card", fresh.id);
+    } catch (err) {
+      fail(err);
+    }
+  }
+
+  async function archive() {
+    if (!window.confirm("Archive this card? You can restore it from the board archive.")) return;
+    try {
+      await board.archiveCard(Number(props.cardId));
+      store.commit("setMessage", { type: "success", text: "Card archived" });
+      emit("close");
+    } catch (err) {
+      fail(err);
+    }
   }
 
   watch(() => props.cardId, load);
   onMounted(() => {
     load();
-    loadUsers();
+    loadTags();
   });
 </script>
+
+<style scoped>
+.cursor-text {
+  cursor: text;
+}
+.min-w-0 {
+  min-width: 0;
+}
+.eyebrow {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(0, 0, 0, 0.55);
+}
+.card-label {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  padding: 4px 9px;
+  border-radius: 4px;
+}
+.card-description {
+  min-height: 56px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 8px;
+  margin-left: -8px;
+}
+.card-description.cursor-text:hover {
+  border-color: rgba(0, 0, 0, 0.15);
+  background: rgba(0, 0, 0, 0.02);
+}
+.description-text {
+  white-space: pre-wrap;
+}
+.swatch {
+  width: 42px;
+  height: 26px;
+  border-radius: 5px;
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+.swatch--on {
+  border-color: rgba(0, 0, 0, 0.8);
+}
+.swatch--none {
+  background: repeating-linear-gradient(45deg, #ddd 0 6px, #fff 6px 12px);
+}
+.due-input {
+  width: 100%;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  padding: 8px;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+}
+.card-activity {
+  max-height: 300px;
+  overflow-y: auto;
+}
+.activity-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 4px 0;
+}
+.activity-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.3);
+  margin-top: 7px;
+  flex: 0 0 auto;
+}
+.linked-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+.linked-row__link {
+  color: inherit;
+  text-decoration: none;
+}
+.linked-row__link:hover {
+  color: rgb(var(--v-theme-primary));
+}
+.attachment {
+  padding: 4px 0;
+}
+.status-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/*
+ * On desktop the card gets a fixed height with two independently
+ * scrolling panes — the description/checklists side and the comment
+ * thread side each scroll on their own, rather than one long page where
+ * the conversation is always at the bottom.
+ *
+ * Mobile is untouched: the dialog is fullscreen there and the whole page
+ * scrolls as one, which is what the "More" collapse is built for.
+ */
+.card-frame {
+  height: 88vh;
+  max-height: 900px;
+  display: flex;
+  flex-direction: column;
+}
+.card-frame :deep(.v-card-title) {
+  flex: 0 0 auto;
+}
+.card-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  padding-bottom: 0 !important;
+}
+.card-row {
+  height: 100%;
+  flex-wrap: nowrap;
+}
+/*
+ * The split-pane treatment only makes sense once the two columns
+ * actually sit side by side — below md they stack full-width, and the
+ * divider would otherwise show up as a stray line with nothing beside it.
+ */
+@media (min-width: 960px) {
+  .card-main,
+  .card-side {
+    height: 100%;
+    overflow-y: auto;
+    padding-bottom: 24px;
+  }
+  .card-main {
+    border-right: 1px solid rgba(0, 0, 0, 0.12);
+  }
+  .card-side {
+    padding-left: 20px;
+  }
+}
+</style>
