@@ -99,10 +99,35 @@ const router = createRouter({
       meta: { requiresAuth: true, task: "can_see_payables" },
     },
     {
+      path: "/Payroll",
+      name: "Payroll",
+      component: () => import("../components/Payroll.vue"),
+      meta: { requiresAuth: true, task: "can_see_payroll" },
+    },
+    {
       path: "/Orders",
       name: "Orders",
       component: () => import("../components/Orders.vue"),
       meta: { requiresAuth: true, task: "can_see_orders" },
+    },
+    {
+      path: "/Boards",
+      name: "BoardsList",
+      component: () => import("../components/BoardsList.vue"),
+      meta: { requiresAuth: true, task: "can_use_boards" },
+    },
+    {
+      path: "/Board",
+      name: "Board",
+      component: () => import("../components/Board.vue"),
+      meta: { requiresAuth: true, task: "can_use_boards" },
+    },
+    {
+      // Public — no login. Someone filling in an intake form ("report a
+      // maintenance issue") may have no ITSF-style account at all.
+      path: "/BoardForm",
+      name: "BoardForm",
+      component: () => import("../views/BoardForm.vue"),
     },
     {
       path: "/Users",

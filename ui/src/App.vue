@@ -88,7 +88,15 @@ export default {
           this.$store.dispatch("startActivityTracking");
         } else {
           this.$store.state.denyAccess = true;
-          this.$router.push("/Landing");
+          // A visitor with no valid token is only bounced to Landing when
+          // they're actually on a page that needs one. Without this check,
+          // every public route (Landing itself, and now BoardForm's
+          // no-login intake links) got swept into the same redirect on
+          // load, since this runs unconditionally regardless of what page
+          // was actually requested.
+          if (this.$route.meta.requiresAuth) {
+            this.$router.push("/Landing");
+          }
         }
       });
     },

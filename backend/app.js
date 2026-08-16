@@ -69,6 +69,9 @@ const staffRoutes = require("./routes/staffs");
 const customersRoutes = require("./routes/customers");
 const loansRoutes = require("./routes/loans");
 const payablesRoutes = require("./routes/payables");
+const payrollRoutes = require("./routes/payroll");
+const boardRoutes = require("./routes/board");
+const boardFormsRoutes = require("./routes/boardForms");
 const reportRoutes = require("./routes/reports");
 const authRoutes = require("./routes/auth");
 const roleRoutes = require("./routes/roles");
@@ -144,8 +147,8 @@ app.use("/", express.static(`${__dirname}/gui`));
 const apiPrefixes = [
   "/users", "/items", "/units", "/outlets", "/purchases", "/products",
   "/productions", "/productionPlans", "/stocktransfers", "/sales", "/productOut", "/expenditures",
-  "/staffs", "/loans", "/payables", "/customers", "/reports", "/auth", "/roles", "/tasks",
-  "/isTokenActive", "/auditlog", "/orders", "/geo", "/customerAuth", "/shop",
+  "/staffs", "/loans", "/payables", "/payroll", "/customers", "/reports", "/auth", "/roles", "/tasks",
+  "/isTokenActive", "/auditlog", "/orders", "/geo", "/customerAuth", "/shop", "/boards", "/boardForms",
 ];
 app.use((req, res, next) => {
   const isApiRequest = apiPrefixes.some(
@@ -167,7 +170,13 @@ app.use("/geo", geoRoutes);
 app.use("/customerAuth", customerAuthRoutes);
 app.use("/shop", shopRoutes);
 
+// Public board intake forms: no login, same reasoning as /geo above —
+// requiring a login would defeat the point of a form meant for someone
+// with no account at all.
+app.use("/boardForms", boardFormsRoutes);
+
 app.use(jwtValidator);
+app.use("/boards", boardRoutes);
 app.use("/orders", ordersRoutes);
 app.use("/users", usersRoutes);
 app.use("/items", itemRoutes);
@@ -184,6 +193,7 @@ app.use("/expenditures", expenditureRoutes);
 app.use("/staffs", staffRoutes);
 app.use("/loans", loansRoutes);
 app.use("/payables", payablesRoutes);
+app.use("/payroll", payrollRoutes);
 app.use("/customers", customersRoutes);
 app.use("/reports", reportRoutes);
 app.use("/auth", authRoutes);

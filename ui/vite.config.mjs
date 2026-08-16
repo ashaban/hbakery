@@ -54,7 +54,7 @@ export default defineConfig({
         navigateFallbackDenylist: [
           // Lowercase only, deliberately: the API path is /orders while
           // the SPA's own page is /Orders, and these must not collide.
-          /^\/(users|items|units|outlets|purchases|products|productions|productionPlans|stocktransfers|sales|productOut|expenditures|staffs|loans|payables|customers|reports|auth|roles|tasks|isTokenActive|auditlog|orders|geo|customerAuth|shop)(\/|$)/,
+          /^\/(users|items|units|outlets|purchases|products|productions|productionPlans|stocktransfers|sales|productOut|expenditures|staffs|loans|payables|payroll|customers|reports|auth|roles|tasks|isTokenActive|auditlog|orders|geo|customerAuth|shop|boards|boardForms)(\/|$)/,
         ],
       },
       manifest: {

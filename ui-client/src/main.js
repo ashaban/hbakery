@@ -51,7 +51,15 @@ if (isNative()) {
       let lastBackPress = 0;
 
       CapApp.addListener("backButton", () => {
-        const overlay = document.querySelector(".v-overlay--active");
+        // Vuetify's snackbar is itself rendered as a v-overlay, so the
+        // "press back again to close" toast we show below was matching
+        // this check on the second press — the back press dismissed the
+        // toast instead of counting toward minimising, and the app could
+        // never be minimised this way. Real dialogs/menus/bottom-sheets
+        // still match and get closed as before.
+        const overlay = document.querySelector(
+          ".v-overlay--active:not(.v-snackbar)",
+        );
         if (overlay) {
           document.dispatchEvent(
             new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),

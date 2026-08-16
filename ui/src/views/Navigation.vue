@@ -199,6 +199,32 @@
         </v-list-item>
 
         <v-list-item
+          v-if="can('can_use_boards')"
+          active-class="menu-item--active"
+          class="menu-item rounded-xl"
+          to="Boards"
+          value="Boards"
+        >
+          <template #prepend>
+            <v-avatar
+              class="menu-avatar"
+              color="deep-purple-lighten-5"
+              rounded="lg"
+              size="42"
+            >
+              <v-icon
+                color="deep-purple-darken-2"
+                icon="mdi-view-column"
+                size="20"
+              />
+            </v-avatar>
+          </template>
+          <v-list-item-title class="font-weight-medium menu-title">
+            Boards
+          </v-list-item-title>
+        </v-list-item>
+
+        <v-list-item
           v-if="can('can_add_sale')"
           active-class="menu-item--active"
           class="menu-item rounded-xl"
@@ -459,6 +485,28 @@
           </template>
           <v-list-item-title class="font-weight-medium menu-title">
             Staffs
+          </v-list-item-title>
+        </v-list-item>
+
+        <v-list-item
+          v-if="$store.getters.hasTask('can_see_payroll')"
+          active-class="menu-item--active"
+          class="menu-item rounded-xl"
+          to="Payroll"
+          value="Payroll"
+        >
+          <template #prepend>
+            <v-avatar
+              class="menu-avatar"
+              color="indigo-lighten-5"
+              rounded="lg"
+              size="42"
+            >
+              <v-icon color="indigo-darken-2" icon="mdi-cash-multiple" size="20" />
+            </v-avatar>
+          </template>
+          <v-list-item-title class="font-weight-medium menu-title">
+            Payroll
           </v-list-item-title>
         </v-list-item>
 

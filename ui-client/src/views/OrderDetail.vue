@@ -81,7 +81,9 @@
         </v-card>
 
         <!-- WHAT WAS ORDERED -->
-        <div class="text-overline text-medium-emphasis mt-4">Your order</div>
+        <div class="text-overline text-medium-emphasis mt-4">
+          {{ $t("orders.yourOrder") }}
+        </div>
 
         <v-card variant="outlined">
           <v-list density="compact">

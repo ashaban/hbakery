@@ -1,7 +1,9 @@
 <template>
   <div>
     <v-app-bar color="primary" flat>
-      <v-app-bar-title class="font-weight-bold">Your account</v-app-bar-title>
+      <v-app-bar-title class="font-weight-bold">
+        {{ $t("account.title") }}
+      </v-app-bar-title>
     </v-app-bar>
 
     <v-container fluid>
@@ -18,7 +20,9 @@
       </div>
 
       <!-- DELIVERY ADDRESS -->
-      <div class="text-overline text-medium-emphasis">Delivery address</div>
+      <div class="text-overline text-medium-emphasis">
+        {{ $t("account.deliveryAddress") }}
+      </div>
       <v-card class="mb-4" variant="outlined">
         <v-card-text>
           <div class="text-body-2">
@@ -35,21 +39,46 @@
         <v-card-actions>
           <v-btn color="primary" variant="text" @click="openEdit">
             <v-icon start>mdi-pencil</v-icon>
-            Edit
+            {{ $t("account.edit") }}
           </v-btn>
         </v-card-actions>
       </v-card>
 
+      <!-- LANGUAGE -->
+      <div class="text-overline text-medium-emphasis">
+        {{ $t("common.language") }}
+      </div>
+      <v-card class="mb-4" variant="outlined">
+        <v-card-text>
+          <v-btn-toggle
+            border
+            color="primary"
+            divided
+            :model-value="language"
+            mandatory
+            @update:model-value="changeLanguage"
+          >
+            <v-btn
+              v-for="option in SUPPORTED_LANGUAGES"
+              :key="option.code"
+              :value="option.code"
+            >
+              {{ option.label }}
+            </v-btn>
+          </v-btn-toggle>
+        </v-card-text>
+      </v-card>
+
       <v-list class="mb-4" density="comfortable">
         <v-list-item prepend-icon="mdi-lock-reset" @click="showPassword = true">
-          <v-list-item-title>Change password</v-list-item-title>
+          <v-list-item-title>{{ $t("account.changePassword") }}</v-list-item-title>
         </v-list-item>
         <v-list-item
           base-color="error"
           prepend-icon="mdi-logout"
           @click="confirmSignOut = true"
         >
-          <v-list-item-title>Sign out</v-list-item-title>
+          <v-list-item-title>{{ $t("account.signOut") }}</v-list-item-title>
         </v-list-item>
       </v-list>
 
@@ -59,15 +88,19 @@
     <!-- EDIT ADDRESS -->
     <v-dialog v-model="showEdit" max-width="520" scrollable>
       <v-card>
-        <v-card-title>Delivery address</v-card-title>
+        <v-card-title>{{ $t("account.deliveryAddress") }}</v-card-title>
         <v-card-text>
-          <v-text-field v-model="form.name" autocomplete="off" label="Shop / business name" />
+          <v-text-field
+            v-model="form.name"
+            autocomplete="off"
+            :label="$t('register.shopName')"
+          />
           <v-select
             v-model="form.region_id"
             item-title="name"
             item-value="id"
             :items="regions"
-            label="Region"
+            :label="$t('register.region')"
             @update:model-value="form.district_id = null"
           />
           <v-select
@@ -76,14 +109,18 @@
             item-title="name"
             item-value="id"
             :items="districtsForRegion"
-            label="District"
+            :label="$t('register.district')"
           />
-          <v-text-field v-model="form.town" autocomplete="off" label="Town or street" />
+          <v-text-field
+            v-model="form.town"
+            autocomplete="off"
+            :label="$t('register.town')"
+          />
           <v-textarea
             v-model="form.landmark"
             auto-grow
             autocomplete="off"
-            label="Nearby landmark"
+            :label="$t('register.landmark')"
             rows="2"
             variant="outlined"
           />
@@ -98,9 +135,11 @@
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn variant="text" @click="showEdit = false">Cancel</v-btn>
+          <v-btn variant="text" @click="showEdit = false">
+            {{ $t("common.cancel") }}
+          </v-btn>
           <v-btn color="primary" :loading="saving" @click="saveProfile">
-            Save
+            {{ $t("common.save") }}
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -109,18 +148,18 @@
     <!-- CHANGE PASSWORD -->
     <v-dialog v-model="showPassword" max-width="420">
       <v-card>
-        <v-card-title>Change password</v-card-title>
+        <v-card-title>{{ $t("account.changePassword") }}</v-card-title>
         <v-card-text>
           <v-text-field
             v-model="passwordForm.current"
             autocomplete="off"
-            label="Current password"
+            :label="$t('account.currentPassword')"
             type="password"
           />
           <v-text-field
             v-model="passwordForm.next"
             autocomplete="off"
-            label="New password"
+            :label="$t('account.newPassword')"
             type="password"
           />
           <v-alert
@@ -134,14 +173,16 @@
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn variant="text" @click="showPassword = false">Cancel</v-btn>
+          <v-btn variant="text" @click="showPassword = false">
+            {{ $t("common.cancel") }}
+          </v-btn>
           <v-btn
             color="primary"
             :disabled="!passwordForm.current || !passwordForm.next"
             :loading="changingPassword"
             @click="savePassword"
           >
-            Change
+            {{ $t("account.change") }}
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -150,14 +191,18 @@
     <!-- SIGN OUT -->
     <v-dialog v-model="confirmSignOut" max-width="400">
       <v-card>
-        <v-card-title>Sign out?</v-card-title>
+        <v-card-title>{{ $t("account.signOutTitle") }}</v-card-title>
         <v-card-text>
-          You'll need your phone number and password to sign back in.
+          {{ $t("account.signOutBody") }}
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn variant="text" @click="confirmSignOut = false">Stay</v-btn>
-          <v-btn color="error" @click="doSignOut">Sign out</v-btn>
+          <v-btn variant="text" @click="confirmSignOut = false">
+            {{ $t("account.stay") }}
+          </v-btn>
+          <v-btn color="error" @click="doSignOut">
+            {{ $t("account.signOut") }}
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -169,9 +214,26 @@
   import { useRouter } from "vue-router";
   import { api } from "@/lib/api";
   import { changePassword, session, signOut, updateProfile } from "@/lib/auth";
+  import {
+    SUPPORTED_LANGUAGES,
+    currentLanguage,
+    setLanguage,
+    t,
+  } from "@/lib/i18n";
   import { notify, notifyError } from "@/lib/toast";
 
   const router = useRouter();
+
+  // Tracked separately from i18n's own locale ref so the toggle stays a
+  // controlled component and reflects a change made anywhere else.
+  const language = ref(currentLanguage());
+
+  async function changeLanguage (code) {
+    if (!code || code === language.value) return;
+    await setLanguage(code);
+    language.value = code;
+    notify(t("account.languageChanged"));
+  }
 
   const regions = ref([]);
   const allDistricts = ref([]);
@@ -223,7 +285,7 @@
     try {
       await updateProfile({ ...form });
       showEdit.value = false;
-      notify("Address updated");
+      notify(t("account.addressUpdated"));
     } catch (error) {
       editError.value = error.message;
     } finally {
@@ -244,7 +306,7 @@
       showPassword.value = false;
       passwordForm.current = "";
       passwordForm.next = "";
-      notify("Password changed");
+      notify(t("account.passwordChanged"));
     } catch (error) {
       passwordError.value = error.message;
     } finally {

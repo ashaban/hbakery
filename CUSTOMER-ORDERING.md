@@ -45,6 +45,37 @@ so it becomes a phone call rather than a button.
 
 ---
 
+### Language
+
+The app is **Kiswahili by default**, with English available. The choice
+sits on the welcome screen (so someone who wants English doesn't have to
+register in Kiswahili first) and under **Akaunti → Lugha**, and is
+remembered across restarts.
+
+Every string lives in one file per language:
+
+```
+ui-client/src/locales/sw.json     <- Kiswahili
+ui-client/src/locales/en.json     <- English
+backend/modules/customerMessages.js  <- server messages, both languages
+```
+
+To correct any wording, edit the value in those files — no code changes
+are needed, and the two JSON files have identical key structures so it's
+easy to see if anything is missing.
+
+Server-side messages are translated too: the app sends its language in
+`Accept-Language`, so a validation error appears in the same language as
+the screen it lands on. Anything other than `sw` falls back to English,
+and a request with no header at all gets Kiswahili.
+
+**Not translated:** product names, units and descriptions come from the
+`product` table, so they read exactly as staff typed them ("Andazi",
+"Pack", "13 in one pack"). If you want those in Kiswahili, edit them in
+the admin system and both apps follow.
+
+---
+
 ## 2. What staff do
 
 **Customer Orders** in the main menu (needs the `can_see_orders` task).

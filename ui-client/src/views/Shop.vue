@@ -1,8 +1,11 @@
 <template>
   <div>
     <v-app-bar color="primary" flat>
+      <!-- Fixed brand header, not translated — same in both languages
+           by request, rather than following shop.title's Kiswahili/
+           English switch. -->
       <v-app-bar-title class="font-weight-bold">
-        {{ $t("shop.title") }}
+        Hanein Bakery - Shopping
       </v-app-bar-title>
       <v-btn icon @click="load">
         <v-icon>mdi-refresh</v-icon>
@@ -81,7 +84,9 @@
 
         <v-card-actions class="pt-0">
           <!-- Once it's in the basket the card turns into a stepper, so
-               adjusting a quantity never means going to another screen. -->
+               adjusting a quantity never means going to another screen.
+               The number itself is a field, not just a label — a shop
+               ordering 200 loaves shouldn't have to tap + 200 times. -->
           <template v-if="lineFor(product.id)">
             <v-btn
               icon="mdi-minus"
@@ -89,9 +94,15 @@
               variant="tonal"
               @click="decrement(product)"
             />
-            <div class="mx-4 text-h6 font-weight-bold">
-              {{ lineFor(product.id).quantity }}
-            </div>
+            <v-text-field
+              class="mx-3 quantity-field"
+              density="compact"
+              hide-details
+              inputmode="numeric"
+              :model-value="lineFor(product.id).quantity"
+              type="number"
+              @update:model-value="onQuantityTyped(product, $event)"
+            />
             <v-btn
               icon="mdi-plus"
               size="small"
@@ -173,6 +184,14 @@
     if (line) setQuantity(product.id, line.quantity - 1);
   }
 
+  function onQuantityTyped (product, value) {
+    const n = Number(value);
+    // An empty or half-typed field must not delete the line out from
+    // under the customer mid-edit; only a deliberate 0 removes it.
+    if (value === "" || Number.isNaN(n)) return;
+    setQuantity(product.id, Math.max(0, Math.floor(n)));
+  }
+
   async function load () {
     loading.value = true;
     error.value = "";
@@ -190,6 +209,10 @@
 </script>
 
 <style scoped>
+.quantity-field {
+  max-width: 80px;
+}
+
 .cart-bar {
   position: fixed;
   left: 0;

@@ -1,0 +1,145 @@
+{
+  "app": {
+    "name": "Hanein Bakery Duka"
+  },
+  "nav": {
+    "shop": "Duka",
+    "cart": "Kikapu",
+    "orders": "Oda",
+    "account": "Akaunti"
+  },
+  "common": {
+    "retry": "Jaribu tena",
+    "cancel": "Ghairi",
+    "save": "Hifadhi",
+    "back": "Rudi",
+    "total": "Jumla",
+    "unit": "kipimo",
+    "language": "Lugha"
+  },
+  "welcome": {
+    "tagline": "Agiza mikate na maandazi mabichi kwa duka lako, na tutakuambia siku yatakayofika.",
+    "createAccount": "Fungua akaunti",
+    "haveAccount": "Tayari nina akaunti"
+  },
+  "signIn": {
+    "title": "Karibu tena",
+    "subtitle": "Ingia kwa namba ya simu uliyojisajili nayo.",
+    "phone": "Namba ya simu",
+    "phoneHint": "mfano 0712 345 678",
+    "password": "Nenosiri",
+    "submit": "Ingia",
+    "noAccount": "Huna akaunti?",
+    "register": "Jisajili",
+    "welcomeBack": "Karibu tena, {name}"
+  },
+  "register": {
+    "title": "Fungua akaunti yako",
+    "subtitle": "Tunahitaji kujua ulipo ili dereva wetu akupate.",
+    "yourDetails": "Taarifa zako",
+    "shopName": "Jina la duka / biashara",
+    "shopNameHint": "Jina la duka au biashara yako",
+    "phone": "Namba ya simu",
+    "phoneHint": "Utaingia kwa namba hii",
+    "password": "Chagua nenosiri",
+    "whereYouAre": "Ulipo",
+    "region": "Mkoa",
+    "district": "Wilaya",
+    "town": "Mji au mtaa",
+    "landmark": "Alama ya karibu",
+    "landmarkHint": "Kitu dereva anachoweza kukiona, mfano 'mkabala na Soko la Kariakoo, jirani na msikiti wa buluu'",
+    "submit": "Fungua akaunti",
+    "welcome": "Karibu, {name}"
+  },
+  "shop": {
+    "title": "Bidhaa zetu",
+    "search": "Tafuta bidhaa",
+    "empty": "Hakuna bidhaa zilizopatikana.",
+    "perUnit": "{price} kwa {unit}",
+    "add": "Ongeza",
+    "added": "{name} imeongezwa",
+    "itemCount": "Bidhaa {count} | Bidhaa {count}",
+    "viewBasket": "Ona kikapu"
+  },
+  "cart": {
+    "title": "Kikapu chako",
+    "empty": "Kikapu chako ni kitupu",
+    "emptyHint": "Ongeza bidhaa ili kuweka oda.",
+    "browse": "Angalia bidhaa",
+    "notes": "Ujumbe kwa mkate (si lazima)",
+    "notesHint": "Chochote tunachopaswa kujua, mfano muda unaopendelea wa kufikishiwa",
+    "confirmHint": "Tutathibitisha siku ya kukufikishia baada ya kuweka oda.",
+    "placeOrder": "Weka oda",
+    "clearTitle": "Ondoa vyote kikapuni?",
+    "clearBody": "Hii itaondoa kila kitu ulichoongeza. Haiwezi kurudishwa.",
+    "keepIt": "Acha vilivyo",
+    "clearConfirm": "Ondoa vyote",
+    "cleared": "Kikapu kimeondolewa vitu",
+    "placed": "Oda imewekwa — tutathibitisha siku ya kukufikishia hivi karibuni",
+    "perUnit": "{price} kwa {unit}"
+  },
+  "orders": {
+    "title": "Oda zako",
+    "empty": "Bado huna oda",
+    "orderNumber": "Oda #{id}",
+    "placedOn": "Imewekwa {date}",
+    "arriving": "Itafika",
+    "detailTitle": "Oda #{id}",
+    "delivery": "Kufikishwa",
+    "awaitingConfirmation": "Tumepokea oda yako na tutathibitisha siku ya kukufikishia hivi karibuni.",
+    "yourOrder": "Oda yako",
+    "scheduled": "{count} zimepangwa",
+    "yourNote": "Ujumbe wako",
+    "cancelOrder": "Ghairi oda hii",
+    "cancelTitle": "Ghairi oda hii?",
+    "cancelBody": "Utahitaji kuweka oda mpya ukibadili mawazo.",
+    "keepOrder": "Acha oda",
+    "cancelled": "Oda imeghairiwa"
+  },
+  "status": {
+    "PENDING": "Inasubiri kuthibitishwa",
+    "PARTIALLY_SCHEDULED": "Imepangwa kwa sehemu",
+    "SCHEDULED": "Imepangiwa siku",
+    "PARTIALLY_DELIVERED": "Imefikishwa kwa sehemu",
+    "DELIVERED": "Imefikishwa",
+    "CANCELLED": "Imeghairiwa"
+  },
+  "account": {
+    "title": "Akaunti yako",
+    "deliveryAddress": "Anwani ya kufikishiwa",
+    "edit": "Hariri",
+    "changePassword": "Badilisha nenosiri",
+    "signOut": "Toka",
+    "signOutTitle": "Toka?",
+    "signOutBody": "Utahitaji namba yako ya simu na nenosiri ili kuingia tena.",
+    "stay": "Baki",
+    "addressUpdated": "Anwani imesasishwa",
+    "currentPassword": "Nenosiri la sasa",
+    "newPassword": "Nenosiri jipya",
+    "change": "Badilisha",
+    "passwordChanged": "Nenosiri limebadilishwa",
+    "languageChanged": "Lugha imebadilishwa kuwa Kiswahili"
+  },
+  "errors": {
+    "offline": "Hakuna mtandao. Angalia intaneti yako kisha jaribu tena.",
+    "generic": "Kuna tatizo limetokea. Tafadhali jaribu tena.",
+    "sessionExpired": "Muda wako umeisha. Tafadhali ingia tena."
+  },
+  "back": {
+    "pressAgain": "Bonyeza rudi tena ili kufunga"
+  },
+  "months": {
+    "1": "Jan",
+    "2": "Feb",
+    "3": "Mac",
+    "4": "Apr",
+    "5": "Mei",
+    "6": "Jun",
+    "7": "Jul",
+    "8": "Ago",
+    "9": "Sep",
+    "10": "Okt",
+    "11": "Nov",
+    "12": "Des"
+  }
+}

@@ -1,0 +1,145 @@
+{
+  "app": {
+    "name": "Hanein Bakery Duka"
+  },
+  "nav": {
+    "shop": "Shop",
+    "cart": "Cart",
+    "orders": "Orders",
+    "account": "Account"
+  },
+  "common": {
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "save": "Save",
+    "back": "Back",
+    "total": "Total",
+    "unit": "unit",
+    "language": "Language"
+  },
+  "welcome": {
+    "tagline": "Order fresh bread and pastries for your shop, and we'll tell you the day it arrives.",
+    "createAccount": "Create an account",
+    "haveAccount": "I already have an account"
+  },
+  "signIn": {
+    "title": "Welcome back",
+    "subtitle": "Sign in with the phone number you registered with.",
+    "phone": "Phone number",
+    "phoneHint": "e.g. 0712 345 678",
+    "password": "Password",
+    "submit": "Sign in",
+    "noAccount": "Don't have an account?",
+    "register": "Register",
+    "welcomeBack": "Welcome back, {name}"
+  },
+  "register": {
+    "title": "Create your account",
+    "subtitle": "We need to know where you are so our driver can find you.",
+    "yourDetails": "Your details",
+    "shopName": "Shop / business name",
+    "shopNameHint": "The name of your shop or business",
+    "phone": "Phone number",
+    "phoneHint": "You'll sign in with this number",
+    "password": "Choose a password",
+    "whereYouAre": "Where you are",
+    "region": "Region",
+    "district": "District",
+    "town": "Town or street",
+    "landmark": "Nearby landmark",
+    "landmarkHint": "Something the driver can find, e.g. 'opposite Kariakoo Market, next to the blue mosque'",
+    "submit": "Create account",
+    "welcome": "Welcome, {name}"
+  },
+  "shop": {
+    "title": "Our products",
+    "search": "Search products",
+    "empty": "No products found.",
+    "perUnit": "{price} per {unit}",
+    "add": "Add",
+    "added": "{name} added",
+    "itemCount": "{count} item | {count} items",
+    "viewBasket": "View basket"
+  },
+  "cart": {
+    "title": "Your basket",
+    "empty": "Your basket is empty",
+    "emptyHint": "Add products to place an order.",
+    "browse": "Browse products",
+    "notes": "Note for the bakery (optional)",
+    "notesHint": "Anything we should know, e.g. a preferred delivery time",
+    "confirmHint": "We'll confirm your delivery day after you place the order.",
+    "placeOrder": "Place order",
+    "clearTitle": "Empty your basket?",
+    "clearBody": "This removes everything you've added. It can't be undone.",
+    "keepIt": "Keep it",
+    "clearConfirm": "Empty basket",
+    "cleared": "Basket emptied",
+    "placed": "Order placed — we'll confirm your delivery day shortly",
+    "perUnit": "{price} per {unit}"
+  },
+  "orders": {
+    "title": "Your orders",
+    "empty": "No orders yet",
+    "orderNumber": "Order #{id}",
+    "placedOn": "Placed {date}",
+    "arriving": "Arriving",
+    "detailTitle": "Order #{id}",
+    "delivery": "Delivery",
+    "awaitingConfirmation": "We've received your order and will confirm the delivery day shortly.",
+    "yourOrder": "Your order",
+    "scheduled": "{count} scheduled",
+    "yourNote": "Your note",
+    "cancelOrder": "Cancel this order",
+    "cancelTitle": "Cancel this order?",
+    "cancelBody": "You'll need to place a new order if you change your mind.",
+    "keepOrder": "Keep order",
+    "cancelled": "Order cancelled"
+  },
+  "status": {
+    "PENDING": "Awaiting confirmation",
+    "PARTIALLY_SCHEDULED": "Partly scheduled",
+    "SCHEDULED": "Delivery scheduled",
+    "PARTIALLY_DELIVERED": "Partly delivered",
+    "DELIVERED": "Delivered",
+    "CANCELLED": "Cancelled"
+  },
+  "account": {
+    "title": "Your account",
+    "deliveryAddress": "Delivery address",
+    "edit": "Edit",
+    "changePassword": "Change password",
+    "signOut": "Sign out",
+    "signOutTitle": "Sign out?",
+    "signOutBody": "You'll need your phone number and password to sign back in.",
+    "stay": "Stay",
+    "addressUpdated": "Address updated",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "change": "Change",
+    "passwordChanged": "Password changed",
+    "languageChanged": "Language changed to English"
+  },
+  "errors": {
+    "offline": "No connection. Check your internet and try again.",
+    "generic": "Something went wrong. Please try again.",
+    "sessionExpired": "Your session has expired. Please sign in again."
+  },
+  "back": {
+    "pressAgain": "Press back again to close"
+  },
+  "months": {
+    "1": "Jan",
+    "2": "Feb",
+    "3": "Mar",
+    "4": "Apr",
+    "5": "May",
+    "6": "Jun",
+    "7": "Jul",
+    "8": "Aug",
+    "9": "Sep",
+    "10": "Oct",
+    "11": "Nov",
+    "12": "Dec"
+  }
+}
