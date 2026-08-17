@@ -254,6 +254,23 @@
                         <v-icon start>mdi-printer</v-icon>
                         Print
                       </v-btn>
+                      <v-btn
+                        v-if="
+                          detail.status === 'DRAFT' &&
+                            $store.getters.hasTask('can_manage_payroll')
+                        "
+                        color="error"
+                        icon
+                        size="x-small"
+                        variant="text"
+                        @click="confirmRemoveSlip(slip)"
+                      >
+                        <v-icon size="18">mdi-account-remove-outline</v-icon>
+                        <v-tooltip
+                          activator="parent"
+                          text="Remove from this payroll"
+                        />
+                      </v-btn>
                     </td>
                   </tr>
                 </tbody>
@@ -261,6 +278,42 @@
               <div v-else class="text-body-2 text-grey">
                 Not generated yet.
               </div>
+
+              <!--
+                Only once something has been generated: before that every
+                active staff member is trivially "not included", which
+                says nothing useful.
+              -->
+              <v-card
+                v-if="detail.slips.length && excluded.length"
+                class="mt-4"
+                color="error"
+                rounded="lg"
+                variant="tonal"
+              >
+                <v-card-title class="text-subtitle-2 d-flex align-center ga-2">
+                  <v-icon size="20">mdi-account-off-outline</v-icon>
+                  Not included this period
+                  <v-chip color="error" size="x-small" variant="tonal">
+                    {{ excluded.length }}
+                  </v-chip>
+                </v-card-title>
+                <v-divider />
+                <v-list bg-color="transparent" density="compact">
+                  <v-list-item
+                    v-for="staff in excluded"
+                    :key="staff.staff_id"
+                  >
+                    <v-list-item-title class="text-body-2 font-weight-medium">
+                      {{ staff.staff_name }}
+                    </v-list-item-title>
+                    <v-list-item-subtitle class="text-caption">
+                      {{ staff.staff_position || "Unspecified" }}
+                    </v-list-item-subtitle>
+                    <div class="text-caption mt-1">{{ staff.reason }}</div>
+                  </v-list-item>
+                </v-list>
+              </v-card>
             </template>
             <div v-else class="text-center py-6">
               <v-progress-circular color="primary" indeterminate />
@@ -646,14 +699,50 @@
 
   async function loadPeriodDetail (periodId) {
     detail.value = null;
+    excluded.value = [];
     try {
       const res = await fetch(`/payroll/periods/${periodId}`);
       if (!res.ok) throw new Error("Failed to load payroll period");
       detail.value = await res.json();
       if (detail.value.status === "DRAFT") await loadLoans(periodId);
+      await loadExcluded(periodId);
     } catch {
       store.commit("setMessage", { type: "error", text: "Failed to load payroll period" });
     }
+  }
+
+  // ── Staff not on this payroll ────────────────────────────────────
+  const excluded = ref([]);
+
+  async function loadExcluded (periodId) {
+    try {
+      const res = await fetch(`/payroll/periods/${periodId}/excluded-staff`);
+      if (!res.ok) throw new Error("failed");
+      excluded.value = (await res.json()).data || [];
+    } catch {
+      // Not worth an error toast: this is supporting detail beside the
+      // payroll itself, which has already loaded fine.
+      excluded.value = [];
+    }
+  }
+
+  function confirmRemoveSlip (slip) {
+    confirmTitle.value = `Remove ${slip.staff_name} from this payroll?`;
+    confirmMessage.value =
+      `${slip.staff_name} will not be paid this period, and any loan recovery `
+      + "set aside for them is released. Regenerating this payroll brings them "
+      + "back, as long as they still have a salary or allowance.";
+    confirmAction = async () => {
+      const res = await fetch(`/payroll/slips/${slip.id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to remove that staff member");
+      store.commit("setMessage", {
+        type: "info",
+        text: `${slip.staff_name} removed from this payroll`,
+      });
+      await refreshCurrent();
+    };
+    showConfirm.value = true;
   }
 
   async function refreshCurrent () {

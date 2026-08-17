@@ -229,6 +229,57 @@ async function generatePeriod(client, periodId, actorId) {
   return { staff_count: staffCount };
 }
 
+/**
+ * Active staff who ended up with no payslip in this period, and why.
+ *
+ * Two quite different situations put someone on this list, and telling
+ * them apart is the whole point: a person deliberately taken off this
+ * run, versus a person who was never eligible because they have no pay
+ * configured at all. Regenerating brings the first group back and still
+ * skips the second, so the reason tells you whether regenerating would
+ * undo what you just did.
+ */
+async function excludedStaff(client, periodId) {
+  const { rows: periodRows } = await client.query(
+    `SELECT * FROM payroll_period WHERE id = $1`,
+    [periodId]
+  );
+  const period = periodRows[0];
+  if (!period) throw new PayrollError("Payroll period not found", "NOT_FOUND");
+
+  // Same month-end date generatePeriod uses, so "has pay configured"
+  // here means exactly what it means there.
+  const onDate = new Date(Date.UTC(period.year, period.month, 0))
+    .toISOString()
+    .slice(0, 10);
+
+  const { rows } = await client.query(
+    `SELECT s.id AS staff_id, s.name AS staff_name, s."position" AS staff_position,
+            (COALESCE(s.salary, 0) > 0 OR EXISTS (
+               SELECT 1 FROM staff_pay_component sc
+                 JOIN pay_component c ON c.id = sc.component_id AND c.is_active
+                WHERE sc.staff_id = s.id AND sc.amount > 0
+                  AND sc.effective_from <= $2
+                  AND (sc.effective_to IS NULL OR sc.effective_to >= $2)
+             )) AS has_current_pay
+       FROM staff s
+      WHERE s.status = 'Active'
+        AND NOT EXISTS (
+          SELECT 1 FROM payroll_slip ps
+           WHERE ps.period_id = $1 AND ps.staff_id = s.id
+        )
+      ORDER BY s.name`,
+    [periodId, onDate]
+  );
+
+  return rows.map((r) => ({
+    ...r,
+    reason: r.has_current_pay
+      ? "Removed from this payroll after it was generated"
+      : "No salary or allowance set for this period",
+  }));
+}
+
 /** Recomputes one slip's totals from its current earning/deduction lines. */
 async function refreshSlip(client, slipId) {
   const { rows: earningRows } = await client.query(
@@ -551,6 +602,7 @@ module.exports = {
   MONTHS,
   computeStatutory,
   generatePeriod,
+  excludedStaff,
   refreshSlip,
   refreshTotals,
   outstandingLoansForPeriod,

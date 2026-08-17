@@ -276,6 +276,15 @@ router.post("/periods/:id/generate", requireTask("can_manage_payroll"), async (r
   }
 });
 
+/** Active staff who ended up with no payslip in this period, and why. */
+router.get("/periods/:id/excluded-staff", requireTask("can_see_payroll"), async (req, res) => {
+  try {
+    res.json({ data: await payroll.excludedStaff(pool, req.params.id) });
+  } catch (err) {
+    handleError(res, err, "Failed to fetch excluded staff");
+  }
+});
+
 router.delete("/periods/:id", requireTask("can_manage_payroll"), async (req, res) => {
   try {
     const period = await withTransaction((client) => payroll.deletePeriod(client, req.params.id));
@@ -423,6 +432,43 @@ router.post("/slips/:slipId/deductions", requireTask("can_manage_payroll"), asyn
     res.status(201).json({ success: true });
   } catch (err) {
     handleError(res, err, "Failed to add deduction");
+  }
+});
+
+/**
+ * Takes one staff member off a draft payroll entirely.
+ *
+ * Their loan recoveries go with the slip (the deduction rows cascade),
+ * so an amount set aside for recovery is released rather than silently
+ * still counted. Regenerating brings them back if they still have pay
+ * configured — which is what the confirmation warns about.
+ */
+router.delete("/slips/:slipId", requireTask("can_manage_payroll"), async (req, res) => {
+  try {
+    const staffName = await withTransaction(async (client) => {
+      const { rows } = await client.query(
+        `SELECT id, period_id, staff_name FROM payroll_slip WHERE id = $1`,
+        [req.params.slipId]
+      );
+      const slip = rows[0];
+      if (!slip) throw new payroll.PayrollError("Payslip not found", "NOT_FOUND");
+      await assertDraft(client, slip.period_id);
+
+      await client.query(`DELETE FROM payroll_slip WHERE id = $1`, [slip.id]);
+      await payroll.refreshTotals(client, slip.period_id);
+
+      await recordAudit(client, {
+        user: req.user,
+        action: "PAYROLL_SLIP_REMOVED",
+        entity_type: "payroll_period",
+        entity_id: slip.period_id,
+        description: `Removed ${slip.staff_name} from this payroll`,
+      });
+      return slip.staff_name;
+    });
+    res.json({ success: true, staff_name: staffName });
+  } catch (err) {
+    handleError(res, err, "Failed to remove that staff member from this payroll");
   }
 });
 
