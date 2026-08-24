@@ -75,6 +75,7 @@ async function getSaleDetail(client, saleId) {
       -- column name) keeps it exactly what's stored, same fix as
       -- production's planned_at.
       TO_CHAR(s.sale_date, 'YYYY-MM-DD') AS sale_date,
+      TO_CHAR(s.sale_at, 'YYYY-MM-DD"T"HH24:MI:SS') AS sale_at,
       c.name AS customer_name,
       o.name AS outlet_name,
       o.type AS outlet_type
@@ -158,6 +159,7 @@ router.post("/", requireTask("can_add_sale"), async (req, res) => {
   const {
     outlet_id,
     sale_date,
+    sale_at,
     notes,
     items = [],
     payments = [],
@@ -189,10 +191,11 @@ router.post("/", requireTask("can_add_sale"), async (req, res) => {
 
     // 2 Create sale header
     const ins = await client.query(
-      `INSERT INTO sale (outlet_id, customer_id, sale_date, status, notes, is_bulk)
-       VALUES ($1,$2,$3,'POSTED',$4,$5)
+      `INSERT INTO sale (outlet_id, customer_id, sale_date, status, notes, is_bulk, sale_at)
+       VALUES ($1,$2,$3,'POSTED',$4,$5,$6)
        RETURNING id`,
-      [outlet_id, customer_id, sale_date ?? new Date(), notes ?? null, !!is_bulk],
+      [outlet_id, customer_id, sale_date ?? new Date(), notes ?? null, !!is_bulk,
+       sale_at ?? null],
     );
     const saleId = ins.rows[0].id;
 
@@ -229,7 +232,7 @@ router.post("/", requireTask("can_add_sale"), async (req, res) => {
     await insertSaleExpenditures(client, saleId, sale_date ?? new Date(), expenditures);
 
     // 5 Ledger outflow
-    await recordSaleLedger(client, saleId, outlet_id, items, sale_date, notes);
+    await recordSaleLedger(client, saleId, outlet_id, items, sale_date, notes, sale_at ?? null);
 
     await recordAudit(client, {
       user: req.user,
@@ -280,6 +283,7 @@ router.put("/:id", requireTask("can_edit_sale"), async (req, res) => {
   const {
     outlet_id,
     sale_date,
+    sale_at,
     notes,
     items = [],
     payments = [],
@@ -327,9 +331,10 @@ router.put("/:id", requireTask("can_edit_sale"), async (req, res) => {
 
     // Replace header
     await client.query(
-      `UPDATE sale SET outlet_id=$1, customer_id=$2, sale_date=$3, notes=$4, is_bulk=$5
+      `UPDATE sale SET outlet_id=$1, customer_id=$2, sale_date=$3, notes=$4, is_bulk=$5, sale_at=$7
        WHERE id=$6`,
-      [outlet_id, customer_id, sale_date ?? new Date(), notes ?? null, !!is_bulk, id],
+      [outlet_id, customer_id, sale_date ?? new Date(), notes ?? null, !!is_bulk, id,
+       sale_at ?? null],
     );
 
     // Replace items
@@ -366,7 +371,7 @@ router.put("/:id", requireTask("can_edit_sale"), async (req, res) => {
     await insertSaleExpenditures(client, id, sale_date ?? new Date(), expenditures);
 
     // Re-apply ledger
-    await recordSaleLedger(client, id, outlet_id, items, sale_date, notes);
+    await recordSaleLedger(client, id, outlet_id, items, sale_date, notes, sale_at ?? null);
 
     await recordAudit(client, {
       user: req.user,
@@ -708,6 +713,7 @@ router.get("/", requireTask("can_see_sales"), async (req, res) => {
       -- Same DATE-column fix as getSaleDetail's sale_date, applied here too
       -- so the list and the edit dialog can never disagree on the date.
       TO_CHAR(s.sale_date, 'YYYY-MM-DD') AS sale_date,
+      TO_CHAR(s.sale_at, 'YYYY-MM-DD"T"HH24:MI:SS') AS sale_at,
       o.name AS outlet,
       o.type AS outlet_type,
       c.name AS customer_name,

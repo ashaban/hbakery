@@ -78,7 +78,11 @@ async function recordProductLedger(
   productionId,
   productId,
   quantities,
-  movementDate
+  movementDate,
+  // When the stock actually came off the line. NULL is allowed and means
+  // "not recorded" — see migration 020. Production already collects this
+  // as produced_at, so callers normally have a real value to pass.
+  movementAt = null
 ) {
   const { good_qty = 0, damaged_qty = 0, reject_qty = 0 } = quantities;
 
@@ -96,8 +100,8 @@ async function recordProductLedger(
   for (const e of entries) {
     await client.query(
       `INSERT INTO product_ledger 
-        (product_id, outlet_id, movement_type, quantity, quality, production_id, movement_date)
-       VALUES ($1, $2, 'IN', $3, $4, $5, $6)`,
+        (product_id, outlet_id, movement_type, quantity, quality, production_id, movement_date, movement_at)
+       VALUES ($1, $2, 'IN', $3, $4, $5, $6, $7)`,
       [
         productId,
         outletId,
@@ -105,6 +109,7 @@ async function recordProductLedger(
         e.quality,
         productionId,
         movementDate || new Date(),
+        movementAt,
       ]
     );
   }
@@ -137,7 +142,8 @@ async function recordTransferLedger(
   fromOutletId,
   toOutletId,
   items,
-  movementDate = new Date()
+  movementDate = new Date(),
+  movementAt = null
 ) {
   const { origin, destination, fromType, toType } =
     await determineOriginDestination(client, fromOutletId, toOutletId);
@@ -208,8 +214,9 @@ async function recordTransferLedger(
       await client.query(
         `INSERT INTO product_ledger
            (product_id, outlet_id, movement_type, quantity, quality,
-            transfer_id, production_id, movement_date, is_replacement, replacement_note)
-         VALUES ($1,$2,'TRANSFER_OUT',$3,$4,$5,$6,$7,$8,$9)`,
+            transfer_id, production_id, movement_date, is_replacement, replacement_note,
+            movement_at)
+         VALUES ($1,$2,'TRANSFER_OUT',$3,$4,$5,$6,$7,$8,$9,$10)`,
         [
           m.product_id,
           origin,
@@ -220,6 +227,7 @@ async function recordTransferLedger(
           movementDate,
           isReplacement,
           isReplacement ? it.replacement_note : null,
+          movementAt,
         ]
       );
 
@@ -227,8 +235,9 @@ async function recordTransferLedger(
       await client.query(
         `INSERT INTO product_ledger
            (product_id, outlet_id, movement_type, quantity, quality,
-            transfer_id, production_id, movement_date, is_replacement, replacement_note)
-         VALUES ($1,$2,'TRANSFER_IN',$3,$4,$5,$6,$7,$8,$9)`,
+            transfer_id, production_id, movement_date, is_replacement, replacement_note,
+            movement_at)
+         VALUES ($1,$2,'TRANSFER_IN',$3,$4,$5,$6,$7,$8,$9,$10)`,
         [
           m.product_id,
           destination,
@@ -239,6 +248,7 @@ async function recordTransferLedger(
           movementDate,
           isReplacement,
           isReplacement ? it.replacement_note : null,
+          movementAt,
         ]
       );
     }

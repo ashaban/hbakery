@@ -153,7 +153,9 @@ async function recordSaleLedger(
   outletId,
   items,
   saleDate = new Date(),
-  remarks = null
+  remarks = null,
+  // Clock time the sale happened. NULL = not recorded (migration 020).
+  saleAt = null
 ) {
   for (const it of items) {
     const productId = it.product_id;
@@ -174,8 +176,9 @@ async function recordSaleLedger(
       await client.query(
         `INSERT INTO product_ledger
            (product_id, outlet_id, movement_type, quantity, quality,
-            sale_id, production_id, movement_date, unit_price, unit_cost, remarks)
-         VALUES ($1,$2,'SALE',$3,$4,$5,$6,$7,$8,$9,$10)`,
+            sale_id, production_id, movement_date, unit_price, unit_cost, remarks,
+            movement_at)
+         VALUES ($1,$2,'SALE',$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
         [
           productId,
           outletId,
@@ -187,6 +190,7 @@ async function recordSaleLedger(
           it.unit_price ?? null, // optional; you may store header/item price elsewhere
           0, // unit_cost tracked elsewhere or computed later
           remarks || null,
+          saleAt,
         ]
       );
     }
@@ -212,7 +216,8 @@ async function reverseSaleLedger(
   client,
   saleId,
   saleDate = new Date(),
-  remarks = "REVERSED: sale cancellation"
+  remarks = "REVERSED: sale cancellation",
+  saleAt = null
 ) {
   // Fetch original sale movements grouped by product/quality/production_id
   const { rows } = await client.query(
@@ -236,9 +241,9 @@ async function reverseSaleLedger(
     await client.query(
       `INSERT INTO product_ledger
          (product_id, outlet_id, movement_type, quantity, quality,
-          sale_id, production_id, movement_date, remarks)
+          sale_id, production_id, movement_date, remarks, movement_at)
        SELECT $1, pl.outlet_id, 'SALE', $2, $3,
-              $4, $5, $6, $7
+              $4, $5, $6, $7, $8
        FROM product_ledger pl
        WHERE pl.sale_id = $4
          AND pl.product_id = $1
@@ -253,6 +258,7 @@ async function reverseSaleLedger(
         r.production_id,
         saleDate,
         remarks,
+        saleAt,
       ]
     );
   }

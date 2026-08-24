@@ -359,6 +359,7 @@ router.post(
         quantity,
         remarks,
         movement_date,
+        adjusted_at,
       } = req.body;
 
       if (
@@ -381,6 +382,7 @@ router.post(
         quantity,
         remarks: remarks || "Direct quality adjustment",
         movement_date: movement_date || new Date(),
+        adjusted_at: adjusted_at ?? null,
         created_by: req.user?.id || 1,
       });
 
@@ -431,7 +433,7 @@ router.post("/", requireTask("can_transfer_stock"), async (req, res) => {
   const client = await pool.connect();
   let releaseError;
   try {
-    const { from_outlet_id, to_outlet_id, remarks, items, movement_date } =
+    const { from_outlet_id, to_outlet_id, remarks, items, movement_date, movement_at } =
       req.body;
 
     if (
@@ -452,7 +454,11 @@ router.post("/", requireTask("can_transfer_stock"), async (req, res) => {
       remarks,
       items,
       movement_date,
-      req.user?.id || 1
+      req.user?.id || 1,
+      // transferId is null on a create; it is only passed so the
+      // movement_at argument after it lands in the right position.
+      null,
+      movement_at ?? null
     );
 
     const outlets = await client.query(
@@ -509,7 +515,7 @@ router.put("/:id", requireTask("can_edit_stock_transfer"), async (req, res) => {
   let releaseError;
   try {
     const { id } = req.params;
-    const { from_outlet_id, to_outlet_id, remarks, movement_date, items } =
+    const { from_outlet_id, to_outlet_id, remarks, movement_date, movement_at, items } =
       req.body;
 
     if (!Array.isArray(items) || items.length === 0) {
@@ -540,7 +546,8 @@ router.put("/:id", requireTask("can_edit_stock_transfer"), async (req, res) => {
       items,
       movement_date,
       req.user?.id || 1,
-      id
+      id,
+      movement_at ?? null
     );
 
     const outlets = await client.query(

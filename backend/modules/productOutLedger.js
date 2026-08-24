@@ -193,7 +193,9 @@ async function recordOutLedger(
   outletId,
   items,
   outDate = new Date(),
-  remarks = null
+  remarks = null,
+  // Trails remarks so the historical argument order is untouched.
+  outAt = null
 ) {
   for (const it of items) {
     const productId = Number(it.product_id);
@@ -212,8 +214,9 @@ async function recordOutLedger(
         `
         INSERT INTO product_ledger
           (product_id, outlet_id, movement_type, quantity, quality,
-           production_id, movement_date, unit_cost, product_out_id, remarks)
-        VALUES ($1,$2,'OUT',$3,$4,$5,$6,$7,$8,$9)
+           production_id, movement_date, unit_cost, product_out_id, remarks,
+           movement_at)
+        VALUES ($1,$2,'OUT',$3,$4,$5,$6,$7,$8,$9,$10)
         `,
         [
           productId,
@@ -225,6 +228,7 @@ async function recordOutLedger(
           b.lot_cost, // valued at the lot’s weighted avg cost
           outId,
           remarks || null,
+          outAt,
         ]
       );
     }
@@ -248,7 +252,8 @@ async function reverseOutLedger(
   client,
   outId,
   outDate = new Date(),
-  remarks = "Reversal: OUT Cancelled"
+  remarks = "Reversal: OUT Cancelled",
+  outAt = null
 ) {
   const { rows } = await client.query(
     `
@@ -271,8 +276,9 @@ async function reverseOutLedger(
       `
       INSERT INTO product_ledger
         (product_id, outlet_id, movement_type, quantity, quality,
-         production_id, movement_date, unit_cost, product_out_id, remarks)
-      VALUES ($1,$2,'OUT',$3,$4,$5,$6,$7,$8,$9)
+         production_id, movement_date, unit_cost, product_out_id, remarks,
+         movement_at)
+      VALUES ($1,$2,'OUT',$3,$4,$5,$6,$7,$8,$9,$10)
       `,
       [
         r.product_id,
@@ -284,6 +290,7 @@ async function reverseOutLedger(
         Number(r.unit_cost) || 0,
         outId,
         remarks,
+        outAt,
       ]
     );
   }

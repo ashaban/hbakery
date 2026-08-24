@@ -13,6 +13,8 @@ async function performQualityAdjustment(
     quantity,
     remarks,
     movement_date,
+    // Clock time the adjustment happened. NULL = not recorded (migration 020).
+    adjusted_at = null,
     reference_type = "DIRECT",
     reference_id = null,
     created_by = null,
@@ -109,8 +111,9 @@ async function performQualityAdjustment(
   const adjustmentResult = await client.query(
     `INSERT INTO stock_quality_adjustment
       (outlet_id, product_id, from_quality, to_quality, quantity, remarks,
-       movement_date, reference_type, reference_id, adjustment_details, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       movement_date, reference_type, reference_id, adjustment_details, created_by,
+       adjusted_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
      RETURNING id, outlet_id, product_id, from_quality, to_quality, quantity`,
     [
       outlet_id,
@@ -124,6 +127,7 @@ async function performQualityAdjustment(
       reference_id,
       JSON.stringify(adjustmentDetails),
       created_by,
+      adjusted_at,
     ]
   );
   const adjustmentId = adjustmentResult.rows[0].id;
@@ -133,8 +137,8 @@ async function performQualityAdjustment(
     await client.query(
       `INSERT INTO product_ledger
         (product_id, outlet_id, movement_type, quantity, quality,
-         production_id, movement_date, remarks, adjustment_id)
-       VALUES ($1,$2,'QUALITY_CHANGE',$3,$4,$5,$6,$7,$8)`,
+         production_id, movement_date, remarks, adjustment_id, movement_at)
+       VALUES ($1,$2,'QUALITY_CHANGE',$3,$4,$5,$6,$7,$8,$9)`,
       [
         product_id,
         outlet_id,
@@ -144,14 +148,15 @@ async function performQualityAdjustment(
         movement_date,
         remarks,
         adjustmentId,
+        adjusted_at,
       ]
     );
 
     await client.query(
       `INSERT INTO product_ledger
         (product_id, outlet_id, movement_type, quantity, quality,
-         production_id, movement_date, remarks, adjustment_id)
-       VALUES ($1,$2,'QUALITY_CHANGE',$3,$4,$5,$6,$7,$8)`,
+         production_id, movement_date, remarks, adjustment_id, movement_at)
+       VALUES ($1,$2,'QUALITY_CHANGE',$3,$4,$5,$6,$7,$8,$9)`,
       [
         product_id,
         outlet_id,
@@ -161,6 +166,7 @@ async function performQualityAdjustment(
         movement_date,
         remarks,
         adjustmentId,
+        adjusted_at,
       ]
     );
   }
@@ -199,8 +205,8 @@ async function undoQualityAdjustment(client, adjustmentId) {
     await client.query(
       `INSERT INTO product_ledger
         (product_id, outlet_id, movement_type, quantity, quality,
-         production_id, movement_date, remarks, adjustment_id)
-       VALUES ($1,$2,'QUALITY_CHANGE',$3,$4,$5,$6,$7,$8)`,
+         production_id, movement_date, remarks, adjustment_id, movement_at)
+       VALUES ($1,$2,'QUALITY_CHANGE',$3,$4,$5,$6,$7,$8,$9)`,
       [
         adj.product_id,
         adj.outlet_id,
@@ -210,6 +216,7 @@ async function undoQualityAdjustment(client, adjustmentId) {
         adj.movement_date,
         `REVERSED: ${adj.remarks}`,
         adjustmentId,
+        adj.adjusted_at,
       ]
     );
 
@@ -217,8 +224,8 @@ async function undoQualityAdjustment(client, adjustmentId) {
     await client.query(
       `INSERT INTO product_ledger
         (product_id, outlet_id, movement_type, quantity, quality,
-         production_id, movement_date, remarks, adjustment_id)
-       VALUES ($1,$2,'QUALITY_CHANGE',$3,$4,$5,$6,$7,$8)`,
+         production_id, movement_date, remarks, adjustment_id, movement_at)
+       VALUES ($1,$2,'QUALITY_CHANGE',$3,$4,$5,$6,$7,$8,$9)`,
       [
         adj.product_id,
         adj.outlet_id,
@@ -228,6 +235,7 @@ async function undoQualityAdjustment(client, adjustmentId) {
         adj.movement_date,
         `REVERSED: ${adj.remarks}`,
         adjustmentId,
+        adj.adjusted_at,
       ]
     );
   }

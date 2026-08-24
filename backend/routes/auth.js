@@ -12,6 +12,67 @@ const tokenDuration = config.get("auth:tokenDuration");
 const secret = config.get("auth:secret");
 
 /**
+ * Builds the JWT payload for a user: identity plus the roles, tasks and
+ * outlets every guard downstream reads.
+ *
+ * Both login and refresh go through here. Refresh in particular MUST
+ * produce the full shape — requireTask rejects any token whose `tasks`
+ * is not an array, so a refresh that returned identity alone would
+ * silently 403 every task-gated call for the rest of the session.
+ * Re-reading from the database rather than copying the old claims also
+ * means a role change takes effect at the next refresh instead of
+ * lingering until the token finally expires.
+ *
+ * Returns null if the user no longer exists.
+ */
+async function buildUserPayload(userId) {
+  const userRes = await pool.query(
+    `SELECT id, name, email FROM users WHERE id = $1`,
+    [userId]
+  );
+  const user = userRes.rows[0];
+  if (!user) return null;
+
+  const [rolesRes, tasksRes, outletsRes] = await Promise.all([
+    pool.query(
+      `SELECT r.id, r.name, r.display
+       FROM user_roles ur
+       JOIN roles r ON r.id = ur.role_id
+       WHERE ur.user_id = $1
+       ORDER BY r.id`,
+      [userId]
+    ),
+    pool.query(
+      `SELECT DISTINCT t.code
+       FROM user_roles ur
+       JOIN role_tasks rt ON rt.role_id = ur.role_id
+       JOIN tasks t ON t.id = rt.task_id
+       WHERE ur.user_id = $1
+       ORDER BY t.code`,
+      [userId]
+    ),
+    pool.query(
+      `SELECT os.outlet_id, o.name
+       FROM outlet_staff os
+       JOIN outlet o ON o.id = os.outlet_id
+       WHERE os.user_id = $1
+       ORDER BY o.id`,
+      [userId]
+    ),
+  ]);
+
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    roles: rolesRes.rows.map((r) => ({ id: r.id, name: r.name, display: r.display })),
+    tasks: tasksRes.rows.map((r) => r.code),
+    outlets: outletsRes.rows,
+  };
+}
+
+
+/**
  * POST /auth/login
  * body: { email, password }
  */
@@ -41,54 +102,9 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    // Fetch roles
-    const rolesRes = await pool.query(
-      `
-      SELECT r.id, r.name, r.display
-      FROM user_roles ur
-      JOIN roles r ON r.id = ur.role_id
-      WHERE ur.user_id = $1
-      ORDER BY r.id
-      `,
-      [user.id]
-    );
-    const roles = rolesRes.rows;
-
-    // Fetch tasks via roles
-    const tasksRes = await pool.query(
-      `
-      SELECT DISTINCT t.code
-      FROM user_roles ur
-      JOIN role_tasks rt ON rt.role_id = ur.role_id
-      JOIN tasks t ON t.id = rt.task_id
-      WHERE ur.user_id = $1
-      ORDER BY t.code
-      `,
-      [user.id]
-    );
-    const tasks = tasksRes.rows.map((r) => r.code);
-
-    // Fetch roles
-    const outletsRes = await pool.query(
-      `
-      SELECT os.outlet_id, o.name
-      FROM outlet_staff os
-      JOIN outlet o ON o.id = os.outlet_id
-      WHERE os.user_id = $1
-      ORDER BY o.id
-      `,
-      [user.id]
-    );
-    const outlets = outletsRes.rows;
-
-    const payload = {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      roles: roles.map((r) => ({ id: r.id, name: r.name, display: r.display })),
-      tasks,
-      outlets,
-    };
+    const payload = await buildUserPayload(user.id);
+    if (!payload) return res.status(401).json({ error: "Invalid credentials" });
+    const { roles, tasks, outlets } = payload;
 
     const token = jwt.sign(payload, secret, { expiresIn: tokenDuration });
 
@@ -125,13 +141,23 @@ router.post("/refreshToken", async (req, res) => {
     const token = authHeader && authHeader.split(" ")[1];
     if (!token) return res.sendStatus(401);
 
-    jwt.verify(token, secret, (err, user) => {
-      if (err) return res.sendStatus(403);
-      const newToken = jwt.sign({ id: user.id }, secret, {
-        expiresIn: tokenDuration,
-      });
+    let decoded;
+    try {
+      decoded = jwt.verify(token, secret);
+    } catch {
+      return res.sendStatus(403);
+    }
 
-      res.json({ token: newToken });
+    // Rebuild the whole payload. Re-signing just { id } here was
+    // dropping roles, tasks and outlets, which made every task-gated
+    // route 403 from the first refresh onwards.
+    const payload = await buildUserPayload(decoded.id);
+    if (!payload) return res.sendStatus(401);
+
+    res.json({
+      token: jwt.sign(payload, secret, { expiresIn: tokenDuration }),
+      user: payload,
+      tasks: payload.tasks,
     });
   } catch (error) {
     console.error(error);

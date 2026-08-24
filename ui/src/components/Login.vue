@@ -190,6 +190,14 @@ export default {
           localStorage.setItem("outlets", JSON.stringify(authResp.outlets));
 
           store.state.denyAccess = false;
+
+          // Start the inactivity clock for the session we just opened.
+          // Without this, tracking only ever began on a page load that
+          // already had a token, so someone who logged in and walked
+          // away was never signed out at all.
+          store.commit("updateActivity");
+          store.dispatch("startActivityTracking");
+
           router.push("/Home");
         })
         .catch((err) => {

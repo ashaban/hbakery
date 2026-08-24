@@ -196,6 +196,9 @@ router.post("/", requireTask("can_schedule_production"), async (req, res) => {
           productionId,
           product_id,
           { good_qty, damaged_qty, reject_qty },
+          produced_at,
+          // Same value, kept whole: movement_date truncates it to a day,
+          // movement_at preserves the time the batch came off the line.
           produced_at
         );
       }
@@ -334,6 +337,11 @@ router.put(
           // Stock validation happens after this branch (once we know
           // whether there's a prior reservation to revert first) — see
           // below.
+          // produced_at is intentionally NOT set here (always NULL for a
+          // product newly added to the plan) — it must only ever be set
+          // through the dedicated "record actual" endpoint, never inherited
+          // from the batch-level value the edit form happens to be showing
+          // for a *different*, already-produced product in this batch.
           const hdr = await client.query(
             `INSERT INTO product_production
               (batch_id, product_id, mode, qty_product,
@@ -341,7 +349,7 @@ router.put(
                notes, planned_at, produced_at,
                actual_qty, good_qty, damaged_qty, reject_qty,
                produced_by)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULL,$9,$10,$11,$12,$13)
              RETURNING id`,
             [
               batchId,
@@ -352,7 +360,6 @@ router.put(
               base_ingredient_qty || null,
               notes || null,
               planned_at || null,
-              produced_at || null,
               actual_qty || null,
               good_qty || null,
               damaged_qty || null,
@@ -390,6 +397,15 @@ router.put(
           await deleteProductLedgerByProduction(client, productionId);
 
           // 5️⃣ Update header
+          //
+          // produced_at is deliberately left untouched here. It used to be
+          // overwritten with the *batch-level* produced_at (the outer
+          // req.body value, sourced from MAX(produced_at) across every
+          // product in the batch) on every save — so editing a batch that
+          // had even one already-produced item flipped every other, still
+          // pending, product in it to "completed" too. Actual production
+          // must only ever be recorded through the dedicated
+          // /batches/:batch_id/actual endpoint.
           await client.query(
             `UPDATE product_production
            SET product_id = $1,
@@ -399,14 +415,13 @@ router.put(
                base_ingredient_qty = $5,
                notes = $6,
                planned_at = $7,
-               produced_at = $8,
-               actual_qty = $9,
-               good_qty = $10,
-               damaged_qty = $11,
-               reject_qty = $12,
-               updated_by = $13,
+               actual_qty = $8,
+               good_qty = $9,
+               damaged_qty = $10,
+               reject_qty = $11,
+               updated_by = $12,
                updated_at = NOW()
-           WHERE id = $14`,
+           WHERE id = $13`,
             [
               product_id,
               mode,
@@ -415,7 +430,6 @@ router.put(
               base_ingredient_qty || null,
               notes || null,
               planned_at || null,
-              produced_at || null,
               actual_qty || null,
               good_qty || null,
               damaged_qty || null,
@@ -524,6 +538,7 @@ router.put(
             productionId,
             product_id,
             { good_qty, damaged_qty, reject_qty },
+            produced_at,
             produced_at
           );
         }
@@ -653,6 +668,9 @@ router.post(
           production_id,
           existingProductions.find((p) => p.id === production_id).product_id,
           { good_qty, damaged_qty, reject_qty },
+          produced_at,
+          // Same value, kept whole: movement_date truncates it to a day,
+          // movement_at preserves the time the batch came off the line.
           produced_at
         );
 
@@ -1028,6 +1046,16 @@ router.get("/batches", requireTask("can_see_production"), async (req, res) => {
           SELECT COUNT(*) FROM product_production ppc
           WHERE ppc.batch_id = pb.id AND ppc.cancelled_at IS NOT NULL
         ) AS cancelled_count,
+        -- Total actual ingredient cost for the batch. A scalar subquery
+        -- rather than another join: pp is already joined and grouped here,
+        -- so joining the ledger too would multiply the good/damaged/reject
+        -- sums above by the number of ingredient rows.
+        COALESCE((
+          SELECT SUM(il.quantity * il.unit_price)
+          FROM item_ledger il
+          JOIN product_production ppi2 ON ppi2.id = il.production_id
+          WHERE ppi2.batch_id = pb.id AND il.type = 'OUT'
+        ), 0) AS ingredient_cost,
         COALESCE(
           (
             SELECT s.name
@@ -1270,12 +1298,32 @@ router.get(
             pig.name AS group_name,
             pig.is_active AS group_active,
             ppi.combination_id,
-            pigc.name AS combination_name
+            pigc.name AS combination_name,
+
+            -- What this ingredient actually cost, from the FIFO lots the
+            -- production drew down (item_ledger already records the lot
+            -- price on every OUT row). Not a re-priced estimate: it is the
+            -- money that actually left the store.
+            COALESCE(c.cost, 0) AS cost,
+            -- Weighted average, because one ingredient can be filled from
+            -- several lots at different prices — showing any single lot's
+            -- price would misstate it.
+            c.avg_unit_cost,
+            COALESCE(c.lot_count, 0) AS lot_count
           FROM product_production_item ppi
           JOIN item i ON i.id = ppi.item_id
           LEFT JOIN itemunit iu ON iu.id = i.unit_id
           LEFT JOIN product_item_group pig ON pig.id = ppi.group_id
           LEFT JOIN product_item_group_combination pigc ON pigc.id = ppi.combination_id
+          LEFT JOIN (
+            SELECT item_id,
+                   SUM(quantity * unit_price) AS cost,
+                   SUM(quantity * unit_price) / NULLIF(SUM(quantity), 0) AS avg_unit_cost,
+                   COUNT(DISTINCT unit_price) AS lot_count
+            FROM item_ledger
+            WHERE production_id = $1 AND type = 'OUT'
+            GROUP BY item_id
+          ) c ON c.item_id = ppi.item_id
           WHERE ppi.production_id = $1
           ORDER BY pig.name NULLS LAST, i.name
         `,
@@ -1311,19 +1359,51 @@ router.get(
           ),
         ]);
 
+        const ingredients = ingredientsRes.rows;
+
+        // Roll the per-ingredient costs up to the product. Derived from the
+        // same rows the UI lists, so the breakdown always sums to the total
+        // sitting next to it.
+        const ingredientCost = ingredients.reduce(
+          (sum, ing) => sum + (Number(ing.cost) || 0),
+          0
+        );
+        // Unit cost spreads over EVERYTHING produced — good, damaged and
+        // reject alike. Damaged and reject units still get sold here (at
+        // their own prices), so they carry their share of the ingredients;
+        // the margin calculation is where the different selling prices are
+        // reconciled. Dividing by good output alone would overstate what a
+        // unit cost to make.
+        const totalOutput =
+          (Number(prod.good_qty) || 0) +
+          (Number(prod.damaged_qty) || 0) +
+          (Number(prod.reject_qty) || 0);
+
         products.push({
           ...prod,
-          ingredients: ingredientsRes.rows,
+          ingredients,
+          ingredient_cost: ingredientCost,
+          ingredient_cost_per_unit: totalOutput > 0 ? ingredientCost / totalOutput : null,
           staff: staffRes.rows,
           discrepancies: discRes.rows,
         });
       }
+
+      // Batch total: sum of the products above. Cancelled products
+      // contribute nothing on their own — cancelling deletes their ledger
+      // OUT rows to put the ingredients back on the shelf — so no separate
+      // exclusion is needed here.
+      const batchIngredientCost = products.reduce(
+        (sum, prod) => sum + (Number(prod.ingredient_cost) || 0),
+        0
+      );
 
       // ✅ Response
       res.json({
         batch: {
           ...batch,
           status,
+          ingredient_cost: batchIngredientCost,
         },
         products,
       });
@@ -1653,6 +1733,13 @@ router.get("/", requireTask("can_see_production"), async (req, res) => {
         p.name AS product_name,
         p.unit AS product_unit,
         p.price AS product_price,
+        -- Actual ingredient cost of this production, from the FIFO lots it
+        -- drew down. Scalar subquery so it cannot disturb the row set.
+        COALESCE((
+          SELECT SUM(il.quantity * il.unit_price)
+          FROM item_ledger il
+          WHERE il.production_id = pp.id AND il.type = 'OUT'
+        ), 0) AS ingredient_cost,
         -- Prefer Team Leader, else first staff name, else 'N/A'
         COALESCE(
           (
@@ -1734,12 +1821,27 @@ router.get("/:id", requireTask("can_see_production"), async (req, res) => {
         ppi.group_id,
         pig.name AS group_name,
         ppi.combination_id,
-        pigc.name AS combination_name
+        pigc.name AS combination_name,
+
+        -- Actual FIFO cost of this ingredient for this production; see the
+        -- batch-detail endpoint above for the reasoning.
+        COALESCE(c.cost, 0) AS cost,
+        c.avg_unit_cost,
+        COALESCE(c.lot_count, 0) AS lot_count
       FROM product_production_item ppi
       JOIN item i ON i.id = ppi.item_id
       LEFT JOIN itemunit iu ON iu.id = i.unit_id
       LEFT JOIN product_item_group pig ON pig.id = ppi.group_id
       LEFT JOIN product_item_group_combination pigc ON pigc.id = ppi.combination_id
+      LEFT JOIN (
+        SELECT item_id,
+               SUM(quantity * unit_price) AS cost,
+               SUM(quantity * unit_price) / NULLIF(SUM(quantity), 0) AS avg_unit_cost,
+               COUNT(DISTINCT unit_price) AS lot_count
+        FROM item_ledger
+        WHERE production_id = $1 AND type = 'OUT'
+        GROUP BY item_id
+      ) c ON c.item_id = ppi.item_id
       WHERE ppi.production_id = $1
       ORDER BY pig.name NULLS LAST, i.name
     `,
@@ -1801,9 +1903,26 @@ router.get("/:id", requireTask("can_see_production"), async (req, res) => {
       [id]
     );
 
+    // Same roll-up as the batch endpoint, so the two agree for the same
+    // production rather than each computing its own idea of the cost.
+    const production = hdrRes.rows[0];
+    const ingredientCost = linesRes.rows.reduce(
+      (sum, line) => sum + (Number(line.cost) || 0),
+      0
+    );
+    // Same basis as the batch endpoint: all output, not just good.
+    const totalOutput =
+      (Number(production.good_qty) || 0) +
+      (Number(production.damaged_qty) || 0) +
+      (Number(production.reject_qty) || 0);
+
     // ✅ RESPONSE
     res.json({
-      production: hdrRes.rows[0],
+      production: {
+        ...production,
+        ingredient_cost: ingredientCost,
+        ingredient_cost_per_unit: totalOutput > 0 ? ingredientCost / totalOutput : null,
+      },
       items: linesRes.rows,
       group_choices: groupChoicesRes.rows,
       staff: staffRes.rows,

@@ -344,6 +344,19 @@
                   </v-col>
                   <v-col cols="12" md="4">
                     <DateField v-model="form.sale_date" label="Sale Date" required />
+                  <v-text-field
+                    v-model="form.sale_time"
+                    class="mt-3"
+                    clearable
+                    density="comfortable"
+                    hint="Leave blank if the time is not known"
+                    label="Time (optional)"
+                    persistent-hint
+                    prepend-inner-icon="mdi-clock-outline"
+                    type="time"
+                    variant="outlined"
+                    @update:model-value="sale_timeEdited = true"
+                  />
                   </v-col>
                   <v-col cols="12">
                     <v-textarea
@@ -1602,6 +1615,10 @@
 </template>
 
 <script setup>
+  // Event-time capture: see utils/eventTime.js for why a backdated entry
+  // must never inherit a guessed time.
+  import { nowHHMM, timeForDate, toEventTimestamp } from "@/utils/eventTime";
+
 import { computed, nextTick, onMounted, reactive, ref, watch } from "vue";
 import { useStore } from "vuex";
 import { formatDMY, toISODateOnly } from "@/utils/date.js";
@@ -1674,6 +1691,7 @@ const todayDisplay = formatDMY(new Date());
 const form = reactive({
   outlet_id: "",
   sale_date: todayDisplay,
+  sale_time: nowHHMM(),
   notes: "",
   items: [],
   payments: [],
@@ -1682,6 +1700,18 @@ const form = reactive({
   is_bulk: false,
   expenditures: [],
 });
+
+  // A time is only offered for an entry being made today. The moment the
+  // date is backdated the field clears itself, because a "now" timestamp
+  // on last Tuesday's book is worse than recording no time at all — the
+  // stock report would treat the guess as fact.
+  const sale_timeEdited = ref(false);
+  watch(
+    () => form.sale_date,
+    (d) => {
+      form.sale_time = timeForDate(d, form.sale_time, sale_timeEdited.value);
+    }
+  );
 
 // Validation
 const validationErrors = ref([]);
@@ -2483,6 +2513,7 @@ async function saveSale() {
   const payload = {
     outlet_id: form.outlet_id,
     sale_date: isoSaleDate,
+    sale_at: toEventTimestamp(form.sale_date, form.sale_time),
     notes: form.notes || null,
     items: form.items.map((it) => ({
       product_id: it.product_id,

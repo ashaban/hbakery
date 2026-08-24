@@ -93,6 +93,19 @@
               :min-date="parseFlexibleDMY(filters.start_date)"
             />
           </v-col>
+          <v-col cols="6" sm="2">
+            <v-text-field
+              v-model="filters.end_time"
+              clearable
+              density="comfortable"
+              hint="e.g. 14:30"
+              label="As at time"
+              placeholder="--:--"
+              prepend-inner-icon="mdi-clock-outline"
+              type="time"
+              variant="outlined"
+            />
+          </v-col>
           <v-col class="d-flex justify-end">
             <v-btn
               class="mr-2"
@@ -110,6 +123,37 @@
             </v-btn>
           </v-col>
         </v-row>
+
+        <!--
+          A point-in-time reading can only count movements whose clock time
+          was recorded. Saying so is the difference between a balance the
+          user can act on and one that quietly understates the day.
+        -->
+        <v-alert
+          v-if="appliedFilters.point_in_time"
+          class="mt-3"
+          density="compact"
+          :type="summary.totalUntimedCount ? 'warning' : 'info'"
+          variant="tonal"
+        >
+          <template v-if="summary.totalUntimedCount">
+            Balance as at
+            <strong>{{ appliedFilters.end_time }}</strong> on
+            {{ appliedFilters.end_date }}, counting only movements with a
+            recorded time.
+            <strong>{{ summary.totalUntimedCount }}</strong>
+            movement(s) that day have no time recorded
+            ({{ formatNumber(summary.totalUntimedNet) }} net units), so they
+            are not included — the true balance is somewhere between the
+            figure shown and
+            {{ formatNumber(summary.totalClosing + summary.totalUntimedNet) }}.
+          </template>
+          <template v-else>
+            Balance as at <strong>{{ appliedFilters.end_time }}</strong> on
+            {{ appliedFilters.end_date }}. Every movement that day has a
+            recorded time, so this figure is exact.
+          </template>
+        </v-alert>
       </v-card-text>
     </v-card>
 
@@ -554,6 +598,8 @@ const exporting = ref(false);
 const loadingProducts = ref(false);
 const loadingOutlets = ref(false);
 const reportData = ref([]);
+// Echo of the filters the current figures were actually generated with.
+const appliedFilters = ref({});
 const chartData = ref({});
 const summary = ref({
   totalProducts: 0,
@@ -598,6 +644,8 @@ const filters = reactive({
   quality: "GOOD", // Default to GOOD
   start_date: formatDMY(new Date()),
   end_date: formatDMY(new Date()),
+  // Blank means "whole day", which is how this report has always worked.
+  end_time: "",
 });
 
 // Enhanced Headers with Quality Breakdown
@@ -638,6 +686,7 @@ const filterParams = computed(() => {
     params.append("start_date", toISODateOnly(filters.start_date));
   if (filters.end_date)
     params.append("end_date", toISODateOnly(filters.end_date));
+  if (filters.end_time) params.append("end_time", filters.end_time);
   params.append("page", pagination.currentPage);
   params.append("limit", pagination.limit);
   return params;
@@ -758,6 +807,7 @@ async function loadReport() {
     reportData.value = data.data || [];
     chartData.value = data.chartData || {};
     summary.value = data.summary || {};
+    appliedFilters.value = data.filters || {};
 
     // Update pagination info
     if (data.pagination) {
@@ -996,6 +1046,7 @@ async function exportToExcel() {
       exportParams.append("start_date", toISODateOnly(filters.start_date));
     if (filters.end_date)
       exportParams.append("end_date", toISODateOnly(filters.end_date));
+    if (filters.end_time) exportParams.append("end_time", filters.end_time);
 
     const res = await fetch(`/reports/stock-balance/export?${exportParams}`);
     const blob = await res.blob();

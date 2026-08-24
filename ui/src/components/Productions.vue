@@ -367,6 +367,12 @@
               <v-skeleton-loader type="table-row@10" />
             </template>
 
+            <template #item.ingredient_cost="{ item }">
+              <span class="font-weight-medium text-green-darken-2">
+                {{ money(item.ingredient_cost) }}
+              </span>
+            </template>
+
             <template #item.status="{ item }">
               <v-chip
                 class="font-weight-bold text-uppercase"
@@ -952,6 +958,12 @@
               <v-skeleton-loader type="table-row@10" />
             </template>
 
+            <template #item.ingredient_cost="{ item }">
+              <span class="font-weight-medium text-green-darken-2">
+                {{ money(item.ingredient_cost) }}
+              </span>
+            </template>
+
             <template #item.status="{ item }">
               <v-chip
                 class="font-weight-bold text-uppercase"
@@ -1278,6 +1290,18 @@
                   </v-card-text>
                 </v-card>
               </v-col>
+              <v-col cols="12" md="3">
+                <v-card border class="text-center" variant="outlined">
+                  <v-card-text>
+                    <div class="text-h6 font-weight-bold text-green-darken-2">
+                      {{ money(selectedBatch?.ingredient_cost) }}
+                    </div>
+                    <div class="text-caption text-grey">
+                      Ingredient Cost (actual)
+                    </div>
+                  </v-card-text>
+                </v-card>
+              </v-col>
             </v-row>
           </v-card>
 
@@ -1393,6 +1417,20 @@
                   </v-btn>
                 </template>
 
+                <template #item.ingredient_cost="{ item }">
+                  <div class="text-end">
+                    <div class="font-weight-medium text-green-darken-2">
+                      {{ money(item.ingredient_cost) }}
+                    </div>
+                    <div
+                      v-if="item.ingredient_cost_per_unit != null"
+                      class="text-caption text-grey"
+                    >
+                      {{ money(item.ingredient_cost_per_unit) }}/unit
+                    </div>
+                  </div>
+                </template>
+
                 <template #expanded-row="{ columns, item }">
                   <tr>
                     <td
@@ -1409,9 +1447,22 @@
                       </div>
                       <div v-else>
                         <div
-                          class="text-caption text-grey mb-2 font-weight-bold"
+                          class="d-flex align-center flex-wrap ga-2 mb-2"
                         >
-                          INGREDIENTS ({{ item.ingredients.length }})
+                          <span class="text-caption text-grey font-weight-bold">
+                            INGREDIENTS ({{ item.ingredients.length }})
+                          </span>
+                          <v-chip color="green-darken-2" size="x-small" variant="flat">
+                            Cost {{ money(item.ingredient_cost) }}
+                          </v-chip>
+                          <v-chip
+                            v-if="item.ingredient_cost_per_unit != null"
+                            color="green"
+                            size="x-small"
+                            variant="outlined"
+                          >
+                            {{ money(item.ingredient_cost_per_unit) }} per unit
+                          </v-chip>
                         </div>
                         <v-row dense>
                           <v-col
@@ -1434,6 +1485,27 @@
                                 variant="outlined"
                               >
                                 {{ ing.qty_required }} {{ ing.unit || "" }}
+                              </v-chip>
+                              <v-chip
+                                class="ml-1"
+                                color="green-darken-2"
+                                size="x-small"
+                                variant="tonal"
+                              >
+                                {{ money(ing.cost) }}
+                                <v-tooltip activator="parent" location="top">
+                                  <!--
+                                    An ingredient can be filled from several
+                                    purchase lots at different prices, so the
+                                    unit figure is a weighted average of the
+                                    lots this production actually drew down.
+                                  -->
+                                  {{ ing.qty_required }} {{ ing.unit || "" }}
+                                  &times; {{ money(ing.avg_unit_cost) }}
+                                  <template v-if="ing.lot_count > 1">
+                                    (avg of {{ ing.lot_count }} purchase lots)
+                                  </template>
+                                </v-tooltip>
                               </v-chip>
                               <v-chip
                                 v-if="ing.group_name"
@@ -3176,6 +3248,20 @@
               <v-chip class="ml-2" color="primary" size="small" variant="flat">
                 {{ detail?.items?.length || 0 }} items
               </v-chip>
+              <v-spacer />
+              <v-chip color="green-darken-2" size="small" variant="flat">
+                Cost {{ money(detail?.production?.ingredient_cost) }}
+              </v-chip>
+              <v-chip
+                v-if="detail?.production?.ingredient_cost_per_unit != null"
+                class="ml-2"
+                color="green"
+                size="small"
+                variant="outlined"
+              >
+                {{ money(detail?.production?.ingredient_cost_per_unit) }}
+                per unit
+              </v-chip>
             </v-card-title>
             <v-card-text class="pa-0">
               <v-list class="pa-0" lines="two">
@@ -3223,6 +3309,22 @@
                       variant="outlined"
                     >
                       {{ ingredient.qty_required }} {{ ingredient.unit || "" }}
+                    </v-chip>
+                    <v-chip
+                      class="mr-2"
+                      color="green-darken-2"
+                      size="small"
+                      variant="tonal"
+                    >
+                      {{ money(ingredient.cost) }}
+                      <v-tooltip activator="parent" location="top">
+                        {{ ingredient.qty_required }}
+                        {{ ingredient.unit || "" }} &times;
+                        {{ money(ingredient.avg_unit_cost) }}
+                        <template v-if="ingredient.lot_count > 1">
+                          (avg of {{ ingredient.lot_count }} purchase lots)
+                        </template>
+                      </v-tooltip>
                     </v-chip>
                     <span class="text-caption text-grey">
                       Item ID: {{ ingredient.item_id }}
@@ -3463,6 +3565,17 @@ const detail = ref(null);
 const search = ref("");
 const ingredientTabs = ref(0);
 
+/**
+ * Money formatting for ingredient costs. Matches Payroll.vue's `money`
+ * so figures read the same across the system.
+ */
+function money (value) {
+  return Number(value || 0).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 const deprecated_groups = ref([]);
 const ignore_deprecated_ingredients_choices = ref(false);
 const products = ref([]);
@@ -3576,6 +3689,12 @@ const batchHeaders = [
   { title: "Team Leader", key: "team_leader_name", sortable: true },
   { title: "Planned By", key: "created_by_name", sortable: true },
   {
+    title: "Ingredient Cost",
+    key: "ingredient_cost",
+    sortable: true,
+    align: "end",
+  },
+  {
     title: "Actions",
     key: "actions",
     sortable: false,
@@ -3589,6 +3708,12 @@ const batchProductHeaders = [
   { title: "Planned Qty", key: "qty_product", sortable: true, align: "center" },
   { title: "Status", key: "produced", sortable: true, align: "center" },
   { title: "Actual Output", key: "good_qty", sortable: false },
+  {
+    title: "Ingredient Cost",
+    key: "ingredient_cost",
+    sortable: true,
+    align: "end",
+  },
   { title: "Actions", key: "actions", sortable: false, align: "center" },
   { title: "", key: "data-table-expand", sortable: false },
 ];
@@ -3602,6 +3727,12 @@ const productionHeaders = [
   { title: "Planned At", key: "planned_at", sortable: true },
   { title: "Produced At", key: "produced_at", sortable: true },
   { title: "Team Leader", key: "team_leader_name", sortable: true },
+  {
+    title: "Ingredient Cost",
+    key: "ingredient_cost",
+    sortable: true,
+    align: "end",
+  },
   {
     title: "Actions",
     key: "actions",

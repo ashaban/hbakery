@@ -24,6 +24,7 @@ async function getOutDetail(client, outId) {
            -- server's local timezone and shift it a day — same fix as
            -- sale.sale_date.
            TO_CHAR(po.out_date, 'YYYY-MM-DD') AS out_date,
+           TO_CHAR(po.out_at, 'YYYY-MM-DD"T"HH24:MI:SS') AS out_at,
            o.name AS outlet_name,
            o.type AS outlet_type,
            u.name  AS created_by_name
@@ -73,7 +74,7 @@ router.post(
   "/",
   requireTask("can_release_products_for_free"),
   async (req, res) => {
-    const { outlet_id, out_date, reason, notes, items = [] } = req.body;
+    const { outlet_id, out_date, out_at, reason, notes, items = [] } = req.body;
     if (!outlet_id || !items.length) {
       return res.status(400).json({ error: "Missing outlet or items" });
     }
@@ -88,8 +89,8 @@ router.post(
       // Header
       const ins = await client.query(
         `
-      INSERT INTO product_out (outlet_id, out_date, reason, notes, status, created_by)
-      VALUES ($1, $2, $3, $4, 'POSTED', $5)
+      INSERT INTO product_out (outlet_id, out_date, reason, notes, status, created_by, out_at)
+      VALUES ($1, $2, $3, $4, 'POSTED', $5, $6)
       RETURNING id
       `,
         [
@@ -98,6 +99,7 @@ router.post(
           reason || "N/A",
           notes || null,
           req.user?.id || 1,
+          out_at ?? null,
         ]
       );
       const outId = ins.rows[0].id;
@@ -120,7 +122,7 @@ router.post(
       }
 
       // Ledger (FIFO per lot)
-      await recordOutLedger(client, outId, outlet_id, items, out_date, notes);
+      await recordOutLedger(client, outId, outlet_id, items, out_date, notes, out_at ?? null);
 
       await recordAudit(client, {
         user: req.user,
@@ -151,7 +153,7 @@ router.post(
  * --------------------------- */
 router.put("/:id", requireTask("can_edit_free_release"), async (req, res) => {
   const { id } = req.params;
-  const { outlet_id, out_date, reason, notes, items = [] } = req.body;
+  const { outlet_id, out_date, out_at, reason, notes, items = [] } = req.body;
 
   const client = await pool.connect();
   try {
@@ -180,10 +182,11 @@ router.put("/:id", requireTask("can_edit_free_release"), async (req, res) => {
     await client.query(
       `
       UPDATE product_out
-      SET outlet_id=$1, out_date=$2, reason=$3, notes=$4
+      SET outlet_id=$1, out_date=$2, reason=$3, notes=$4, out_at=$6
       WHERE id=$5
       `,
-      [outlet_id, out_date ?? new Date(), reason || "N/A", notes || null, id]
+      [outlet_id, out_date ?? new Date(), reason || "N/A", notes || null, id,
+       out_at ?? null]
     );
 
     // Replace items
@@ -203,7 +206,7 @@ router.put("/:id", requireTask("can_edit_free_release"), async (req, res) => {
     }
 
     // Re-apply ledger (FIFO)
-    await recordOutLedger(client, id, outlet_id, items, out_date, notes);
+    await recordOutLedger(client, id, outlet_id, items, out_date, notes, out_at ?? null);
 
     await client.query("COMMIT");
     const detail = await getOutDetail(client, id);

@@ -327,6 +327,19 @@
                 </v-col>
                 <v-col cols="12" md="6">
                   <DateField v-model="form.movement_date" label="Transfer Date" />
+                  <v-text-field
+                    v-model="form.movement_time"
+                    class="mt-3"
+                    clearable
+                    density="comfortable"
+                    hint="Leave blank if the time is not known"
+                    label="Time (optional)"
+                    persistent-hint
+                    prepend-inner-icon="mdi-clock-outline"
+                    type="time"
+                    variant="outlined"
+                    @update:model-value="movement_timeEdited = true"
+                  />
                 </v-col>
                 <v-col cols="12">
                   <v-textarea
@@ -1122,7 +1135,11 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from "vue";
+  // Event-time capture: see utils/eventTime.js for why a backdated entry
+  // must never inherit a guessed time.
+  import { nowHHMM, timeForDate, toEventTimestamp } from "@/utils/eventTime";
+
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useStore } from "vuex";
 import { formatDMY, toISODateOnly } from "@/utils/date.js";
 import DateField from "@/components/shared/DateField.vue";
@@ -1165,10 +1182,23 @@ const form = reactive({
   from_outlet_id: "",
   to_outlet_id: "",
   movement_date: formatDMY(new Date()),
+  movement_time: nowHHMM(),
   remarks: "",
   items: [],
   originalItems: [],
 });
+
+  // A time is only offered for an entry being made today. The moment the
+  // date is backdated the field clears itself, because a "now" timestamp
+  // on last Tuesday's book is worse than recording no time at all — the
+  // stock report would treat the guess as fact.
+  const movement_timeEdited = ref(false);
+  watch(
+    () => form.movement_date,
+    (d) => {
+      form.movement_time = timeForDate(d, form.movement_time, movement_timeEdited.value);
+    }
+  );
 
 // Quality Adjustment Form
 const adjust = reactive({
@@ -1635,6 +1665,7 @@ async function saveTransfer() {
       from_outlet_id: form.from_outlet_id,
       to_outlet_id: form.to_outlet_id,
       movement_date: toISODateOnly(form.movement_date),
+      movement_at: toEventTimestamp(form.movement_date, form.movement_time),
       remarks: form.remarks,
       items: form.items.map((item) => ({
         product_id: item.product_id,

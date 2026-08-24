@@ -302,6 +302,19 @@
                 </v-col>
                 <v-col cols="12" md="4">
                   <DateField v-model="form.out_date" label="Date *" required />
+                  <v-text-field
+                    v-model="form.out_time"
+                    class="mt-3"
+                    clearable
+                    density="comfortable"
+                    hint="Leave blank if the time is not known"
+                    label="Time (optional)"
+                    persistent-hint
+                    prepend-inner-icon="mdi-clock-outline"
+                    type="time"
+                    variant="outlined"
+                    @update:model-value="out_timeEdited = true"
+                  />
                 </v-col>
                 <v-col cols="12" md="4">
                   <v-select
@@ -730,6 +743,10 @@
 </template>
 
 <script setup>
+  // Event-time capture: see utils/eventTime.js for why a backdated entry
+  // must never inherit a guessed time.
+  import { nowHHMM, timeForDate, toEventTimestamp } from "@/utils/eventTime";
+
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useStore } from "vuex";
 import { formatDMY, toISODateOnly } from "@/utils/date.js";
@@ -770,6 +787,7 @@ const todayDisplay = formatDMY(new Date());
 const form = reactive({
   outlet_id: "",
   out_date: todayDisplay,
+  out_time: nowHHMM(),
   reason: "CHARITY",
   notes: "",
   items: [],
@@ -779,6 +797,18 @@ const form = reactive({
   // flag every unchanged line as insufficient. See fetchItemAvailability.
   originalItems: [],
 });
+
+  // A time is only offered for an entry being made today. The moment the
+  // date is backdated the field clears itself, because a "now" timestamp
+  // on last Tuesday's book is worse than recording no time at all — the
+  // stock report would treat the guess as fact.
+  const out_timeEdited = ref(false);
+  watch(
+    () => form.out_date,
+    (d) => {
+      form.out_time = timeForDate(d, form.out_time, out_timeEdited.value);
+    }
+  );
 
 // Validation
 const validationErrors = ref([]);
@@ -1151,6 +1181,7 @@ async function saveGiveaway() {
   const payload = {
     outlet_id: form.outlet_id,
     out_date: toISODateOnly(form.out_date),
+    out_at: toEventTimestamp(form.out_date, form.out_time),
     reason: form.reason,
     notes: form.notes || null,
     items: form.items.map((it) => ({

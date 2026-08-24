@@ -19,7 +19,9 @@ async function createTransfer(
   remarks,
   items,
   movement_date,
-  created_by
+  created_by,
+  // Appended, not inserted: these are positional parameters.
+  movement_at = null
 ) {
   // Validate transfer availability
   const { origin } = await determineOriginDestination(
@@ -31,14 +33,15 @@ async function createTransfer(
 
   // Insert transfer header
   const hdr = await client.query(
-    `INSERT INTO stock_transfer (from_outlet_id, to_outlet_id, type, remarks, transfer_date, created_by)
-     VALUES ($1,$2,'OUTWARD',$3,$4,$5) RETURNING id`,
+    `INSERT INTO stock_transfer (from_outlet_id, to_outlet_id, type, remarks, transfer_date, created_by, transfer_at)
+     VALUES ($1,$2,'OUTWARD',$3,$4,$5,$6) RETURNING id`,
     [
       from_outlet_id,
       to_outlet_id,
       remarks || null,
       movement_date || new Date(),
       created_by,
+      movement_at,
     ]
   );
 
@@ -57,12 +60,15 @@ async function updateTransfer(
   remarks,
   movement_date,
   items,
-  updated_by
+  updated_by,
+  // Appended, not inserted: these are positional parameters.
+  movement_at = null
 ) {
   // Update transfer header
   await client.query(
     `UPDATE stock_transfer
-     SET from_outlet_id=$1, to_outlet_id=$2, remarks=$3, transfer_date=$4, updated_by=$5, updated_at=NOW()
+     SET from_outlet_id=$1, to_outlet_id=$2, remarks=$3, transfer_date=$4, updated_by=$5, updated_at=NOW(),
+         transfer_at=$7
      WHERE id=$6`,
     [
       from_outlet_id,
@@ -71,6 +77,7 @@ async function updateTransfer(
       movement_date,
       updated_by,
       transferId,
+      movement_at,
     ]
   );
 
@@ -111,7 +118,9 @@ async function processTransferWithQualityAdjustments(
   items,
   movement_date,
   created_by,
-  transferId = null // for updates
+  transferId = null, // for updates
+  // Appended, not inserted: these are positional parameters.
+  movement_at = null
 ) {
   const adjustmentIds = [];
   const isUpdate = !!transferId;
@@ -129,6 +138,7 @@ async function processTransferWithQualityAdjustments(
           remarks || "Quality adjustment"
         }`,
         movement_date,
+        adjusted_at: movement_at ?? null,
         reference_type: "TRANSFER",
         reference_id: transferId,
         created_by,
@@ -147,7 +157,8 @@ async function processTransferWithQualityAdjustments(
       remarks,
       movement_date,
       items,
-      created_by
+      created_by,
+      movement_at
     );
   } else {
     transferId = await createTransfer(
@@ -157,7 +168,8 @@ async function processTransferWithQualityAdjustments(
       remarks,
       items,
       movement_date,
-      created_by
+      created_by,
+      movement_at
     );
   }
 
@@ -182,7 +194,8 @@ async function processTransferWithQualityAdjustments(
     from_outlet_id,
     to_outlet_id,
     transferItems,
-    movement_date
+    movement_date,
+    movement_at ?? null
   );
   // throw new Error("Debug: stop here");
   return {
