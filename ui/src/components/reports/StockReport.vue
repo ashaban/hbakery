@@ -1085,7 +1085,8 @@ async function exportReport (format) {
         const body = await res.json();
         if (body?.error) message = body.error;
       } catch {
-        // Non-JSON error body — keep the status-code message.
+        // Non-JSON error body: keep the status-code message above.
+        message = `Export failed (${res.status})`;
       }
       throw new Error(message);
     }

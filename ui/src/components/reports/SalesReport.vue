@@ -276,6 +276,37 @@
 
     <!-- SALES TABLE -->
     <v-card class="rounded-lg" elevation="2">
+      <v-card-title class="d-flex align-center flex-wrap ga-2">
+        <v-icon class="mr-2" color="primary">mdi-receipt-text</v-icon>
+        Sales Records
+        <v-spacer />
+        <v-menu location="bottom end">
+          <template #activator="{ props: menuProps }">
+            <v-btn
+              v-bind="menuProps"
+              append-icon="mdi-menu-down"
+              color="primary"
+              :loading="exporting"
+              variant="flat"
+            >
+              <v-icon start>mdi-download</v-icon>
+              Export
+            </v-btn>
+          </template>
+          <v-list density="compact">
+            <v-list-item
+              prepend-icon="mdi-file-excel"
+              title="Excel workbook"
+              @click="exportReport('xlsx')"
+            />
+            <v-list-item
+              prepend-icon="mdi-file-pdf-box"
+              title="PDF document"
+              @click="exportReport('pdf')"
+            />
+          </v-list>
+        </v-menu>
+      </v-card-title>
       <v-progress-linear
         :active="loading"
         color="primary"
@@ -1101,6 +1132,68 @@ function getProductsChartOption() {
       },
     ],
   };
+}
+
+const exporting = ref(false);
+
+/**
+ * Downloads the sales list as it is currently filtered.
+ *
+ * The response is checked before it is saved — writing an unchecked body to
+ * disk is how a failed export becomes a file full of an HTML error page.
+ */
+async function exportReport (format) {
+  exporting.value = true;
+  try {
+    const params = new URLSearchParams();
+    if (filters.outlet_id?.length) {
+      filters.outlet_id.forEach((id) => params.append("outlet_id[]", id));
+    } else if (store.state.auth.outlets.length) {
+      store.state.auth.outlets.forEach((outlet) =>
+        params.append("outlet_id[]", outlet.outlet_id),
+      );
+    }
+    if (filters.start_date)
+      params.append("start_date", toISODateOnly(filters.start_date));
+    if (filters.end_date)
+      params.append("end_date", toISODateOnly(filters.end_date));
+    if (filters.payment_status)
+      params.append("payment_status", filters.payment_status);
+    params.append("format", format);
+
+    const res = await fetch(`/sales/salesanalytics/export?${params}`);
+    if (!res.ok) {
+      let message = `Export failed (${res.status})`;
+      try {
+        const body = await res.json();
+        if (body?.error) message = body.error;
+      } catch {
+        // Non-JSON error body: keep the status-code message above.
+        message = `Export failed (${res.status})`;
+      }
+      throw new Error(message);
+    }
+
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `sales-report-${toISODateOnly(filters.end_date) || "all"}.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+
+    store.commit("setMessage", {
+      type: "success",
+      text: format === "pdf" ? "PDF exported" : "Excel workbook exported",
+    });
+  } catch (error) {
+    console.error("Export error:", error);
+    store.commit("setMessage", { type: "error", text: error.message });
+  } finally {
+    exporting.value = false;
+  }
 }
 
 function exportChart(chartType) {

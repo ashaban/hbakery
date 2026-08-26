@@ -3,6 +3,8 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 const salesController = require("../modules/salesDashboard");
+const salesExport = require("../modules/salesReportExport");
+const { sendExport } = require("../modules/reportExport");
 const { authenticateToken, requireTask } = require("../middleware/auth");
 
 const {
@@ -135,6 +137,47 @@ router.get(
   requireTask("can_see_sales_report"),
   salesController.getSalesAnalytics
 );
+/**
+ * Excel / PDF download of the Sales Report.
+ *
+ * Declared before "/salesanalytics" so the longer path wins the match, and it
+ * takes the same filters as the screen — the file is whatever you are looking
+ * at, with every matching row rather than one page.
+ */
+router.get(
+  "/salesanalytics/export",
+  requireTask("can_see_sales_report"),
+  async (req, res) => {
+    try {
+      const format = String(req.query.format || "xlsx").toLowerCase();
+      if (!["xlsx", "pdf"].includes(format)) {
+        return res.status(400).json({ error: "format must be xlsx or pdf" });
+      }
+
+      // offset: null asks for every matching row, not a page of them.
+      const { rows } = await salesController.querySales(req.query, {
+        offset: null,
+      });
+
+      const report = { rows, filters: req.query };
+      const body =
+        format === "pdf"
+          ? await salesExport.toPdf(report)
+          : await salesExport.toWorkbook(report);
+
+      const stamp = (req.query.end_date || "").replace(/-/g, "");
+      sendExport(res, {
+        format,
+        filename: `sales-report-${stamp || "all"}.${format}`,
+        body,
+      });
+    } catch (err) {
+      console.error("❌ Error exporting sales report:", err);
+      res.status(500).json({ error: "Failed to export sales report" });
+    }
+  }
+);
+
 router.get(
   "/salesanalytics",
   requireTask("can_see_sales_report"),

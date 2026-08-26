@@ -392,113 +392,14 @@ const salesController = {
   // -------------------------------------------------------
   async getSales(req, res) {
     try {
-      const {
-        page = 1,
-        limit = 10,
-        start_date,
-        end_date,
-        payment_status,
-      } = req.query;
-
-      const offset = (page - 1) * limit;
-
-      const conditions = ["s.status='POSTED'"];
-      const params = [];
-      let p = 0;
-
-      // The frontend sends this as `outlet_id[]` (array notation); reading
-      // only `req.query.outlet_id` here was always undefined, so this
-      // filter silently never applied and the sales table showed every
-      // outlet regardless of what was selected.
-      if (req.query["outlet_id[]"] || req.query.outlet_id) {
-        let outletIds = req.query["outlet_id[]"] || req.query.outlet_id;
-        outletIds = Array.isArray(outletIds)
-          ? outletIds.map(Number)
-          : outletIds.toString().split(",").map(Number);
-        p++;
-        params.push(outletIds);
-        conditions.push(`s.outlet_id = ANY($${p})`);
-      }
-
-      if (start_date && end_date) {
-        p++;
-        const sIdx = p;
-        params.push(start_date);
-
-        p++;
-        const eIdx = p;
-        params.push(end_date);
-
-        conditions.push(`s.sale_date BETWEEN $${sIdx} AND $${eIdx}`);
-      }
-
-      if (payment_status === "PAID") {
-        conditions.push(`
-          (SELECT COALESCE(SUM(amount),0) FROM sale_payment sp WHERE sp.sale_id=s.id) 
-          >=
-          (SELECT SUM(quantity*unit_price) FROM sale_item si WHERE si.sale_id=s.id)
-        `);
-      } else if (payment_status === "PART") {
-        conditions.push(`
-          (SELECT COALESCE(SUM(amount),0) FROM sale_payment sp WHERE sp.sale_id=s.id) > 0
-          AND
-          (SELECT COALESCE(SUM(amount),0) FROM sale_payment sp WHERE sp.sale_id=s.id)
-          <
-          (SELECT SUM(quantity*unit_price) FROM sale_item si WHERE si.sale_id=s.id)
-        `);
-      } else if (payment_status === "PENDING") {
-        conditions.push(`
-          NOT EXISTS (SELECT 1 FROM sale_payment sp WHERE sp.sale_id=s.id)
-        `);
-      }
-
-      const whereSQL = conditions.length
-        ? `WHERE ${conditions.join(" AND ")}`
-        : "";
-
-      const countRes = await pool.query(
-        `
-        SELECT COUNT(*) AS total
-        FROM sale s
-        ${whereSQL}
-      `,
-        params
-      );
-
-      const total = Number(countRes.rows[0].total);
-      const totalPages = Math.ceil(total / limit);
-
-      params.push(limit, offset);
-
-      const salesRes = await pool.query(
-        `
-        SELECT
-          s.id,
-          TO_CHAR(s.sale_date, 'YYYY-MM-DD') AS sale_date,
-          o.name AS outlet,
-          o.type AS outlet_type,
-          c.name AS customer_name,
-          COUNT(si.id) AS items_count,
-          COALESCE(SUM(si.quantity),0) AS total_qty,
-          COALESCE(SUM(si.quantity*si.unit_price),0) AS total_amount,
-          (SELECT COALESCE(SUM(amount),0) FROM sale_payment sp WHERE sp.sale_id=s.id) AS paid_amount,
-          COALESCE(SUM(si.quantity*si.unit_price),0) -
-          (SELECT COALESCE(SUM(amount),0) FROM sale_payment sp WHERE sp.sale_id=s.id) AS balance,
-          s.notes
-        FROM sale s
-        LEFT JOIN outlet o ON o.id=s.outlet_id
-        LEFT JOIN customer c ON c.id=s.customer_id
-        LEFT JOIN sale_item si ON si.sale_id=s.id
-        ${whereSQL}
-        GROUP BY s.id, o.name, o.type, c.name
-        ORDER BY s.sale_date DESC, s.id DESC
-        LIMIT $${p + 1} OFFSET $${p + 2}
-      `,
-        params
-      );
+      const { page = 1, limit = 10 } = req.query;
+      const { rows, total, totalPages } = await querySales(req.query, {
+        limit: Number(limit),
+        offset: (page - 1) * limit,
+      });
 
       res.json({
-        data: salesRes.rows,
+        data: rows,
         totalPages,
         currentPage: Number(page),
         totalCount: total,
@@ -573,4 +474,110 @@ const salesController = {
   },
 };
 
+/**
+ * The sales listing, in one place.
+ *
+ * The on-screen table and its Excel/PDF exports have to agree — an export that
+ * quietly disagrees with the screen is worse than no export at all. So the
+ * filter handling and the SQL live here and both callers use them; pass
+ * `offset: null` to get every matching row instead of one page.
+ */
+async function querySales(reqQuery, { limit = 10, offset = 0 } = {}) {
+  const { start_date, end_date, payment_status } = reqQuery;
+
+  const conditions = ["s.status='POSTED'"];
+  const params = [];
+  let p = 0;
+
+  // The frontend sends this as `outlet_id[]` (array notation); reading only
+  // `req.query.outlet_id` here was always undefined, so this filter silently
+  // never applied and the sales table showed every outlet regardless of what
+  // was selected.
+  if (reqQuery["outlet_id[]"] || reqQuery.outlet_id) {
+    let outletIds = reqQuery["outlet_id[]"] || reqQuery.outlet_id;
+    outletIds = Array.isArray(outletIds)
+      ? outletIds.map(Number)
+      : outletIds.toString().split(",").map(Number);
+    p++;
+    params.push(outletIds);
+    conditions.push(`s.outlet_id = ANY($${p})`);
+  }
+
+  if (start_date && end_date) {
+    p++;
+    const sIdx = p;
+    params.push(start_date);
+    p++;
+    const eIdx = p;
+    params.push(end_date);
+    conditions.push(`s.sale_date BETWEEN $${sIdx} AND $${eIdx}`);
+  }
+
+  if (payment_status === "PAID") {
+    conditions.push(`
+      (SELECT COALESCE(SUM(amount),0) FROM sale_payment sp WHERE sp.sale_id=s.id)
+      >=
+      (SELECT SUM(quantity*unit_price) FROM sale_item si WHERE si.sale_id=s.id)
+    `);
+  } else if (payment_status === "PART") {
+    conditions.push(`
+      (SELECT COALESCE(SUM(amount),0) FROM sale_payment sp WHERE sp.sale_id=s.id) > 0
+      AND
+      (SELECT COALESCE(SUM(amount),0) FROM sale_payment sp WHERE sp.sale_id=s.id)
+      <
+      (SELECT SUM(quantity*unit_price) FROM sale_item si WHERE si.sale_id=s.id)
+    `);
+  } else if (payment_status === "PENDING") {
+    conditions.push(`
+      NOT EXISTS (SELECT 1 FROM sale_payment sp WHERE sp.sale_id=s.id)
+    `);
+  }
+
+  const whereSQL = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  const countRes = await pool.query(
+    `SELECT COUNT(*) AS total FROM sale s ${whereSQL}`,
+    params
+  );
+  const total = Number(countRes.rows[0].total);
+  const totalPages = Math.ceil(total / (limit || total || 1));
+
+  // offset === null means "every row" — the exports have no pagination.
+  const paged = offset !== null;
+  const rowParams = paged ? [...params, limit, offset] : params;
+  const pageClause = paged ? `LIMIT $${p + 1} OFFSET $${p + 2}` : "";
+
+  const salesRes = await pool.query(
+    `
+    SELECT
+      s.id,
+      TO_CHAR(s.sale_date, 'YYYY-MM-DD') AS sale_date,
+      o.name AS outlet,
+      o.type AS outlet_type,
+      c.name AS customer_name,
+      COUNT(si.id) AS items_count,
+      COALESCE(SUM(si.quantity),0) AS total_qty,
+      COALESCE(SUM(si.quantity*si.unit_price),0) AS total_amount,
+      (SELECT COALESCE(SUM(amount),0) FROM sale_payment sp WHERE sp.sale_id=s.id) AS paid_amount,
+      COALESCE(SUM(si.quantity*si.unit_price),0) -
+      (SELECT COALESCE(SUM(amount),0) FROM sale_payment sp WHERE sp.sale_id=s.id) AS balance,
+      s.notes
+    FROM sale s
+    LEFT JOIN outlet o ON o.id=s.outlet_id
+    LEFT JOIN customer c ON c.id=s.customer_id
+    LEFT JOIN sale_item si ON si.sale_id=s.id
+    ${whereSQL}
+    GROUP BY s.id, o.name, o.type, c.name
+    ORDER BY s.sale_date DESC, s.id DESC
+    ${pageClause}
+  `,
+    rowParams
+  );
+
+  return { rows: salesRes.rows, total, totalPages };
+}
+
+// querySales rides alongside the controller so the export route can run the
+// exact same query the screen does.
 module.exports = salesController;
+module.exports.querySales = querySales;
