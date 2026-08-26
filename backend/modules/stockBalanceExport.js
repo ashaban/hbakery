@@ -9,6 +9,9 @@
 const ExcelJS = require("exceljs");
 const PDFDocument = require("pdfkit");
 
+/** Masthead on every exported document. */
+const ORG = "Hanein Bakery - Bakery Information System";
+
 const MONEY = "#,##0.00";
 const QTY = "#,##0";
 
@@ -64,23 +67,34 @@ async function toWorkbook({ stockData, summary, filters }) {
   wb.created = new Date();
 
   const ws = wb.addWorksheet("Stock Balance", {
-    views: [{ state: "frozen", ySplit: 4 }],
-    pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1 },
+    views: [{ state: "frozen", ySplit: 5 }],
+    pageSetup: {
+      orientation: "landscape",
+      fitToPage: true,
+      fitToWidth: 1,
+      // Repeat the masthead and column headers on every printed sheet.
+      printTitlesRow: "1:5",
+    },
   });
 
   ws.mergeCells(1, 1, 1, COLUMNS.length);
-  const title = ws.getCell(1, 1);
+  const org = ws.getCell(1, 1);
+  org.value = ORG;
+  org.font = { size: 11, bold: true, color: { argb: "FF1B5E20" } };
+
+  ws.mergeCells(2, 1, 2, COLUMNS.length);
+  const title = ws.getCell(2, 1);
   title.value = "Products Stock Report";
   title.font = { size: 15, bold: true };
 
-  ws.mergeCells(2, 1, 2, COLUMNS.length);
-  const sub = ws.getCell(2, 1);
+  ws.mergeCells(3, 1, 3, COLUMNS.length);
+  const sub = ws.getCell(3, 1);
   sub.value = describeFilters(filters);
   sub.font = { size: 10, color: { argb: "FF666666" } };
 
-  ws.getRow(3).height = 6;
+  ws.getRow(4).height = 6;
 
-  const head = ws.getRow(4);
+  const head = ws.getRow(5);
   COLUMNS.forEach((c, i) => {
     const cell = head.getCell(i + 1);
     cell.value = c.header;
@@ -177,8 +191,10 @@ function toPdf({ stockData, summary, filters }) {
       });
 
     function header() {
-      doc.font("Helvetica-Bold").fontSize(15).fillColor("#1B5E20")
-        .text("Products Stock Report", left, doc.page.margins.top);
+      doc.font("Helvetica-Bold").fontSize(10).fillColor("#1B5E20")
+        .text(ORG, left, doc.page.margins.top);
+      doc.font("Helvetica-Bold").fontSize(15).fillColor("#111111")
+        .text("Products Stock Report", { width: usable });
       doc.font("Helvetica").fontSize(9).fillColor("#555")
         .text(describeFilters(filters), { width: usable });
       doc.moveDown(0.6);
@@ -259,7 +275,7 @@ function toPdf({ stockData, summary, filters }) {
 
     doc.font("Helvetica").fontSize(7.5).fillColor("#888")
       .text(
-        `Generated ${new Date().toLocaleString()} · Hanein Bakery`,
+        `Generated ${new Date().toLocaleString()} · ${ORG}`,
         left,
         doc.page.height - doc.page.margins.bottom - 10,
         { width: usable, align: "right" }
