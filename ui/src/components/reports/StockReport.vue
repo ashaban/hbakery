@@ -21,15 +21,32 @@
             </div>
           </v-col>
           <v-col class="text-right" cols="12" md="6">
-            <v-btn
-              color="primary"
-              :loading="exporting"
-              size="large"
-              @click="exportToExcel"
-            >
-              <v-icon start>mdi-file-excel</v-icon>
-              Export Excel
-            </v-btn>
+            <v-menu location="bottom end">
+              <template #activator="{ props: menuProps }">
+                <v-btn
+                  v-bind="menuProps"
+                  append-icon="mdi-menu-down"
+                  color="primary"
+                  :loading="exporting"
+                  size="large"
+                >
+                  <v-icon start>mdi-download</v-icon>
+                  Export
+                </v-btn>
+              </template>
+              <v-list density="compact">
+                <v-list-item
+                  prepend-icon="mdi-file-excel"
+                  title="Excel workbook"
+                  @click="exportReport('xlsx')"
+                />
+                <v-list-item
+                  prepend-icon="mdi-file-pdf-box"
+                  title="PDF document"
+                  @click="exportReport('pdf')"
+                />
+              </v-list>
+            </v-menu>
           </v-col>
         </v-row>
       </v-card-text>
@@ -1037,25 +1054,47 @@ function renderCharts() {
   }
 }
 
-async function exportToExcel() {
+/**
+ * Downloads the report as it is currently filtered.
+ *
+ * The response is checked before it is saved: the previous version wrote
+ * whatever came back straight to disk, so when the endpoint was missing the
+ * user got a file named .xlsx containing Express's "Cannot GET" page. A failed
+ * export must fail visibly, not produce a corrupt download.
+ */
+async function exportReport (format) {
   exporting.value = true;
   try {
-    // Remove filters for full data export
     const exportParams = new URLSearchParams();
+    if (filters.product_id) exportParams.append("product_id", filters.product_id);
+    if (filters.outlet_id) exportParams.append("outlet_id", filters.outlet_id);
+    if (filters.quality) exportParams.append("quality", filters.quality);
     if (filters.start_date)
       exportParams.append("start_date", toISODateOnly(filters.start_date));
     if (filters.end_date)
       exportParams.append("end_date", toISODateOnly(filters.end_date));
     if (filters.end_time) exportParams.append("end_time", filters.end_time);
+    exportParams.append("format", format);
 
     const res = await fetch(`/reports/stock-balance/export?${exportParams}`);
-    const blob = await res.blob();
+    if (!res.ok) {
+      // The server sends JSON on failure; surface its message rather than a
+      // generic one, since it names the offending filter.
+      let message = `Export failed (${res.status})`;
+      try {
+        const body = await res.json();
+        if (body?.error) message = body.error;
+      } catch {
+        // Non-JSON error body — keep the status-code message.
+      }
+      throw new Error(message);
+    }
 
-    // Create download link
+    const blob = await res.blob();
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `stock-balance-${new Date().toISOString().split("T")[0]}.xlsx`;
+    a.download = `stock-balance-${toISODateOnly(filters.end_date) || "report"}.${format}`;
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);
@@ -1063,14 +1102,11 @@ async function exportToExcel() {
 
     store.commit("setMessage", {
       type: "success",
-      text: "Report exported successfully!",
+      text: format === "pdf" ? "PDF exported" : "Excel workbook exported",
     });
   } catch (error) {
     console.error("Export error:", error);
-    store.commit("setMessage", {
-      type: "error",
-      text: "Failed to export report",
-    });
+    store.commit("setMessage", { type: "error", text: error.message });
   } finally {
     exporting.value = false;
   }

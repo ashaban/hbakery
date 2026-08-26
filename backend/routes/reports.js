@@ -2,6 +2,61 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 const { requireTask, decodeToken } = require("../middleware/auth");
+const {
+  fetchStockBalance,
+  ReportError,
+} = require("../modules/stockBalanceReport");
+const { toWorkbook, toPdf } = require("../modules/stockBalanceExport");
+
+/**
+ * Excel / PDF download of the Products Stock Report.
+ *
+ * Declared before "/stock-balance" so the longer path wins the match, and it
+ * takes the same filters as the screen — the file is whatever you are looking
+ * at, with no pagination applied.
+ */
+router.get(
+  "/stock-balance/export",
+  requireTask("can_see_product_stock_balances"),
+  async (req, res) => {
+    const user = await decodeToken(req);
+    const client = await pool.connect();
+    try {
+      const format = String(req.query.format || "xlsx").toLowerCase();
+      if (!["xlsx", "pdf"].includes(format)) {
+        return res.status(400).json({ error: "format must be xlsx or pdf" });
+      }
+
+      const report = await fetchStockBalance(client, req.query, user);
+
+      const stamp = (report.filters.end_date || "").replace(/-/g, "");
+      const filename = `stock-balance-${stamp || "report"}.${format}`;
+      const body =
+        format === "pdf" ? await toPdf(report) : await toWorkbook(report);
+
+      res.setHeader(
+        "Content-Type",
+        format === "pdf"
+          ? "application/pdf"
+          : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${filename}"`
+      );
+      res.setHeader("Content-Length", Buffer.byteLength(body));
+      res.end(Buffer.from(body));
+    } catch (err) {
+      if (err instanceof ReportError) {
+        return res.status(400).json({ error: err.message });
+      }
+      console.error("❌ Error exporting stock balance report:", err);
+      res.status(500).json({ error: "Failed to export stock balance report" });
+    } finally {
+      client.release();
+    }
+  }
+);
 
 router.get(
   "/stock-balance",
@@ -10,268 +65,13 @@ router.get(
     const user = await decodeToken(req);
     const client = await pool.connect();
     try {
-      const {
-        product_id,
-        outlet_id,
-        start_date,
-        end_date,
-        // Optional clock times ("HH:MM" or "HH:MM:SS"). Omit them and the
-        // report behaves exactly as it always has — whole days.
-        start_time,
-        end_time,
-        quality = "GOOD",
-        page = 1,
-        limit = 20,
-      } = req.query;
-      let outletIds = [outlet_id];
-      if (!outlet_id && user.outlets) {
-        outletIds = user.outlets.map((outlet) => {
-          return outlet.outlet_id;
-        });
-      } else if (!outlet_id && user.outlets.length === 0) {
-        outletIds = [-1];
-      }
+      const { stockData, summary, filters: appliedFilters } =
+        await fetchStockBalance(client, req.query, user);
 
-      // Date handling
-      const defaultStartDate = new Date();
-      defaultStartDate.setDate(defaultStartDate.getDate() - 30);
-      const finalStartDate =
-        start_date || defaultStartDate.toISOString().split("T")[0];
-      const finalEndDate = end_date || new Date().toISOString().split("T")[0];
-
-      if (new Date(finalStartDate) > new Date(finalEndDate)) {
-        return res
-          .status(400)
-          .json({ error: "Start date cannot be after end date" });
-      }
-
-      // A time is only meaningful alongside its date, and must be a real
-      // clock time — reject rather than silently ignoring a typo, which
-      // would hand back a whole-day figure labelled as a point in time.
-      const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;
-      for (const [label, value] of [["start_time", start_time], ["end_time", end_time]]) {
-        if (value && !TIME_RE.test(value)) {
-          return res.status(400).json({
-            error: `${label} must be a 24-hour clock time such as 14:30`,
-          });
-        }
-      }
-
-      const pad = (t) => (t.length === 5 ? `${t}:00` : t);
-      const startAt = start_time ? `${finalStartDate} ${pad(start_time)}` : null;
-      const endAt = end_time ? `${finalEndDate} ${pad(end_time)}` : null;
-
-      if (startAt && endAt && new Date(startAt) > new Date(endAt)) {
-        return res
-          .status(400)
-          .json({ error: "Start time cannot be after end time" });
-      }
-
-      const validQualities = ["GOOD", "DAMAGED", "REJECT", "ALL"];
-      const finalQuality = validQualities.includes(quality) ? quality : "GOOD";
-
-      // SIMPLE DIRECT QUERY - NO COMPLEX CTEs
-      const stockQuery = `
-WITH ledger AS (
-  SELECT
-    pl.product_id,
-    pl.outlet_id,
-    pl.quality,
-    CASE
-      WHEN pl.movement_type IN ('IN', 'TRANSFER_IN', 'RETURN') THEN pl.quantity
-      WHEN pl.movement_type IN ('OUT', 'TRANSFER_OUT', 'SALE') THEN -pl.quantity
-      WHEN pl.movement_type = 'QUALITY_CHANGE' THEN pl.quantity
-      ELSE 0
-    END AS effective_qty,
-    pl.movement_date,
-    pl.movement_at,
-
-    -- Is this movement inside the window, as at the closing cutoff?
-    --
-    -- With no end_time ($6 IS NULL) this is just "on or before end_date",
-    -- exactly the old behaviour. With an end_time, a movement on the
-    -- cutoff day counts only if it is KNOWN to have happened by then —
-    -- an untimed row on that day is not evidence either way, so it is
-    -- excluded here and surfaced separately as an uncertainty band.
-    CASE
-      WHEN $6::timestamp IS NULL THEN pl.movement_date <= $4::date
-      WHEN pl.movement_date < $4::date THEN TRUE
-      ELSE pl.movement_at IS NOT NULL AND pl.movement_at <= $6::timestamp
-    END AS within_close,
-
-    -- Same question at the opening cutoff (strictly before the window).
-    CASE
-      WHEN $7::timestamp IS NULL THEN pl.movement_date < $3::date
-      WHEN pl.movement_date < $3::date THEN TRUE
-      ELSE pl.movement_at IS NOT NULL AND pl.movement_at < $7::timestamp
-    END AS before_open,
-
-    -- Rows on the closing day whose time was never recorded. They might
-    -- have happened before the cutoff or after it; nothing in the data
-    -- says which. Counted as a range, never folded into the balance.
-    (
-      $6::timestamp IS NOT NULL
-      AND pl.movement_date = $4::date
-      AND pl.movement_at IS NULL
-    ) AS untimed_at_close
-  FROM product_ledger pl
-  WHERE
-    ($1::int IS NULL OR pl.product_id = $1)
-    AND (pl.outlet_id = ANY($2))
-    AND pl.movement_date <= $4::date
-),
-
-opening AS (
-  SELECT
-    product_id,
-    outlet_id,
-    quality,
-    SUM(effective_qty) AS opening_balance
-  FROM ledger
-  WHERE before_open
-  GROUP BY product_id, outlet_id, quality
-),
-
-period_movements AS (
-  SELECT
-    product_id,
-    outlet_id,
-    quality,
-    SUM(CASE WHEN effective_qty > 0 THEN effective_qty ELSE 0 END) AS incoming,
-    SUM(CASE WHEN effective_qty < 0 THEN ABS(effective_qty) ELSE 0 END) AS outgoing
-  FROM ledger
-  WHERE within_close AND NOT before_open
-  GROUP BY product_id, outlet_id, quality
-),
-
-closing AS (
-  SELECT
-    product_id,
-    outlet_id,
-    quality,
-    SUM(effective_qty) AS closing_balance
-  FROM ledger
-  WHERE within_close
-  GROUP BY product_id, outlet_id, quality
-),
-
--- The uncertainty band: how much stock moved on the closing day with no
--- recorded time. The true balance lies between closing_balance and
--- closing_balance + untimed_net.
-untimed AS (
-  SELECT
-    product_id,
-    outlet_id,
-    quality,
-    COUNT(*) AS untimed_count,
-    SUM(effective_qty) AS untimed_net
-  FROM ledger
-  WHERE untimed_at_close
-  GROUP BY product_id, outlet_id, quality
-)
-
-SELECT
-  p.id AS product_id,
-  p.name AS product_name,
-  p.unit,
-  p.price,
-  o.id AS outlet_id,
-  o.name AS outlet_name,
-  o.type AS outlet_type,
-
-  COALESCE(op.opening_balance, 0) AS opening_balance,
-  COALESCE(pm.incoming, 0) AS incoming,
-  COALESCE(pm.outgoing, 0) AS outgoing,
-  COALESCE(cl.closing_balance, 0) AS closing_balance,
-
-  -- Quality breakdowns for the same outlet/product
-  COALESCE((
-    SELECT SUM(cl2.closing_balance)
-    FROM closing cl2
-    WHERE cl2.product_id = p.id AND cl2.outlet_id = o.id AND cl2.quality = 'GOOD'
-  ), 0) AS current_good,
-  COALESCE((
-    SELECT SUM(cl2.closing_balance)
-    FROM closing cl2
-    WHERE cl2.product_id = p.id AND cl2.outlet_id = o.id AND cl2.quality = 'DAMAGED'
-  ), 0) AS current_damaged,
-  COALESCE((
-    SELECT SUM(cl2.closing_balance)
-    FROM closing cl2
-    WHERE cl2.product_id = p.id AND cl2.outlet_id = o.id AND cl2.quality = 'REJECT'
-  ), 0) AS current_reject,
-
-  COALESCE(ut.untimed_count, 0) AS untimed_count,
-  COALESCE(ut.untimed_net, 0) AS untimed_net
-
-FROM product p
-JOIN outlet o ON o.is_active = true
-LEFT JOIN opening op ON op.product_id = p.id AND op.outlet_id = o.id AND ($5 = 'ALL' OR op.quality = $5)
-LEFT JOIN period_movements pm ON pm.product_id = p.id AND pm.outlet_id = o.id AND ($5 = 'ALL' OR pm.quality = $5)
-LEFT JOIN closing cl ON cl.product_id = p.id AND cl.outlet_id = o.id AND ($5 = 'ALL' OR cl.quality = $5)
-LEFT JOIN untimed ut ON ut.product_id = p.id AND ut.outlet_id = o.id AND ($5 = 'ALL' OR ut.quality = $5)
-WHERE
-  ($1::int IS NULL OR p.id = $1)
-  AND (o.id = ANY($2))
--- o.name + p.name alone is not a total order: with quality = 'ALL' the
--- quality joins below match every quality, so one product/outlet yields
--- several rows and ties were previously broken by whatever the planner
--- happened to do. Sorting on the joined quality columns too makes the
--- output reproducible, which also keeps pagination stable between calls.
-ORDER BY o.name, p.name, cl.quality, op.quality, pm.quality;
-`;
-
-      const result = await client.query(stockQuery, [
-        product_id,
-        outletIds,
-        finalStartDate,
-        finalEndDate,
-        finalQuality,
-        endAt,
-        startAt,
-      ]);
-
-      const stockData = result.rows.map((row) => {
-        const opening_balance = Number(row.opening_balance) || 0;
-        const incoming = Number(row.incoming) || 0;
-        const outgoing = Number(row.outgoing) || 0;
-        const closing_balance = opening_balance + incoming - outgoing;
-
-        return {
-          product_id: row.product_id,
-          product_name: row.product_name,
-          unit: row.unit,
-          price: Number(row.price) || 0,
-          outlet_id: row.outlet_id,
-          outlet_name: row.outlet_name,
-          outlet_type: row.outlet_type,
-          quality_breakdown: {
-            good: Math.max(0, Number(row.current_good) || 0),
-            damaged: Math.max(0, Number(row.current_damaged) || 0),
-            reject: Math.max(0, Number(row.current_reject) || 0),
-            total: Math.max(
-              0,
-              Number(row.current_good) +
-                Number(row.current_damaged) +
-                Number(row.current_reject)
-            ),
-          },
-          opening_balance: opening_balance,
-          incoming: incoming,
-          outgoing: outgoing,
-          closing_balance: closing_balance,
-          total_value: closing_balance * (Number(row.price) || 0),
-
-          // Movements on the closing day with no recorded time. Zero
-          // whenever no end_time was asked for, and zero once the day's
-          // entries all carry times. While non-zero, the real balance is
-          // somewhere in [closing_balance, closing_balance + untimed_net].
-          untimed_count: Number(row.untimed_count) || 0,
-          untimed_net: Number(row.untimed_net) || 0,
-        };
-      });
-
-      // Simple pagination
+      // Simple pagination. page/limit stay here rather than in the shared
+      // module: the exports deliberately have no pagination, so paging is a
+      // property of this screen, not of the report.
+      const { page = 1, limit = 20 } = req.query;
       const pageNum = Math.max(1, parseInt(page));
       const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
       const offset = (pageNum - 1) * limitNum;
@@ -279,47 +79,11 @@ ORDER BY o.name, p.name, cl.quality, op.quality, pm.quality;
       const totalPages = Math.ceil(totalRecords / limitNum);
       const paginatedData = stockData.slice(offset, offset + limitNum);
 
-      // Generate summary
-      const summary = {
-        totalProducts: new Set(stockData.map((item) => item.product_id)).size,
-        totalOutlets: new Set(stockData.map((item) => item.outlet_id)).size,
-        totalOpening: stockData.reduce(
-          (sum, item) => sum + item.opening_balance,
-          0
-        ),
-        totalIncoming: stockData.reduce((sum, item) => sum + item.incoming, 0),
-        totalOutgoing: stockData.reduce((sum, item) => sum + item.outgoing, 0),
-        totalClosing: stockData.reduce(
-          (sum, item) => sum + item.closing_balance,
-          0
-        ),
-        totalValue: stockData.reduce((sum, item) => sum + item.total_value, 0),
-        totalUntimedCount: stockData.reduce(
-          (sum, item) => sum + item.untimed_count,
-          0
-        ),
-        totalUntimedNet: stockData.reduce(
-          (sum, item) => sum + item.untimed_net,
-          0
-        ),
-      };
-
       // Generate chart data
       const chartData = generateChartData(stockData);
 
       res.json({
-        filters: {
-          product_id: product_id || null,
-          outlet_id: outlet_id || null,
-          quality: finalQuality,
-          start_date: finalStartDate,
-          end_date: finalEndDate,
-          start_time: start_time || null,
-          end_time: end_time || null,
-          // True when the figures are a point-in-time reading rather than
-          // an end-of-day one, so the UI can label them accordingly.
-          point_in_time: Boolean(endAt),
-        },
+        filters: appliedFilters,
         pagination: {
           currentPage: pageNum,
           totalPages,
@@ -333,6 +97,9 @@ ORDER BY o.name, p.name, cl.quality, op.quality, pm.quality;
         data: paginatedData,
       });
     } catch (err) {
+      if (err instanceof ReportError) {
+        return res.status(400).json({ error: err.message });
+      }
       console.error("❌ Error generating stock balance report:", err);
       res.status(500).json({
         error: "Failed to generate stock balance report",
