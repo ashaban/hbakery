@@ -15,6 +15,8 @@
           >Hanein Bakery</span
         >
 
+        <InstanceBadge class="ml-3" />
+
         <v-spacer />
 
         <div class="d-none d-md-flex">
@@ -791,6 +793,7 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from "vue";
 import { useRouter } from "vue-router";
+import InstanceBadge from "@/components/shared/InstanceBadge.vue";
 import AOS from "aos";
 import "aos/dist/aos.css";
 

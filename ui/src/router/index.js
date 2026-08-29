@@ -34,6 +34,12 @@ const router = createRouter({
       meta: { requiresAuth: true, task: "can_see_ingredients_stock" },
     },
     {
+      path: "/Shifts",
+      name: "Shifts",
+      component: () => import("../components/Shifts.vue"),
+      meta: { requiresAuth: true, task: "can_see_production" },
+    },
+    {
       path: "/Productions",
       name: "Productions",
       component: () => import("../components/Productions.vue"),
@@ -134,6 +140,18 @@ const router = createRouter({
       path: "/BoardForm",
       name: "BoardForm",
       component: () => import("../views/BoardForm.vue"),
+    },
+    {
+      path: "/Ovens",
+      name: "Ovens",
+      component: () => import("../components/settings/Ovens.vue"),
+      meta: { requiresAuth: true, task: "can_see_production" },
+    },
+    {
+      path: "/DeliveryRoutes",
+      name: "DeliveryRoutes",
+      component: () => import("../components/settings/DeliveryRoutes.vue"),
+      meta: { requiresAuth: true, task: "can_see_stock_transfers" },
     },
     {
       path: "/Users",

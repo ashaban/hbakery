@@ -14,6 +14,27 @@ const { recordAudit } = require("../modules/auditLog");
  * ✅ GET /products/:id/groups - Get product groups with combinations for production
  * Returns groups with their combinations and ingredient quantities
  */
+/**
+ * Labour settings off a multipart form.
+ *
+ * The item and rate are cleared unless the basis is PER_QUANTITY — leaving
+ * stale values behind would arm the piece-work path the moment someone
+ * switched a product back, silently changing its cost.
+ */
+function readLabourFields(fields) {
+  const basis = fields.labour_basis?.[0] || fields.labour_basis || "SHIFT";
+  if (basis !== "PER_QUANTITY") {
+    return { basis: "SHIFT", item_id: null, rate: null };
+  }
+  const item = fields.labour_item_id?.[0] || fields.labour_item_id;
+  const rate = fields.labour_rate_per_unit?.[0] || fields.labour_rate_per_unit;
+  return {
+    basis: "PER_QUANTITY",
+    item_id: item ? Number(item) : null,
+    rate: rate === undefined || rate === "" ? null : Number(rate),
+  };
+}
+
 router.get("/groups/:id", async (req, res) => {
   const { id } = req.params;
   const { active } = req.query;
@@ -382,6 +403,7 @@ router.get("/", async (req, res) => {
     const result = await pool.query(
       `SELECT id, name, description, unit, price, barcode,
               units_per_batch, flour_kg_per_batch,
+              labour_basis, labour_item_id, labour_rate_per_unit,
               TO_CHAR(created_at, 'DD-MM-YYYY') AS created_at
          FROM product
         WHERE name ILIKE $1
@@ -547,9 +569,12 @@ router.post("/", requireTask("can_add_settings"), async (req, res) => {
     try {
       await client.query("BEGIN");
 
+      const labour = readLabourFields(fields);
+
       const insertProduct = await client.query(
-        `INSERT INTO product (name, description, unit, price, barcode, units_per_batch, flour_kg_per_batch)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+        `INSERT INTO product (name, description, unit, price, barcode, units_per_batch, flour_kg_per_batch,
+                              labour_basis, labour_item_id, labour_rate_per_unit)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
         [
           fields.name?.[0],
           fields.description?.[0] || null,
@@ -558,6 +583,9 @@ router.post("/", requireTask("can_add_settings"), async (req, res) => {
           fields.barcode?.[0] || null,
           fields.units_per_batch?.[0] || null,
           fields.flour_kg_per_batch?.[0] || null,
+          labour.basis,
+          labour.item_id,
+          labour.rate,
         ]
       );
       const productId = insertProduct.rows[0].id;
@@ -683,12 +711,15 @@ router.put("/:id", requireTask("can_add_settings"), async (req, res) => {
     try {
       await client.query("BEGIN");
 
+      const labour = readLabourFields(fields);
+
       /* ----------------------------------------------------
          1. UPDATE BASIC PRODUCT INFO
       ---------------------------------------------------- */
       await client.query(
         `UPDATE product SET name=$1, description=$2, unit=$3, price=$4, barcode=$5,
-                units_per_batch=$6, flour_kg_per_batch=$7
+                units_per_batch=$6, flour_kg_per_batch=$7,
+                labour_basis=$9, labour_item_id=$10, labour_rate_per_unit=$11
          WHERE id=$8`,
         [
           fields.name?.[0],
@@ -699,6 +730,9 @@ router.put("/:id", requireTask("can_add_settings"), async (req, res) => {
           fields.units_per_batch?.[0] || null,
           fields.flour_kg_per_batch?.[0] || null,
           productId,
+          labour.basis,
+          labour.item_id,
+          labour.rate,
         ]
       );
 

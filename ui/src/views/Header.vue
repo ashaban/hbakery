@@ -4,6 +4,8 @@
       <img height="40" src="/mkate.jpeg" width="40" />
     </v-app-bar-nav-icon>
 
+    <InstanceBadge class="ml-2" />
+
     <v-app-bar-title class="text-center text-yellow font-weight-bold">
       Hanein Tanzania Investment | Bakery Management System
     </v-app-bar-title>
@@ -32,7 +34,9 @@
   </v-app-bar>
 </template>
 
-<script setup></script>
+<script setup>
+  import InstanceBadge from "@/components/shared/InstanceBadge.vue";
+</script>
 
 <style scoped>
 .v-app-bar-title {

@@ -325,6 +325,51 @@
                     variant="outlined"
                   />
                 </v-col>
+                <!--
+                  Delivery costs. A vehicle picks them up from the route it is
+                  assigned; a shop has its own standing costs. Either way they
+                  are shared across the units on this transfer.
+                -->
+                <v-col v-if="destinationIsVehicle" cols="12" md="6">
+                  <v-select
+                    v-model="form.route_id"
+                    item-title="name"
+                    item-value="id"
+                    :items="routes"
+                    label="Route *"
+                    prepend-inner-icon="mdi-map-marker-path"
+                    variant="outlined"
+                  />
+                </v-col>
+                <v-col v-if="destinationIsVehicle" cols="12" md="6">
+                  <v-select
+                    v-model="form.driver_staff_id"
+                    item-title="name"
+                    item-value="id"
+                    :items="drivers"
+                    label="Driver *"
+                    prepend-inner-icon="mdi-account-tie-hat"
+                    variant="outlined"
+                  >
+                    <template #item="{ props: p, item }">
+                      <v-list-item
+v-bind="p" :subtitle="item.raw.daily_salary
+                        ? `${money(item.raw.daily_salary)} / day`
+                        : 'No daily rate set'" />
+                    </template>
+                  </v-select>
+                </v-col>
+
+                <v-col v-if="deliveryPreview" cols="12">
+                  <v-alert
+                    density="compact"
+                    :type="deliveryPreview.error ? 'warning' : 'info'"
+                    variant="tonal"
+                  >
+                    {{ deliveryPreview.text }}
+                  </v-alert>
+                </v-col>
+
                 <v-col cols="12" md="6">
                   <DateField v-model="form.movement_date" label="Transfer Date" />
                   <v-text-field
@@ -352,6 +397,89 @@
                   />
                 </v-col>
               </v-row>
+            </v-card-text>
+          </v-card>
+
+          <!--
+            One-off costs for this delivery only — a fine, an unplanned ferry.
+            Route and shop costs are added automatically and are not listed
+            here, so nothing gets counted twice.
+          -->
+          <v-card class="mb-4 rounded-lg" variant="outlined">
+            <v-card-title class="d-flex align-center py-3">
+              <v-icon class="mr-2" color="primary">mdi-cash-plus</v-icon>
+              <span class="text-subtitle-1 font-weight-bold">
+                Extra Costs on This Delivery
+              </span>
+              <v-chip v-if="adhocTotal > 0" class="ml-2" color="green-darken-2" size="small" variant="tonal">
+                {{ money(adhocTotal) }}
+              </v-chip>
+            </v-card-title>
+            <v-card-text class="pa-4 pt-0">
+              <v-table v-if="form.costs.length" density="compact">
+                <thead>
+                  <tr class="bg-grey-lighten-4">
+                    <th class="text-left">COST</th>
+                    <th class="text-left">DESCRIPTION</th>
+                    <th class="text-right" style="width: 170px">AMOUNT</th>
+                    <th style="width: 56px" />
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(line, i) in form.costs" :key="i">
+                    <td>
+                      <v-select
+                        v-model="line.cost_type_id"
+                        clearable
+                        density="compact"
+                        hide-details
+                        item-title="name"
+                        item-value="id"
+                        :items="costTypes"
+                        placeholder="Pick a type"
+                        variant="outlined"
+                      />
+                    </td>
+                    <td>
+                      <v-text-field
+                        v-model="line.description"
+                        density="compact"
+                        hide-details
+                        placeholder="Or describe it"
+                        variant="outlined"
+                      />
+                    </td>
+                    <td>
+                      <v-text-field
+                        v-model.number="line.amount"
+                        density="compact"
+                        hide-details
+                        min="0"
+                        reverse
+                        type="number"
+                        variant="outlined"
+                      />
+                    </td>
+                    <td>
+                      <v-btn color="error" icon size="x-small" variant="text" @click="form.costs.splice(i, 1)">
+                        <v-icon size="18">mdi-close</v-icon>
+                      </v-btn>
+                    </td>
+                  </tr>
+                </tbody>
+              </v-table>
+              <div v-else class="text-body-2 text-grey py-2">
+                Nothing extra on this delivery.
+              </div>
+              <v-btn
+                class="mt-2"
+                size="small"
+                variant="tonal"
+                @click="form.costs.push({ cost_type_id: null, description: '', amount: null })"
+              >
+                <v-icon start>mdi-plus</v-icon>
+                Add a cost
+              </v-btn>
             </v-card-text>
           </v-card>
 
@@ -1156,6 +1284,10 @@ const loadingOutletStock = ref(false);
 const transfers = ref([]);
 const fromOutlets = ref([]);
 const toOutlets = ref([]);
+const routes = ref([]);
+const drivers = ref([]);
+const costTypes = ref([]);
+const shopCosts = ref([]);
 const products = ref([]);
 const page = ref(1);
 const totalRecords = ref(0);
@@ -1174,6 +1306,9 @@ const currentTransferItems = ref([]);
 const filters = reactive({
   from_outlet_id: "",
   to_outlet_id: "",
+  route_id: null,
+  driver_staff_id: null,
+  costs: [],
   date: "",
 });
 
@@ -1181,6 +1316,9 @@ const filters = reactive({
 const form = reactive({
   from_outlet_id: "",
   to_outlet_id: "",
+  route_id: null,
+  driver_staff_id: null,
+  costs: [],
   movement_date: formatDMY(new Date()),
   movement_time: nowHHMM(),
   remarks: "",
@@ -1240,6 +1378,111 @@ const filteredToOutlets = computed(() => {
   if (!form.from_outlet_id) return toOutlets.value;
   return toOutlets.value.filter((outlet) => outlet.id !== form.from_outlet_id);
 });
+
+function money (v) {
+  return Number(v || 0).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+const destinationIsVehicle = computed(
+  () => toOutlets.value.find((o) => o.id === form.to_outlet_id)?.type === "CAR",
+);
+
+const selectedRoute = computed(
+  () => routes.value.find((r) => r.id === form.route_id) || null,
+);
+
+const adhocTotal = computed(() =>
+  form.costs.reduce((sum, l) => sum + (Number(l.amount) || 0), 0),
+);
+
+const transferUnits = computed(() =>
+  form.items.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0),
+);
+
+/**
+ * Shows what this delivery will cost per unit before it is saved.
+ *
+ * Worth showing up front: the cost is inherited from a route or a shop, so
+ * without this the person entering the transfer has no idea what they are
+ * about to attach to the products.
+ */
+const deliveryPreview = computed(() => {
+  if (!form.to_outlet_id) return null;
+
+  if (destinationIsVehicle.value && !form.route_id) {
+    return { error: true, text: "Pick the route this vehicle is running so its costs can be applied." };
+  }
+
+  const inherited = destinationIsVehicle.value
+    ? Number(selectedRoute.value?.total_cost || 0)
+    : shopCosts.value.reduce((s, c) => s + Number(c.amount || 0), 0);
+  const total = inherited + adhocTotal.value;
+  if (total <= 0) return null;
+
+  const units = transferUnits.value;
+  const source = destinationIsVehicle.value
+    ? `route "${selectedRoute.value?.name}"`
+    : "this shop's standing costs";
+
+  if (!units) {
+    return {
+      error: true,
+      text: `${money(total)} of delivery cost from ${source}. Add items — with nothing transferred there is nothing to carry it.`,
+    };
+  }
+  return {
+    error: false,
+    text: `${money(total)} of delivery cost from ${source}, across ${units} unit(s) — ${money(total / units)} per unit.`,
+  };
+});
+
+/** Routes, drivers and cost types for the delivery section. */
+async function loadDeliveryOptions () {
+  try {
+    const [r, t, s2] = await Promise.all([
+      fetch("/delivery/routes").then((x) => x.json()),
+      fetch("/delivery/cost-types").then((x) => x.json()),
+      fetch("/staffs?limit=500").then((x) => x.json()),
+    ]);
+    routes.value = r.data || [];
+    costTypes.value = t.data || [];
+    drivers.value = (s2.data || s2 || []).filter(
+      (x) => x.status === "Active" && /driver|salesman/i.test(x.position || ""),
+    );
+  } catch {
+    // The transfer still saves without them; the delivery section just has
+    // nothing to offer, which the preview will say.
+    routes.value = [];
+  }
+}
+
+/** A shop's standing costs, so the preview can show them before saving. */
+async function loadShopCosts (outletId) {
+  shopCosts.value = [];
+  if (!outletId || destinationIsVehicle.value) return;
+  try {
+    const res = await fetch(`/delivery/outlets/${outletId}/costs`);
+    shopCosts.value = (await res.json()).data || [];
+  } catch {
+    shopCosts.value = [];
+  }
+}
+
+watch(
+  () => form.to_outlet_id,
+  (id) => {
+    // Route and driver only mean anything for a vehicle; clear them so a
+    // shop transfer cannot carry a stale route from a previous edit.
+    if (!destinationIsVehicle.value) {
+      form.route_id = null;
+      form.driver_staff_id = null;
+    }
+    loadShopCosts(id);
+  },
+);
 
 // Enhanced Computed Properties
 const isReturnToMain = computed(() => {
@@ -1667,6 +1910,11 @@ async function saveTransfer() {
       movement_date: toISODateOnly(form.movement_date),
       movement_at: toEventTimestamp(form.movement_date, form.movement_time),
       remarks: form.remarks,
+      route_id: form.route_id || null,
+      driver_staff_id: form.driver_staff_id || null,
+      costs: form.costs.filter(
+        (c) => Number(c.amount) > 0 && (c.cost_type_id || String(c.description || "").trim()),
+      ),
       items: form.items.map((item) => ({
         product_id: item.product_id,
         quantity: Number(item.quantity),
@@ -1990,6 +2238,7 @@ async function loadInitialData() {
 onMounted(() => {
   loadTransfers();
   loadInitialData();
+  loadDeliveryOptions();
 });
 </script>
 <style scoped>

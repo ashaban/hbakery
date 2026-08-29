@@ -1302,6 +1302,45 @@
                   </v-card-text>
                 </v-card>
               </v-col>
+              <v-col cols="12" md="3">
+                <v-card border class="text-center" variant="outlined">
+                  <v-card-text>
+                    <div class="text-h6 font-weight-bold text-indigo-darken-2">
+                      {{ money(selectedBatch?.labour_cost) }}
+                    </div>
+                    <div class="text-caption text-grey">Labour Cost</div>
+                  </v-card-text>
+                </v-card>
+              </v-col>
+              <v-col cols="12" md="3">
+                <v-card border class="text-center" variant="outlined">
+                  <v-card-text>
+                    <div class="text-h6 font-weight-bold text-primary">
+                      {{ money(selectedBatch?.total_cost) }}
+                    </div>
+                    <div class="text-caption text-grey">
+                      Total Cost
+                      <!--
+                        Flagged rather than hidden: a total that silently
+                        omits unknown labour reads as final when it is not.
+                      -->
+                      <v-chip
+                        v-if="selectedBatch && !selectedBatch.cost_complete"
+                        class="ml-1"
+                        color="warning"
+                        size="x-small"
+                        variant="tonal"
+                      >
+                        partial
+                        <v-tooltip activator="parent" location="top">
+                          Some products have no labour cost yet — see each
+                          product for why.
+                        </v-tooltip>
+                      </v-chip>
+                    </div>
+                  </v-card-text>
+                </v-card>
+              </v-col>
             </v-row>
           </v-card>
 
@@ -1427,6 +1466,45 @@
                       class="text-caption text-grey"
                     >
                       {{ money(item.ingredient_cost_per_unit) }}/unit
+                    </div>
+                  </div>
+                </template>
+
+                <template #item.labour_cost="{ item }">
+                  <div class="text-end">
+                    <div
+                      v-if="item.labour_cost != null"
+                      class="font-weight-medium text-indigo-darken-2"
+                    >
+                      {{ money(item.labour_cost) }}
+                      <v-tooltip activator="parent" location="top">
+                        <span v-if="item.labour?.basis === 'PER_QUANTITY'">
+                          Piece work:
+                          {{ item.labour.detail.units }}
+                          {{ item.labour.detail.unit_label }} of
+                          {{ item.labour.detail.item_name }} ×
+                          {{ money(item.labour.detail.rate_per_unit) }}
+                        </span>
+                        <span v-else-if="item.labour?.detail">
+                          {{ money(item.labour.detail.shift_pool) }} shift pay
+                          across {{ item.labour.detail.crew }} crew, this
+                          product's share
+                          {{ (item.labour.detail.share * 100).toFixed(1) }}% by
+                          flour
+                        </span>
+                      </v-tooltip>
+                    </div>
+                    <div v-else class="text-caption text-warning">
+                      Unknown
+                      <v-tooltip activator="parent" location="top">
+                        {{ item.labour?.unavailable_reason || "Not calculated" }}
+                      </v-tooltip>
+                    </div>
+                    <div
+                      v-if="item.labour_cost_per_unit != null"
+                      class="text-caption text-grey"
+                    >
+                      {{ money(item.labour_cost_per_unit) }}/unit
                     </div>
                   </div>
                 </template>
@@ -2205,7 +2283,7 @@
                             prepend-inner-icon="mdi-counter"
                             type="number"
                             variant="outlined"
-                            @input="() => recalcProductIngredients(p)"
+                            @input="() => { recalcProductIngredients(p); quoteBakeFor(p); }"
                           />
                         </v-col>
 
@@ -2252,6 +2330,52 @@
                             </v-chip>
                           </v-col>
                         </template>
+
+                        <!--
+                          Which jiko bakes this. Defaults to the product's own
+                          oven; changing it re-prices the bake immediately so
+                          the fuel figure is visible before saving.
+                        -->
+                        <v-col cols="12" md="4">
+                          <v-select
+                            v-model="p.oven_id"
+                            density="compact"
+                            hide-details
+                            item-title="oven_name"
+                            item-value="oven_id"
+                            :items="p.ovenOptions || []"
+                            label="Oven"
+                            :no-data-text="'No oven set for this product'"
+                            prepend-inner-icon="mdi-stove"
+                            variant="outlined"
+                            @update:model-value="() => quoteBakeFor(p)"
+                          />
+                        </v-col>
+
+                        <v-col v-if="p.bake" cols="12">
+                          <v-alert
+                            density="compact"
+                            :type="p.bake.unavailable_reason ? 'warning' : 'info'"
+                            variant="tonal"
+                          >
+                            <template v-if="p.bake.unavailable_reason">
+                              {{ p.bake.unavailable_reason }}
+                              <span v-if="p.bake.litres != null">
+                                — needs {{ p.bake.litres }} litres
+                                ({{ p.bake.loads }} load(s), {{ p.bake.minutes }} min).
+                              </span>
+                            </template>
+                            <template v-else>
+                              {{ p.bake.oven_name }}:
+                              {{ p.bake.loads }} load(s), {{ p.bake.minutes }} min
+                              <template v-if="p.bake.litres != null">
+                                — {{ p.bake.litres }} litres of {{ p.bake.fuel_name }}
+                              </template>
+                              · <strong>{{ money(p.bake.cost) }}</strong>
+                            </template>
+                          </v-alert>
+                        </v-col>
+
                         <v-card-text v-if="actualAdded" class="pa-4">
                           <div class="d-flex align-center mb-3">
                             <v-chip
@@ -2954,6 +3078,53 @@
                 </div>
               </div>
 
+              <!--
+                The crew comes from whichever shift was running at the
+                production's time. It stays editable: correcting one
+                production's crew must not mean editing the shift and changing
+                every other production on it.
+              -->
+              <v-alert
+                v-if="matchedShift"
+                class="mb-4"
+                icon="mdi-account-clock"
+                type="info"
+                variant="tonal"
+              >
+                <div class="d-flex flex-wrap align-center ga-2">
+                  <span>
+                    Crew taken from
+                    <strong>{{ matchedShift.name || `shift #${matchedShift.id}` }}</strong>
+                    ({{ formatStamp(matchedShift.starts_at) }} –
+                    {{ formatStamp(matchedShift.ends_at) }}),
+                    {{ matchedShift.members.length }} staff ·
+                    {{ money(matchedShift.daily_cost) }} for the day.
+                  </span>
+                  <v-spacer />
+                  <v-btn
+                    v-if="editEnabled"
+                    size="small"
+                    variant="tonal"
+                    @click="applyShiftCrew(true)"
+                  >
+                    Reset to shift crew
+                  </v-btn>
+                </div>
+              </v-alert>
+
+              <v-alert
+                v-else-if="shiftLookupDone"
+                class="mb-4"
+                icon="mdi-account-question"
+                type="warning"
+                variant="tonal"
+              >
+                No shift covers this production's date and time, so no crew was
+                filled in and its labour cost cannot be worked out. Create a
+                shift on the Shift Workers page, or pick the staff by hand
+                below.
+              </v-alert>
+
               <v-alert
                 v-if="hasDuplicateStaff"
                 class="mb-4"
@@ -3520,7 +3691,8 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
+import moment from "moment";
 import { toDisplay, toISO } from "@/utils/date.js";
 import DateTimeField from "@/components/shared/DateTimeField.vue";
 import DateField from "@/components/shared/DateField.vue";
@@ -3564,6 +3736,72 @@ const actualAdded = ref(false);
 const detail = ref(null);
 const search = ref("");
 const ingredientTabs = ref(0);
+
+// ── Shift lookup ───────────────────────────────────────────────────
+//
+// A production is worked by whoever was on shift at the time, so the crew is
+// resolved from the date/time rather than picked by hand. It is still fully
+// editable afterwards — the shift is a starting point, not a lock.
+
+const matchedShift = ref(null);
+const shiftLookupDone = ref(false);
+// Which shift's crew is currently sitting in the form. Re-resolving the same
+// shift must not wipe out edits the user has made since.
+let appliedShiftId = null;
+
+function formatStamp (v) {
+  return v ? moment(v).format("DD/MM/YYYY HH:mm") : "—";
+}
+
+/** "DD/MM/YYYY HH:mm" -> the timestamp the API matches shifts on. */
+function shiftLookupStamp () {
+  const raw = form.produced_at || form.planned_at;
+  const m = moment(raw, "DD/MM/YYYY HH:mm", true);
+  return m.isValid() ? m.format("YYYY-MM-DD HH:mm:00") : null;
+}
+
+/** Copies the matched shift's crew into the form. */
+function applyShiftCrew (force = false) {
+  if (!matchedShift.value) return;
+  if (!force && appliedShiftId === matchedShift.value.id) return;
+
+  form.staff = matchedShift.value.members.map((m) => ({
+    staff_id: m.staff_id,
+    role:
+      m.staff_id === matchedShift.value.leader_staff_id
+        ? "Team Leader"
+        : "Assistant",
+    notes: null,
+  }));
+  appliedShiftId = matchedShift.value.id;
+}
+
+async function resolveShift () {
+  const at = shiftLookupStamp();
+  if (!at) {
+    matchedShift.value = null;
+    shiftLookupDone.value = false;
+    return;
+  }
+  try {
+    const res = await fetch(`/shifts/at?at=${encodeURIComponent(at)}`);
+    if (!res.ok) throw new Error("lookup failed");
+    const found = (await res.json()).data;
+    const changed = found?.id !== matchedShift.value?.id;
+    matchedShift.value = found;
+    shiftLookupDone.value = true;
+    // Only replace the crew when the shift itself changed; otherwise a
+    // re-lookup on an unrelated keystroke would discard manual edits.
+    if (found && changed) applyShiftCrew(true);
+    if (!found) appliedShiftId = null;
+  } catch {
+    // A failed lookup must not block entry — the crew can still be picked
+    // by hand, and the banner simply does not appear.
+    matchedShift.value = null;
+    shiftLookupDone.value = false;
+  }
+}
+
 
 /**
  * Money formatting for ingredient costs. Matches Payroll.vue's `money`
@@ -3626,6 +3864,14 @@ const form = reactive({
   // anywhere else can never silently cancel productions.
   removed_production_ids: [],
 });
+
+// Declared after `form`, not with the rest of the shift code above: a
+// watcher evaluates its getter immediately, so referencing `form` before
+// its declaration is reached throws on component setup.
+watch(
+  () => [form.planned_at, form.produced_at],
+  () => resolveShift(),
+);
 
 const batchActualForm = reactive({
   batch_id: null,
@@ -3711,6 +3957,12 @@ const batchProductHeaders = [
   {
     title: "Ingredient Cost",
     key: "ingredient_cost",
+    sortable: true,
+    align: "end",
+  },
+  {
+    title: "Labour Cost",
+    key: "labour_cost",
     sortable: true,
     align: "end",
   },
@@ -4402,6 +4654,10 @@ function createEmptyProduct() {
     // editBatch below for why this (not good/damaged/reject_qty) is the
     // reliable signal for "already produced".
     produced_at: null,
+    // Baking: the oven chosen for this row and the live price of that bake.
+    oven_id: null,
+    ovenOptions: [],
+    bake: null,
   };
 }
 
@@ -4448,6 +4704,54 @@ function removeProductRow(index) {
   updateIngredientBalances();
 }
 
+
+/**
+ * The ovens this product can be baked in, and its default.
+ *
+ * Pulled when the product is chosen so the form can price the bake without
+ * the user having to know which jiko is usual for it.
+ */
+async function loadOvensForRow (p, keepChoice = false) {
+  const chosen = keepChoice ? p.oven_id : null;
+  p.ovenOptions = [];
+  p.oven_id = null;
+  p.bake = null;
+  if (!p.product_id) return;
+  try {
+    const res = await fetch(`/ovens/products/${p.product_id}`);
+    const list = (await res.json()).data || [];
+    p.ovenOptions = list;
+    // On an edit the production already names an oven; only a new row falls
+    // back to the product's default.
+    p.oven_id = (chosen && list.some((o) => o.oven_id === chosen))
+      ? chosen
+      : (list.find((o) => o.is_default) || list[0])?.oven_id || null;
+  } catch {
+    p.ovenOptions = [];
+  }
+  await quoteBakeFor(p);
+}
+
+/**
+ * Prices the bake for the quantity currently entered.
+ *
+ * Shown before saving because the fuel figure is inherited from the oven and
+ * the product's baking time — without it the person entering a production
+ * has no idea what energy cost they are about to attach.
+ */
+async function quoteBakeFor (p) {
+  const qty = Number(p.actual_qty) || Number(p.computed_qty_product) || Number(p.qty_product_input) || 0;
+  if (!p.product_id || !qty) { p.bake = null; return; }
+  try {
+    const params = new URLSearchParams({ product_id: p.product_id, quantity: qty });
+    if (p.oven_id) params.append("oven_id", p.oven_id);
+    const res = await fetch(`/ovens/quote?${params}`);
+    p.bake = (await res.json()).data || null;
+  } catch {
+    p.bake = null;
+  }
+}
+
 async function onProductChange(p) {
   const existingP = editingProducts.value.find((edit) => {
     return edit.product_id === p.product_id;
@@ -4456,9 +4760,11 @@ async function onProductChange(p) {
     Object.keys(existingP).forEach((key) => {
       p[key] = existingP[key];
     });
+    await loadOvensForRow(p, true);
     updateIngredientBalances();
     return;
   }
+  await loadOvensForRow(p);
   p.recipeItems = [];
   p.productGroups = [];
   p.group_choices = {};
@@ -4576,6 +4882,9 @@ function recalcProductIngredients(p) {
 
   p.ingredients = ingList;
   updateIngredientBalances();
+  // By-ingredient rows derive their unit count here, so the bake is priced
+  // off the same number the user just changed.
+  quoteBakeFor(p);
 }
 
 function openAddDialog() {
@@ -4905,8 +5214,14 @@ const editBatch = async (id) => {
         }
 
         p.computed_qty_product = Number(prod.qty_product || 0) || 0;
+        p.oven_id = prod.oven_id || null;
         form.products.push(p);
       });
+
+    // Ovens are fetched per product, so this happens after every row exists.
+    for (const row of form.products) {
+      if (row.product_id) await loadOvensForRow(row, true);
+    }
 
     if (!form.products.length) {
       addProductRow();
@@ -5017,6 +5332,7 @@ async function saveProduction() {
       return {
         production_id: p.production_id || null,
         product_id: p.product_id,
+        oven_id: p.oven_id || null,
         mode: p.mode,
         qty_product: p.computed_qty_product,
         good_qty: p.good_qty || 0,
@@ -5040,6 +5356,7 @@ async function saveProduction() {
     const payload = {
       planned_at: toISO(form.planned_at),
       produced_at: form.produced_at ? toISO(form.produced_at) : null,
+      shift_id: matchedShift.value?.id ?? null,
       notes: form.notes,
       products: productsPayload,
       removed_production_ids: form.removed_production_ids,

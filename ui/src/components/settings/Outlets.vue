@@ -107,6 +107,16 @@
           mdi-square-edit-outline
         </v-icon>
         <v-icon
+          class="mr-2"
+          color="green-darken-2"
+          @click="openDelivery(item)"
+        >
+          mdi-truck-delivery-outline
+          <v-tooltip activator="parent" location="top">
+            Delivery &amp; selling costs
+          </v-tooltip>
+        </v-icon>
+        <v-icon
           color="error"
           :disabled="item.is_main"
           @click="activateDeleteDialog(item)"
@@ -115,6 +125,8 @@
         </v-icon>
       </template>
     </v-data-table>
+
+    <OutletDeliveryDialog v-model="deliveryDialog" :outlet="deliveryOutlet" />
 
     <!-- PAGINATION -->
     <div class="d-flex justify-end align-center mt-4">
@@ -253,6 +265,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
+import OutletDeliveryDialog from "./OutletDeliveryDialog.vue";
 import { useStore } from "vuex";
 import { useVuelidate } from "@vuelidate/core";
 import { required } from "@vuelidate/validators";
@@ -280,6 +293,14 @@ const typeOptions = [
   { title: "Shop", value: "SHOP" },
   { title: "Car", value: "CAR" },
 ];
+
+const deliveryDialog = ref(false);
+const deliveryOutlet = ref(null);
+
+function openDelivery (outlet) {
+  deliveryOutlet.value = outlet;
+  deliveryDialog.value = true;
+}
 
 const headers = [
   { title: "Name", key: "name" },

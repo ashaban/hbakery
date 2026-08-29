@@ -40,7 +40,7 @@ router.get("/", requireTask("can_see_staffs"), async (req, res) => {
     const dataSql = `
       SELECT 
         s.id, s.name, s.phone, s.position,
-        s.salary, TO_CHAR(s.hired_at, 'DD/MM/YYYY') AS hired_at,
+        s.salary, s.daily_salary, TO_CHAR(s.hired_at, 'DD/MM/YYYY') AS hired_at,
         s.status
       FROM staff s
       ${whereSQL}
@@ -355,6 +355,13 @@ router.post("/", requireTask("can_add_staffs"), async (req, res) => {
     const phone = fields.phone?.[0] || "";
     const position = fields.position?.[0] || "";
     const salary = Number(fields.salary?.[0] || fields.salary || 0);
+    // Blank stays NULL rather than becoming 0: a zero daily rate would price
+    // this person's shifts as free, which reads as a fact rather than a gap.
+    const rawDaily = fields.daily_salary?.[0] ?? fields.daily_salary;
+    const daily_salary =
+      rawDaily === undefined || rawDaily === null || rawDaily === ""
+        ? null
+        : Number(rawDaily);
     const status = fields.status?.[0] || fields.status || "Active";
 
     if (!name) return res.status(400).json({ error: "Name is required" });
@@ -365,10 +372,10 @@ router.post("/", requireTask("can_add_staffs"), async (req, res) => {
 
       // 1. Insert into staff table
       const { rows } = await pool.query(
-        `INSERT INTO staff (name, phone, position, salary, status, hired_at)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO staff (name, phone, position, salary, status, hired_at, daily_salary)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING *`,
-        [name, phone || null, position || null, salary, status, hired_at]
+        [name, phone || null, position || null, salary, status, hired_at, daily_salary]
       );
 
       const newStaff = rows[0];
@@ -417,6 +424,13 @@ router.put("/:id", requireTask("can_edit_staffs"), async (req, res) => {
     const phone = fields.phone?.[0] || "";
     const position = fields.position?.[0] || "";
     const salary = Number(fields.salary?.[0] || fields.salary || 0);
+    // Blank stays NULL rather than becoming 0: a zero daily rate would price
+    // this person's shifts as free, which reads as a fact rather than a gap.
+    const rawDaily = fields.daily_salary?.[0] ?? fields.daily_salary;
+    const daily_salary =
+      rawDaily === undefined || rawDaily === null || rawDaily === ""
+        ? null
+        : Number(rawDaily);
     const status = fields.status?.[0] || fields.status || "Active";
 
     if (!name) return res.status(400).json({ error: "Name is required" });
@@ -425,9 +439,10 @@ router.put("/:id", requireTask("can_edit_staffs"), async (req, res) => {
       await pool.query("BEGIN");
       const { rowCount } = await pool.query(
         `UPDATE staff
-         SET name=$1, phone=$2, position=$3, salary=$4, status=$5, hired_at=$6
+         SET name=$1, phone=$2, position=$3, salary=$4, status=$5, hired_at=$6,
+             daily_salary=$8
          WHERE id=$7`,
-        [name, phone || null, position || null, salary, status, hired_at, id]
+        [name, phone || null, position || null, salary, status, hired_at, id, daily_salary]
       );
 
       if (rowCount === 0) {

@@ -7,6 +7,7 @@ const {
   ReportError,
 } = require("../modules/stockBalanceReport");
 const { toWorkbook, toPdf } = require("../modules/stockBalanceExport");
+const { marginReport } = require("../modules/marginReport");
 
 /**
  * Excel / PDF download of the Products Stock Report.
@@ -1463,6 +1464,45 @@ router.get(
     } catch (err) {
       console.error("❌ Error fetching giveOutByProduct:", err);
       res.status(500).json({ error: "Failed to fetch Give-Out grouped data" });
+    }
+  }
+);
+
+/**
+ * Cost & Margin.
+ *
+ * Every sold unit in the window, costed through the five layers the system
+ * can attribute directly — ingredients, production labour, baking, delivery
+ * and selling — and rolled up by product, outlet and day.
+ *
+ * The response always carries `excludes` and the per-group count of lines
+ * that could not be fully costed. A caller must not present these as
+ * bottom-line profit: overheads are not in here.
+ */
+router.get(
+  "/margin",
+  requireTask("can_see_cost_and_margin"),
+  async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const { from, to } = req.query;
+      if (!from || !to) {
+        return res.status(400).json({ error: "from and to dates are required" });
+      }
+      const report = await marginReport(client, {
+        from,
+        to,
+        outlet_id: req.query.outlet_id ? Number(req.query.outlet_id) : null,
+        product_id: req.query.product_id ? Number(req.query.product_id) : null,
+        // Line detail is opt-in: a wide window is tens of thousands of rows.
+        detail: String(req.query.detail || "false") === "true",
+      });
+      res.json(report);
+    } catch (err) {
+      console.error("❌ Failed to build the cost and margin report:", err);
+      res.status(500).json({ error: "Failed to build the cost and margin report" });
+    } finally {
+      client.release();
     }
   }
 );

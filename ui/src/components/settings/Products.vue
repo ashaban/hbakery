@@ -197,6 +197,159 @@
               </v-col>
             </v-row>
 
+            <!-- 👷 How this product's labour is charged -->
+            <v-card class="mb-4" variant="outlined">
+              <v-card-title class="text-subtitle-1 font-weight-bold d-flex align-center">
+                <v-icon class="mr-2" color="primary">mdi-account-hard-hat</v-icon>
+                Labour Cost
+              </v-card-title>
+              <v-divider />
+              <v-card-text>
+                <v-radio-group v-model="state.labour_basis" class="mt-0" hide-details>
+                  <v-radio label="Shift workers — share the crew's daily pay" value="SHIFT" />
+                  <v-radio label="Per quantity — piece work at a fixed rate" value="PER_QUANTITY" />
+                </v-radio-group>
+
+                <p
+                  v-if="state.labour_basis === 'SHIFT'"
+                  class="text-caption text-grey mt-2 mb-0"
+                >
+                  The crew on the shift is paid for the day. Their pay is shared
+                  across everything that shift produced, in proportion to flour used.
+                </p>
+
+                <template v-else>
+                  <p class="text-caption text-grey mt-2 mb-3">
+                    Paid per unit of an ingredient consumed, regardless of who
+                    is on shift. These productions take no share of a crew's pay.
+                  </p>
+                  <v-row dense>
+                    <v-col cols="12" sm="6">
+                      <v-select
+                        v-model="state.labour_item_id"
+                        bg-color="#E0E0E0"
+                        hint="The rate is charged per unit of this ingredient"
+                        item-title="labourLabel"
+                        item-value="id"
+                        :items="labourItemOptions"
+                        label="Charged per"
+                        persistent-hint
+                      />
+                    </v-col>
+                    <v-col cols="12" sm="6">
+                      <v-text-field
+                        v-model="state.labour_rate_per_unit"
+                        autocomplete="off"
+                        bg-color="#E0E0E0"
+                        :hint="labourRateHint"
+                        label="Rate (TSh)"
+                        persistent-hint
+                        type="number"
+                      />
+                    </v-col>
+                  </v-row>
+                </template>
+              </v-card-text>
+            </v-card>
+
+            <!-- 🔥 Which ovens bake this, and for how long -->
+            <v-card class="mb-4" variant="outlined">
+              <v-card-title class="text-subtitle-1 font-weight-bold d-flex align-center flex-wrap">
+                <v-icon class="mr-2" color="primary">mdi-stove</v-icon>
+                Baking
+                <v-spacer />
+                <v-btn size="small" variant="tonal" @click="addOvenRow">
+                  <v-icon start>mdi-plus</v-icon>
+                  Add oven
+                </v-btn>
+              </v-card-title>
+              <v-divider />
+              <v-card-text>
+                <p class="text-caption text-grey mb-3">
+                  How long a load takes and how many units fit. Capacity is set
+                  per oven because a bigger jiko holds more. Loads round up — a
+                  half-full oven still runs a full bake.
+                </p>
+
+                <v-table v-if="state.ovens.length" density="compact">
+                  <thead>
+                    <tr class="bg-grey-lighten-4">
+                      <th class="text-left">OVEN</th>
+                      <th class="text-right" style="width: 130px">MINUTES</th>
+                      <th class="text-right" style="width: 140px">UNITS / LOAD</th>
+                      <th class="text-center" style="width: 90px">DEFAULT</th>
+                      <th style="width: 50px" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(row, i) in state.ovens" :key="i">
+                      <td>
+                        <v-select
+                          v-model="row.oven_id"
+                          density="compact"
+                          hide-details
+                          item-title="name"
+                          item-value="id"
+                          :items="ovenOptions"
+                          placeholder="Pick an oven"
+                          variant="outlined"
+                        />
+                      </td>
+                      <td>
+                        <v-text-field
+                          v-model.number="row.bake_minutes"
+                          density="compact"
+                          hide-details
+                          min="0"
+                          reverse
+                          type="number"
+                          variant="outlined"
+                        />
+                      </td>
+                      <td>
+                        <v-text-field
+                          v-model.number="row.units_per_load"
+                          density="compact"
+                          hide-details
+                          min="0"
+                          reverse
+                          type="number"
+                          variant="outlined"
+                        />
+                      </td>
+                      <td class="text-center">
+                        <!--
+                          Exactly one default: the production form needs an
+                          unambiguous answer the moment a product is chosen.
+                        -->
+                        <v-radio
+                          :model-value="row.is_default"
+                          name="default-oven"
+                          :true-value="true"
+                          @click="setDefaultOven(i)"
+                        />
+                      </td>
+                      <td>
+                        <v-btn
+                          color="error"
+                          icon
+                          size="x-small"
+                          variant="text"
+                          @click="state.ovens.splice(i, 1)"
+                        >
+                          <v-icon size="18">mdi-close</v-icon>
+                        </v-btn>
+                      </td>
+                    </tr>
+                  </tbody>
+                </v-table>
+                <div v-else class="text-body-2 text-grey">
+                  No ovens set. Without one, this product's baking cost cannot
+                  be worked out.
+                </div>
+              </v-card-text>
+            </v-card>
+
             <!-- 🧩 Mandatory Ingredients Section -->
             <v-divider class="my-4" />
             <h4>Mandatory Ingredients (Fixed Requirements)</h4>
@@ -670,7 +823,7 @@
                 {{ viewedProduct?.name }}
               </div>
               <div class="text-body-2 text-white mt-1">
-                Ingredients & Combinations
+                Ingredients, Combinations &amp; Costing
               </div>
             </div>
             <v-spacer />
@@ -688,6 +841,7 @@
           <v-tabs v-model="viewTab" grow>
             <v-tab value="mandatory">Mandatory Ingredients</v-tab>
             <v-tab value="groups">Ingredient Groups</v-tab>
+            <v-tab value="costing">Labour &amp; Baking</v-tab>
           </v-tabs>
 
           <v-window v-model="viewTab">
@@ -845,6 +999,103 @@
                 </div>
               </div>
             </v-window-item>
+            <!--
+              What this product costs to make, beyond its ingredients: how its
+              labour is charged and what it burns in the oven. Read-only here —
+              both are edited on the product form.
+            -->
+            <v-window-item value="costing">
+              <div class="pa-4">
+                <!-- Labour -->
+                <v-card border class="mb-4 rounded-lg" variant="outlined">
+                  <v-card-title class="text-subtitle-1 font-weight-bold d-flex align-center">
+                    <v-icon class="mr-2" color="primary">mdi-account-hard-hat</v-icon>
+                    Labour
+                  </v-card-title>
+                  <v-divider />
+                  <v-card-text>
+                    <template v-if="viewedProduct?.labour_basis === 'PER_QUANTITY'">
+                      <v-chip class="mb-3" color="purple" size="small" variant="tonal">
+                        Per quantity — piece work
+                      </v-chip>
+                      <div class="text-body-2">
+                        <strong>{{ viewedLabourRate }}</strong>
+                        per {{ viewedLabourUnit }}
+                        of {{ viewedLabourItem }}.
+                      </div>
+                      <div class="text-caption text-grey mt-1">
+                        Charged on what this production consumes. It takes no
+                        share of a shift crew's pay.
+                      </div>
+                    </template>
+                    <template v-else>
+                      <v-chip class="mb-3" color="primary" size="small" variant="tonal">
+                        Shift workers
+                      </v-chip>
+                      <div class="text-caption text-grey">
+                        The crew on shift is paid for the day, and their pay is
+                        shared across everything that shift produced, in
+                        proportion to flour used.
+                      </div>
+                    </template>
+                  </v-card-text>
+                </v-card>
+
+                <!-- Baking -->
+                <v-card border class="rounded-lg" variant="outlined">
+                  <v-card-title class="text-subtitle-1 font-weight-bold d-flex align-center">
+                    <v-icon class="mr-2" color="orange-darken-2">mdi-stove</v-icon>
+                    Baking
+                  </v-card-title>
+                  <v-divider />
+                  <div v-if="!viewedProductOvens.length" class="pa-6 text-center">
+                    <v-icon class="mb-2" color="grey-lighten-1" size="40">mdi-stove-off</v-icon>
+                    <div class="text-body-2 text-grey">
+                      No oven set for this product, so its bakes carry no
+                      energy cost.
+                    </div>
+                  </div>
+                  <v-table v-else density="compact">
+                    <thead>
+                      <tr class="bg-grey-lighten-4">
+                        <th class="text-left">OVEN</th>
+                        <th class="text-right">BAKE TIME</th>
+                        <th class="text-right">UNITS PER LOAD</th>
+                        <th class="text-left" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="o in viewedProductOvens" :key="o.oven_id">
+                        <td>
+                          {{ o.oven_name }}
+                          <v-chip
+                            class="ml-1"
+                            :color="o.kind === 'FUEL' ? 'orange' : 'blue'"
+                            size="x-small"
+                            variant="tonal"
+                          >{{ o.kind === "FUEL" ? "Fuel" : "Electric" }}</v-chip>
+                        </td>
+                        <td class="text-right">{{ Number(o.bake_minutes) }} min</td>
+                        <td class="text-right">{{ Number(o.units_per_load) }}</td>
+                        <td>
+                          <v-chip
+                            v-if="o.is_default"
+                            color="green"
+                            size="x-small"
+                            variant="tonal"
+                          >Default</v-chip>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </v-table>
+                  <v-card-text v-if="viewedProductOvens.length" class="text-caption text-grey pt-2">
+                    A load is one oven cycle. Part-full loads still cost a full
+                    cycle, so 101 units at 100 per load is charged as two.
+                  </v-card-text>
+                </v-card>
+              </div>
+            </v-window-item>
+
           </v-window>
         </v-card-text>
       </v-card>
@@ -886,6 +1137,7 @@ const values = ref([]);
 const dialog = ref(false);
 const confirmDeleteDialog = ref(false);
 const viewDialog = ref(false);
+
 const viewTab = ref("mandatory");
 const isEditing = ref(false);
 const editingId = ref(null);
@@ -893,6 +1145,48 @@ const viewedProduct = ref(null);
 const viewedProductItems = ref([]);
 const viewedProductGroups = ref([]);
 const items = ref([]);
+
+const viewedProductOvens = ref([]);
+
+/** The ingredient a piece rate is charged against, named rather than an id. */
+const viewedLabourItem = computed(() => {
+  const id = viewedProduct.value?.labour_item_id;
+  return (items.value || []).find((i) => i.id === id)?.name || "—";
+});
+
+const viewedLabourUnit = computed(() => {
+  const id = viewedProduct.value?.labour_item_id;
+  return (items.value || []).find((i) => i.id === id)?.human_readable_unit || "unit";
+});
+
+const viewedLabourRate = computed(() => {
+  const rate = Number(viewedProduct.value?.labour_rate_per_unit);
+  // Never shown as 0 — an unset rate reads as free labour.
+  return rate > 0
+    ? `TSh ${rate.toLocaleString()}`
+    : "No rate set";
+});
+
+/**
+ * Only ingredients that carry a human-readable unit can be charged per
+ * quantity — "4,000 per Bag" needs the Bag, and the conversion factor that
+ * turns recorded kilograms into bags.
+ */
+const labourItemOptions = computed(() =>
+  (items.value || [])
+    .filter((i) => i.human_readable_unit && i.conversion_factor)
+    .map((i) => ({
+      ...i,
+      labourLabel: `${i.name} (per ${i.human_readable_unit})`,
+    })),
+);
+
+const labourRateHint = computed(() => {
+  const item = labourItemOptions.value.find((i) => i.id === state.labour_item_id);
+  return item
+    ? `TSh per ${item.human_readable_unit.replace(/s$/, "")} of ${item.name}`
+    : "Pick what the rate is charged per";
+});
 const page = ref(1);
 const totalPages = ref(1);
 const limit = 10;
@@ -922,9 +1216,71 @@ const state = reactive({
   barcode: "",
   units_per_batch: "",
   flour_kg_per_batch: "",
+  labour_basis: "SHIFT",
+  ovens: [],
+  labour_item_id: null,
+  labour_rate_per_unit: "",
   items: [], // Mandatory ingredients
   groups: [], // Ingredient groups
 });
+
+const ovenOptions = ref([]);
+
+async function loadOvens () {
+  try {
+    const res = await fetch("/ovens");
+    ovenOptions.value = (await res.json()).data || [];
+  } catch {
+    // The rest of the product form still works; the baking card simply has
+    // nothing to offer, which it says.
+    ovenOptions.value = [];
+  }
+}
+
+/** Pulls the ovens already set for a product when its dialog opens. */
+async function loadProductOvens (productId) {
+  state.ovens = [];
+  if (!productId) return;
+  try {
+    const res = await fetch(`/ovens/products/${productId}`);
+    state.ovens = ((await res.json()).data || []).map((o) => ({
+      oven_id: o.oven_id,
+      bake_minutes: Number(o.bake_minutes),
+      units_per_load: Number(o.units_per_load),
+      is_default: o.is_default,
+    }));
+  } catch {
+    state.ovens = [];
+  }
+}
+
+const addOvenRow = () =>
+  state.ovens.push({
+    oven_id: null,
+    bake_minutes: null,
+    units_per_load: null,
+    // The first oven added becomes the default, so a product is never left
+    // with ovens but no default for the production form to pick.
+    is_default: state.ovens.length === 0,
+  });
+
+function setDefaultOven (index) {
+  state.ovens.forEach((o, i) => { o.is_default = i === index; });
+}
+
+/** Saved separately from the product itself, against its own endpoint. */
+async function saveProductOvens (productId) {
+  const rows = state.ovens.filter(
+    (o) => o.oven_id && Number(o.bake_minutes) > 0 && Number(o.units_per_load) > 0,
+  );
+  if (!rows.length && !state.ovens.length) return;
+  await fetch(`/ovens/products/${productId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ovens: rows }),
+  });
+}
+
 
 // Validation rules
 const hasAtLeastOneItem = helpers.withMessage(
@@ -1313,6 +1669,10 @@ function activateAddDialog() {
     barcode: "",
     units_per_batch: "",
     flour_kg_per_batch: "",
+  labour_basis: "SHIFT",
+  ovens: [],
+  labour_item_id: null,
+  labour_rate_per_unit: "",
     items: [],
     groups: [],
   });
@@ -1336,6 +1696,10 @@ async function activateEditDialog(item) {
       barcode: product.barcode,
       units_per_batch: product.units_per_batch ?? "",
       flour_kg_per_batch: product.flour_kg_per_batch ?? "",
+      labour_basis: product.labour_basis || "SHIFT",
+      ovens: [],
+      labour_item_id: product.labour_item_id ?? null,
+      labour_rate_per_unit: product.labour_rate_per_unit ?? "",
       items: (data.items || []).map((i) => ({
         item_id: i.item_id,
         quantity_per_unit: i.quantity_per_unit,
@@ -1350,6 +1714,7 @@ async function activateEditDialog(item) {
         combinations: g.combinations || [],
       })),
     });
+    await loadProductOvens(item.id);
     dialog.value = true;
   } finally {
     loading.value = false;
@@ -1363,6 +1728,15 @@ async function viewIngredients(item) {
   const data = await res.json();
   viewedProductItems.value = data.items || [];
   viewedProductGroups.value = data.groups || [];
+  // Ovens live on their own endpoint, so the costing tab is filled here.
+  // A failure leaves the tab saying no oven is set rather than breaking the
+  // dialog the user actually opened.
+  try {
+    const ovenRes = await fetch(`/ovens/products/${item.id}`);
+    viewedProductOvens.value = (await ovenRes.json()).data || [];
+  } catch {
+    viewedProductOvens.value = [];
+  }
   viewTab.value = "mandatory";
   viewDialog.value = true;
 }
@@ -1381,6 +1755,9 @@ async function saveProduct() {
   formData.append("barcode", state.barcode);
   formData.append("units_per_batch", state.units_per_batch || "");
   formData.append("flour_kg_per_batch", state.flour_kg_per_batch || "");
+  formData.append("labour_basis", state.labour_basis || "SHIFT");
+  formData.append("labour_item_id", state.labour_item_id ?? "");
+  formData.append("labour_rate_per_unit", state.labour_rate_per_unit ?? "");
   formData.append("items", JSON.stringify(state.items));
   formData.append("groups", JSON.stringify(state.groups));
 
@@ -1389,6 +1766,13 @@ async function saveProduct() {
   try {
     const res = await fetch(url, { method, body: formData });
     if (!res.ok) throw new Error("Failed to save");
+
+    // The ovens live on their own endpoint, so they are saved once the
+    // product exists and has an id to hang them off.
+    const saved = await res.json().catch(() => null);
+    const productId = editingId.value || saved?.id || saved?.data?.id;
+    if (productId) await saveProductOvens(productId);
+
     dialog.value = false;
     loadValues();
     store.commit("setMessage", {
@@ -1418,6 +1802,7 @@ async function removeProduct() {
 onMounted(() => {
   loadValues();
   loadItems();
+  loadOvens();
 });
 </script>
 

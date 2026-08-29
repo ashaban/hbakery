@@ -16,6 +16,11 @@ const {
 } = require("../modules/productledger");
 const { recordAudit } = require("../modules/auditLog");
 const {
+  labourForProductions,
+  shiftAt,
+} = require("../modules/productionLabour");
+const { saveBakeForProduction } = require("../modules/bakingCost");
+const {
   cancelProduction,
   assertProductionRemovable,
 } = require("../modules/productionCancel");
@@ -36,7 +41,7 @@ router.post("/", requireTask("can_schedule_production"), async (req, res) => {
   const user = await decodeToken(req);
   const client = await pool.connect();
   try {
-    const { notes, ingredients, staffs, products, planned_at, produced_at } =
+    const { notes, ingredients, staffs, products, planned_at, produced_at, shift_id } =
       req.body;
 
     // backward compatibility — if single product fields exist
@@ -76,6 +81,7 @@ router.post("/", requireTask("can_schedule_production"), async (req, res) => {
         good_qty,
         damaged_qty,
         reject_qty,
+        oven_id,
       } = prod;
 
       if (
@@ -97,6 +103,15 @@ router.post("/", requireTask("can_schedule_production"), async (req, res) => {
         }
       }
 
+      // Which crew was on when this was made. Resolved from the production's
+      // own time so the link is a fact about the schedule, not something the
+      // person entering it has to remember — but shift_id in the request wins,
+      // because the form lets it be overridden.
+      const resolvedShift =
+        shift_id !== undefined && shift_id !== null
+          ? { id: shift_id }
+          : await shiftAt(client, produced_at || planned_at);
+
       // 3️⃣ Create header
       const hdr = await client.query(
         `INSERT INTO product_production
@@ -104,8 +119,8 @@ router.post("/", requireTask("can_schedule_production"), async (req, res) => {
            base_ingredient_id, base_ingredient_qty,
            notes, planned_at, produced_at,
            actual_qty, good_qty, damaged_qty, reject_qty,
-           produced_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+           produced_by, shift_id, shift_date)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
          RETURNING id`,
         [
           batchId,
@@ -122,9 +137,20 @@ router.post("/", requireTask("can_schedule_production"), async (req, res) => {
           damaged_qty || null,
           reject_qty || null,
           user?.id,
+          resolvedShift?.id || null,
+          resolvedShift?.shift_date || null,
         ]
       );
       const productionId = hdr.rows[0].id;
+
+      // What the oven burned. Snapshotted here so a later fuel price change
+      // cannot rewrite what this bake cost. Uses actual output when it is
+      // already known, otherwise the planned quantity.
+      await saveBakeForProduction(client, productionId, {
+        product_id,
+        oven_id: oven_id || null,
+        quantity: actual_qty || qty_product,
+      });
 
       // 4️⃣ Record ingredient groups and combinations
       if (Array.isArray(group_choices) && group_choices.length > 0) {
@@ -152,16 +178,35 @@ router.post("/", requireTask("can_schedule_production"), async (req, res) => {
         );
       }
 
-      // 6️⃣ Assign staff (if provided)
+      // 6️⃣ Who worked on this.
+      //
+      // Normally copied from the shift that was running, so nobody re-keys the
+      // crew for every product in a batch. An explicit `staffs` list still
+      // wins: the form lets a production's crew be corrected without editing
+      // the shift itself, which would rewrite every other production on it.
+      //
+      // Each row snapshots the rate in force now — a later pay rise must not
+      // silently change what today's bread cost to make.
       if (Array.isArray(staffs) && staffs.length > 0) {
         for (const s of staffs) {
           if (!s.staff_id) continue;
           await client.query(
-            `INSERT INTO product_production_staff (production_id, staff_id, role, notes)
-             VALUES ($1,$2,$3,$4)`,
+            `INSERT INTO product_production_staff (production_id, staff_id, role, notes, daily_rate)
+             SELECT $1,$2,$3,$4, daily_salary FROM staff WHERE id = $2`,
             [productionId, s.staff_id, s.role || null, s.notes || null]
           );
         }
+      } else if (resolvedShift?.id) {
+        await client.query(
+          `INSERT INTO product_production_staff (production_id, staff_id, role, daily_rate)
+           SELECT $1, m.staff_id,
+                  CASE WHEN m.staff_id = ws.leader_staff_id THEN 'Team Leader' ELSE 'Assistant' END,
+                  m.daily_rate
+           FROM work_shift_member m
+           JOIN work_shift ws ON ws.id = m.shift_id
+           WHERE m.shift_id = $2`,
+          [productionId, resolvedShift.id]
+        );
       }
 
       // 7️⃣ Discrepancy reasons (if any)
@@ -248,8 +293,17 @@ router.put(
         products,
         planned_at,
         produced_at,
+        shift_id,
         removed_production_ids,
       } = req.body;
+
+      // Which crew was on when this batch ran. An explicit shift_id from the
+      // form wins; otherwise it is resolved from the batch's own time, the
+      // same rule the create path uses. Resolved once here rather than per
+      // product — every product in a batch shares one time, so they share
+      // one shift.
+      let resolvedShiftId = null;
+      let resolvedShiftDate = null;
 
       if (!batchId) {
         return res.status(400).json({ error: "Missing production ID" });
@@ -265,6 +319,15 @@ router.put(
       }
 
       await client.query("BEGIN");
+
+      // Resolved inside the transaction so it sees the same state the
+      // rest of the edit does.
+      const resolvedOccurrence = await shiftAt(client, produced_at || planned_at);
+      resolvedShiftId =
+        shift_id !== undefined && shift_id !== null
+          ? Number(shift_id)
+          : resolvedOccurrence?.id ?? null;
+      resolvedShiftDate = resolvedOccurrence?.shift_date ?? null;
 
       // 1️⃣ Products the user removed from the plan during this edit.
       //
@@ -420,7 +483,12 @@ router.put(
                damaged_qty = $10,
                reject_qty = $11,
                updated_by = $12,
-               updated_at = NOW()
+               updated_at = NOW(),
+               -- Re-resolved on every edit, not just on create: changing a
+               -- batch's date/time moves it to a different crew, and leaving
+               -- the old shift attached would charge the wrong people's wages.
+               shift_id = $14,
+               shift_date = $15
            WHERE id = $13`,
             [
               product_id,
@@ -436,9 +504,18 @@ router.put(
               reject_qty || null,
               user.id,
               productionId,
+              resolvedShiftId,
+              resolvedShiftDate,
             ]
           );
         }
+
+        // Re-price the bake: quantity or oven may have changed on this edit.
+        await saveBakeForProduction(client, productionId, {
+          product_id,
+          oven_id: prod.oven_id || null,
+          quantity: actual_qty || qty_product,
+        });
 
         // 4️⃣ Stock validation — after any prior reservation for this
         // production has been reverted (existing product) or with nothing
@@ -495,8 +572,12 @@ router.put(
         if (Array.isArray(staffs) && staffs.length > 0) {
           for (const s of staffs) {
             await client.query(
-              `INSERT INTO product_production_staff (production_id, staff_id, role, notes)
-             VALUES ($1,$2,$3,$4)`,
+              // daily_rate is snapshotted here exactly as it is on create.
+              // Leaving it out — as this path used to — silently wiped the
+              // rate on every edit, and the production's labour became
+              // uncostable without anything looking wrong.
+              `INSERT INTO product_production_staff (production_id, staff_id, role, notes, daily_rate)
+             SELECT $1,$2,$3,$4, daily_salary FROM staff WHERE id = $2`,
               [productionId, s.staff_id, s.role || null, s.notes || null]
             );
           }
@@ -581,7 +662,7 @@ router.post(
   requireTask("can_add_actual_production", "can_edit_actual_production"),
   async (req, res) => {
     const { batch_id } = req.params;
-    const { produced_at, notes, products } = req.body;
+    const { produced_at, notes, products, shift_id } = req.body;
 
     if (!batch_id || !Array.isArray(products) || products.length === 0) {
       return res.status(400).json({ error: "Invalid or missing payload" });
@@ -591,11 +672,20 @@ router.post(
     try {
       await client.query("BEGIN");
 
+      // One shift for the whole batch — every product in it shares the same
+      // produced_at, so they share the same crew.
+      const occurrence = await shiftAt(client, produced_at);
+      const resolvedShiftId =
+        shift_id !== undefined && shift_id !== null
+          ? Number(shift_id)
+          : occurrence?.id ?? null;
+      const resolvedShiftDate = occurrence?.shift_date ?? null;
+
       // 🧾 Fetch all productions in this batch. Cancelled ones are excluded:
       // they hold no ingredients and were never made, so recording actual
       // output against them would resurrect them by the back door.
       const batchRes = await client.query(
-        `SELECT id, product_id FROM product_production
+        `SELECT id, product_id, oven_id FROM product_production
           WHERE batch_id = $1 AND cancelled_at IS NULL`,
         [batch_id]
       );
@@ -636,17 +726,24 @@ router.post(
         } = prod;
 
         // Ensure this production belongs to batch
-        if (!existingProductions.find((p) => p.id === production_id)) {
+        const existing = existingProductions.find((x) => x.id === production_id);
+        if (!existing) {
           throw new Error(
             `Production ${production_id} not part of batch ${batch_id}`
           );
         }
 
         // 🧮 Update production quantities and timestamps
+        //
+        // This is where produced_at is actually recorded, so it is also where
+        // the shift has to be resolved: this endpoint — not the batch edit —
+        // is what moves a production onto a different crew. Explicit
+        // shift_id from the form wins; otherwise it follows produced_at.
         await client.query(
           `UPDATE product_production
          SET good_qty=$1, damaged_qty=$2, reject_qty=$3,
-             actual_qty=$4, produced_at=$5, notes=COALESCE($6, notes)
+             actual_qty=$4, produced_at=$5, notes=COALESCE($6, notes),
+             shift_id=$8, shift_date=$9
          WHERE id=$7`,
           [
             good_qty,
@@ -656,8 +753,20 @@ router.post(
             produced_at,
             notes,
             production_id,
+            resolvedShiftId,
+            resolvedShiftDate,
           ]
         );
+
+        // Actual output is what really went through the oven, so the bake
+        // is re-priced here against the quantity just recorded.
+        await saveBakeForProduction(client, production_id, {
+          product_id: existing.product_id,
+          // The oven named on this recording wins; otherwise keep whichever
+          // was already on the production.
+          oven_id: prod.oven_id || existing.oven_id || null,
+          quantity: actual_qty,
+        });
 
         // 🔁 Remove old product ledger entries for this production
         await deleteProductLedgerByProduction(client, production_id);
@@ -1271,7 +1380,15 @@ router.get(
         -- UI can label them and keep them out of edits/actuals.
         TO_CHAR(pp.cancelled_at, 'DD-MM-YYYY HH24:MI') AS cancelled_at,
         pp.cancel_reason,
-        cu.name AS cancelled_by_name
+        cu.name AS cancelled_by_name,
+        -- The oven this was baked in, plus what that bake cost at the rates
+        -- in force when it was saved. Returned so an edit reopens on the
+        -- same oven instead of silently falling back to the default.
+        pp.oven_id,
+        pp.bake_loads,
+        pp.bake_minutes,
+        pp.bake_litres,
+        pp.bake_cost
       FROM product_production pp
       JOIN product p ON p.id = pp.product_id
       LEFT JOIN users cu ON cu.id = pp.cancelled_by
@@ -1282,6 +1399,13 @@ router.get(
       );
 
       const products = [];
+
+      // One pass for the whole batch: labour is pooled per shift, so it has to
+      // be worked out across productions rather than one at a time.
+      const labourByProduction = await labourForProductions(
+        pool,
+        productsRes.rows.map((r) => r.production_id)
+      );
 
       // 3️⃣ Attach each product’s ingredients, staff, and discrepancies
       for (const prod of productsRes.rows) {
@@ -1360,6 +1484,7 @@ router.get(
         ]);
 
         const ingredients = ingredientsRes.rows;
+        const labour = labourByProduction.get(prod.production_id) || null;
 
         // Roll the per-ingredient costs up to the product. Derived from the
         // same rows the UI lists, so the breakdown always sums to the total
@@ -1379,11 +1504,23 @@ router.get(
           (Number(prod.damaged_qty) || 0) +
           (Number(prod.reject_qty) || 0);
 
+        const labourCost = labour && labour.cost !== null ? Number(labour.cost) : null;
+        // Labour is only added in when it is actually known — adding null as
+        // zero would quietly report an incomplete cost as a complete one.
+        const knownCost = ingredientCost + (labourCost || 0);
+
         products.push({
           ...prod,
           ingredients,
           ingredient_cost: ingredientCost,
           ingredient_cost_per_unit: totalOutput > 0 ? ingredientCost / totalOutput : null,
+          labour,
+          labour_cost: labourCost,
+          labour_cost_per_unit:
+            labourCost !== null && totalOutput > 0 ? labourCost / totalOutput : null,
+          total_cost: knownCost,
+          total_cost_per_unit: totalOutput > 0 ? knownCost / totalOutput : null,
+          cost_complete: labourCost !== null,
           staff: staffRes.rows,
           discrepancies: discRes.rows,
         });
@@ -1397,6 +1534,13 @@ router.get(
         (sum, prod) => sum + (Number(prod.ingredient_cost) || 0),
         0
       );
+      const batchLabourCost = products.reduce(
+        (sum, prod) => sum + (Number(prod.labour_cost) || 0),
+        0
+      );
+      // False as soon as any product's labour is unknown, so the UI can say
+      // the batch total is partial rather than presenting it as final.
+      const batchCostComplete = products.every((prod) => prod.cost_complete);
 
       // ✅ Response
       res.json({
@@ -1404,6 +1548,9 @@ router.get(
           ...batch,
           status,
           ingredient_cost: batchIngredientCost,
+          labour_cost: batchLabourCost,
+          total_cost: batchIngredientCost + batchLabourCost,
+          cost_complete: batchCostComplete,
         },
         products,
       });
@@ -1906,6 +2053,8 @@ router.get("/:id", requireTask("can_see_production"), async (req, res) => {
     // Same roll-up as the batch endpoint, so the two agree for the same
     // production rather than each computing its own idea of the cost.
     const production = hdrRes.rows[0];
+    const labour = (await labourForProductions(pool, [production.id])).get(production.id) || null;
+    const labourCost = labour && labour.cost !== null ? Number(labour.cost) : null;
     const ingredientCost = linesRes.rows.reduce(
       (sum, line) => sum + (Number(line.cost) || 0),
       0
@@ -1922,6 +2071,14 @@ router.get("/:id", requireTask("can_see_production"), async (req, res) => {
         ...production,
         ingredient_cost: ingredientCost,
         ingredient_cost_per_unit: totalOutput > 0 ? ingredientCost / totalOutput : null,
+        labour,
+        labour_cost: labourCost,
+        labour_cost_per_unit:
+          labourCost !== null && totalOutput > 0 ? labourCost / totalOutput : null,
+        total_cost: ingredientCost + (labourCost || 0),
+        total_cost_per_unit:
+          totalOutput > 0 ? (ingredientCost + (labourCost || 0)) / totalOutput : null,
+        cost_complete: labourCost !== null,
       },
       items: linesRes.rows,
       group_choices: groupChoicesRes.rows,

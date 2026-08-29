@@ -54,7 +54,7 @@ export default defineConfig({
         navigateFallbackDenylist: [
           // Lowercase only, deliberately: the API path is /orders while
           // the SPA's own page is /Orders, and these must not collide.
-          /^\/(users|items|units|outlets|purchases|products|productions|productionPlans|stocktransfers|sales|productOut|expenditures|staffs|loans|payables|payroll|customers|reports|auth|roles|tasks|isTokenActive|auditlog|orders|geo|customerAuth|shop|boards|boardForms)(\/|$)/,
+          /^\/(users|items|units|outlets|purchases|products|productions|productionPlans|stocktransfers|sales|productOut|expenditures|staffs|loans|payables|payroll|customers|reports|auth|roles|tasks|isTokenActive|auditlog|orders|geo|customerAuth|shop|boards|boardForms|shifts|delivery|ovens)(\/|$)/,
         ],
       },
       manifest: {
@@ -185,6 +185,54 @@ export default defineConfig({
         logLevel: "debug",
       },
       "^/auditlog": {
+        target: "http://localhost:3007/",
+        logLevel: "debug",
+      },
+      // Everything below was added after the original list and had been
+      // missing here — on the dev server (:5173) these 404'd while working
+      // fine against Express directly, which makes for a confusing bug.
+      //
+      // Adding an API? It goes in THREE places, all of which must agree:
+      //   1. this proxy               (so :5173 reaches the backend)
+      //   2. apiPrefixes in backend/app.js   (so the SPA fallback ignores it)
+      //   3. navigateFallbackDenylist below  (so the service worker does too)
+      "^/payroll": {
+        target: "http://localhost:3007/",
+        logLevel: "debug",
+      },
+      "^/boards": {
+        target: "http://localhost:3007/",
+        logLevel: "debug",
+      },
+      "^/boardForms": {
+        target: "http://localhost:3007/",
+        logLevel: "debug",
+      },
+      "^/shifts": {
+        target: "http://localhost:3007/",
+        logLevel: "debug",
+      },
+      "^/delivery": {
+        target: "http://localhost:3007/",
+        logLevel: "debug",
+      },
+      "^/ovens": {
+        target: "http://localhost:3007/",
+        logLevel: "debug",
+      },
+      "^/orders": {
+        target: "http://localhost:3007/",
+        logLevel: "debug",
+      },
+      "^/geo": {
+        target: "http://localhost:3007/",
+        logLevel: "debug",
+      },
+      "^/customerAuth": {
+        target: "http://localhost:3007/",
+        logLevel: "debug",
+      },
+      "^/shop": {
         target: "http://localhost:3007/",
         logLevel: "debug",
       },

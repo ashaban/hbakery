@@ -71,6 +71,9 @@ const loansRoutes = require("./routes/loans");
 const payablesRoutes = require("./routes/payables");
 const payrollRoutes = require("./routes/payroll");
 const boardRoutes = require("./routes/board");
+const deliveryRoutes = require("./routes/delivery");
+const ovenRoutes = require("./routes/ovens");
+const shiftRoutes = require("./routes/shifts");
 const boardFormsRoutes = require("./routes/boardForms");
 const reportRoutes = require("./routes/reports");
 const authRoutes = require("./routes/auth");
@@ -149,6 +152,7 @@ const apiPrefixes = [
   "/productions", "/productionPlans", "/stocktransfers", "/sales", "/productOut", "/expenditures",
   "/staffs", "/loans", "/payables", "/payroll", "/customers", "/reports", "/auth", "/roles", "/tasks",
   "/isTokenActive", "/auditlog", "/orders", "/geo", "/customerAuth", "/shop", "/boards", "/boardForms",
+  "/shifts", "/delivery", "/ovens",
 ];
 app.use((req, res, next) => {
   const isApiRequest = apiPrefixes.some(
@@ -177,6 +181,9 @@ app.use("/boardForms", boardFormsRoutes);
 
 app.use(jwtValidator);
 app.use("/boards", boardRoutes);
+app.use("/delivery", deliveryRoutes);
+app.use("/ovens", ovenRoutes);
+app.use("/shifts", shiftRoutes);
 app.use("/orders", ordersRoutes);
 app.use("/users", usersRoutes);
 app.use("/items", itemRoutes);

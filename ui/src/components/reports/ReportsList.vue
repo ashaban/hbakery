@@ -319,6 +319,34 @@ const reports = ref([
     task: "can_see_product_stock_balances",
   },
   {
+    title: "Cost & Margin",
+    description:
+      "What every unit sold cost to make, move and sell, and what was left over. Broken down by product, outlet and day.",
+    icon: "mdi-chart-timeline-variant",
+    category: "Costing",
+    frequency: "Daily",
+    format: "Screen",
+    favorite: false,
+    component: defineAsyncComponent(
+      () => import("@/components/reports/CostMargin.vue"),
+    ),
+    task: "can_see_cost_and_margin",
+  },
+  {
+    title: "Selling Labour",
+    description:
+      "What it cost to have someone selling at each outlet, per day, and what each unit sold carries.",
+    icon: "mdi-account-cash",
+    category: "Costing",
+    frequency: "Daily",
+    format: "Screen",
+    favorite: false,
+    component: defineAsyncComponent(
+      () => import("@/components/reports/SellingLabour.vue"),
+    ),
+    task: "can_see_sales_report",
+  },
+  {
     title: "Quality Adjustment Report",
     description: "Shows quality adjustments of products.",
     icon: "mdi-database-eye",

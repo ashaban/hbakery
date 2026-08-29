@@ -71,6 +71,11 @@
         {{ formatCurrency(item.salary) }}
       </template>
 
+      <template #item.daily_salary="{ item }">
+        <span v-if="item.daily_salary">{{ formatCurrency(item.daily_salary) }}</span>
+        <span v-else class="text-grey text-caption">Not set</span>
+      </template>
+
       <template #item.hired_at="{ item }">
         {{ formatDate(item.hired_at) }}
       </template>
@@ -176,10 +181,20 @@
               autocomplete="off"
               bg-color="#E0E0E0"
               :error-messages="v$.salary.$errors.map((e) => e.$message)"
-              label="Salary (TSh)"
+              label="Monthly Salary (TSh)"
               required
               type="number"
               @blur="v$.salary.$touch"
+            />
+
+            <v-text-field
+              v-model="state.daily_salary"
+              autocomplete="off"
+              bg-color="#E0E0E0"
+              hint="What one day of this person's time costs. Used to price production shifts."
+              label="Daily Rate (TSh)"
+              persistent-hint
+              type="number"
             />
 
             <div class="mb-4">
@@ -586,7 +601,8 @@ const headers = [
   { title: "Name", key: "name" },
   { title: "Phone", key: "phone" },
   { title: "Position", key: "position" },
-  { title: "Salary", key: "salary" },
+  { title: "Monthly Salary", key: "salary" },
+  { title: "Daily Rate", key: "daily_salary" },
   { title: "Last Hired Date", key: "hired_at" },
   { title: "Status", key: "status" },
   { title: "Actions", key: "actions", sortable: false },
@@ -619,6 +635,7 @@ const state = reactive({
   phone: "",
   position: "",
   salary: "",
+  daily_salary: "",
   status: "Active",
   hired_at: formatDMY(new Date()), // Default to today
 });
@@ -634,6 +651,7 @@ const contractState = reactive({
 const rehireState = reactive({
   position: "",
   salary: "",
+  daily_salary: "",
   rehire_date: formatDMY(new Date()),
   notes: "",
 });
@@ -874,6 +892,7 @@ function activateAddDialog() {
     phone: "",
     position: "",
     salary: "",
+  daily_salary: "",
     status: "Active",
     hired_at: "", // Default to today
   });
@@ -907,6 +926,7 @@ async function activateRehireDialog(item) {
   Object.assign(rehireState, {
     position: item.position || "",
     salary: item.salary || "",
+    daily_salary: item.daily_salary || "",
     rehire_date: formatDMY(new Date()),
     notes: "",
   });
@@ -1033,6 +1053,7 @@ async function saveStaff() {
   formData.append("phone", state.phone);
   formData.append("position", state.position);
   formData.append("salary", state.salary);
+  formData.append("daily_salary", state.daily_salary ?? "");
   formData.append("status", state.status);
   formData.append("hired_at", state.hired_at);
 

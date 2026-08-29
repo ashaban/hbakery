@@ -173,6 +173,84 @@
         </v-list-item>
 
         <v-list-item
+          v-if="can('can_see_production')"
+          active-class="menu-item--active"
+          class="menu-item rounded-xl"
+          to="Shifts"
+          value="Shifts"
+        >
+          <template #prepend>
+            <v-avatar
+              class="menu-avatar"
+              color="teal-lighten-5"
+              rounded="lg"
+              size="42"
+            >
+              <v-icon
+                color="teal-darken-3"
+                icon="mdi-account-clock-outline"
+                size="20"
+              />
+            </v-avatar>
+          </template>
+          <v-list-item-title class="font-weight-medium menu-title">
+            Shift Workers
+          </v-list-item-title>
+        </v-list-item>
+
+        <v-list-item
+          v-if="can('can_see_production')"
+          active-class="menu-item--active"
+          class="menu-item rounded-xl"
+          to="Ovens"
+          value="Ovens"
+        >
+          <template #prepend>
+            <v-avatar
+              class="menu-avatar"
+              color="orange-lighten-5"
+              rounded="lg"
+              size="42"
+            >
+              <v-icon
+                color="orange-darken-3"
+                icon="mdi-stove"
+                size="20"
+              />
+            </v-avatar>
+          </template>
+          <v-list-item-title class="font-weight-medium menu-title">
+            Ovens &amp; Fuel
+          </v-list-item-title>
+        </v-list-item>
+
+        <v-list-item
+          v-if="can('can_see_stock_transfers')"
+          active-class="menu-item--active"
+          class="menu-item rounded-xl"
+          to="DeliveryRoutes"
+          value="DeliveryRoutes"
+        >
+          <template #prepend>
+            <v-avatar
+              class="menu-avatar"
+              color="teal-lighten-5"
+              rounded="lg"
+              size="42"
+            >
+              <v-icon
+                color="teal-darken-3"
+                icon="mdi-map-marker-path"
+                size="20"
+              />
+            </v-avatar>
+          </template>
+          <v-list-item-title class="font-weight-medium menu-title">
+            Delivery Routes
+          </v-list-item-title>
+        </v-list-item>
+
+        <v-list-item
           v-if="can('can_see_orders')"
           active-class="menu-item--active"
           class="menu-item rounded-xl"

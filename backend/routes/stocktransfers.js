@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 const { requireTask } = require("../middleware/auth");
+const { snapshotTransferCosts } = require("../modules/deliveryCost");
 const {
   getProductAvailableQty,
   deleteTransferLedger,
@@ -344,6 +345,37 @@ router.get("/:id", requireTask("can_see_stock_transfers"), async (req, res) => {
   }
 });
 
+
+/**
+ * Records which route and driver a delivery used, and copies the applicable
+ * costs onto it.
+ *
+ * A vehicle picks up its route's costs; a shop picks up its own standing
+ * costs; either can carry one-off lines added on the day. All of it is
+ * snapshotted, so editing a route later leaves past deliveries alone.
+ */
+async function persistDeliveryCosts(
+  client,
+  { transferId, toOutletId, routeId, driverStaffId, adhoc }
+) {
+  if (!transferId) return;
+
+  await client.query(
+    `UPDATE stock_transfer
+        SET route_id = $2,
+            driver_staff_id = $3,
+            driver_daily_rate = (SELECT daily_salary FROM staff WHERE id = $3)
+      WHERE id = $1`,
+    [transferId, routeId, driverStaffId]
+  );
+
+  await snapshotTransferCosts(client, transferId, {
+    toOutletId,
+    routeId,
+    adhoc,
+  });
+}
+
 router.post(
   "/adjust-quality",
   requireTask("can_adjust_stock_quality"),
@@ -433,8 +465,10 @@ router.post("/", requireTask("can_transfer_stock"), async (req, res) => {
   const client = await pool.connect();
   let releaseError;
   try {
-    const { from_outlet_id, to_outlet_id, remarks, items, movement_date, movement_at } =
-      req.body;
+    const {
+      from_outlet_id, to_outlet_id, remarks, items, movement_date, movement_at,
+      route_id, driver_staff_id, costs = [],
+    } = req.body;
 
     if (
       !from_outlet_id ||
@@ -460,6 +494,17 @@ router.post("/", requireTask("can_transfer_stock"), async (req, res) => {
       null,
       movement_at ?? null
     );
+
+    // Route, driver and the costs that applied. Snapshotted rather than
+    // referenced: a later change to the route's fuel price must not rewrite
+    // what this delivery cost. The driver's rate is captured the same way.
+    await persistDeliveryCosts(client, {
+      transferId: result.transferId ?? result.id,
+      toOutletId: to_outlet_id,
+      routeId: route_id || null,
+      driverStaffId: driver_staff_id || null,
+      adhoc: costs,
+    });
 
     const outlets = await client.query(
       `SELECT id, name FROM outlet WHERE id IN ($1, $2)`,
@@ -515,8 +560,10 @@ router.put("/:id", requireTask("can_edit_stock_transfer"), async (req, res) => {
   let releaseError;
   try {
     const { id } = req.params;
-    const { from_outlet_id, to_outlet_id, remarks, movement_date, movement_at, items } =
-      req.body;
+    const {
+      from_outlet_id, to_outlet_id, remarks, movement_date, movement_at, items,
+      route_id, driver_staff_id, costs = [],
+    } = req.body;
 
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: "No transfer items provided" });
@@ -549,6 +596,17 @@ router.put("/:id", requireTask("can_edit_stock_transfer"), async (req, res) => {
       id,
       movement_at ?? null
     );
+
+    // Route, driver and the costs that applied. Snapshotted rather than
+    // referenced: a later change to the route's fuel price must not rewrite
+    // what this delivery cost. The driver's rate is captured the same way.
+    await persistDeliveryCosts(client, {
+      transferId: id,
+      toOutletId: to_outlet_id,
+      routeId: route_id || null,
+      driverStaffId: driver_staff_id || null,
+      adhoc: costs,
+    });
 
     const outlets = await client.query(
       `SELECT id, name FROM outlet WHERE id IN ($1, $2)`,
